@@ -50,6 +50,7 @@ const LeafletMeetRunMap = ({
   const [showGeolocationBanner, setShowGeolocationBanner] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [userEnrollments, setUserEnrollments] = useState<Array<{session_id: string, status: string}>>([]);
+  const [hasAskedGeolocation, setHasAskedGeolocation] = useState(false);
   
   const { position, permission, isLoading, error, requestLocation, hasAsked } = useGeolocation();
   const { toast } = useToast();
@@ -78,7 +79,8 @@ const LeafletMeetRunMap = ({
   const initializeMap = useCallback(() => {
     if (!mapContainer.current || map.current) return;
 
-    const defaultCenter = center || WELLINGTON_COORDS;
+    // Always center on Wellington initially, then update based on geolocation
+    const defaultCenter = WELLINGTON_COORDS;
     
     map.current = L.map(mapContainer.current, {
       center: defaultCenter,
@@ -113,7 +115,15 @@ const LeafletMeetRunMap = ({
     }
 
     setHasInitialized(true);
-  }, [center]);
+    
+    // Automatically request geolocation when map is initialized
+    if (!hasAskedGeolocation) {
+      setHasAskedGeolocation(true);
+      setTimeout(() => {
+        requestLocation();
+      }, 500); // Small delay to ensure map is fully rendered
+    }
+  }, [hasAskedGeolocation, requestLocation]);
 
   // Update user marker
   const updateUserMarker = useCallback((lat: number, lng: number, accuracy: number) => {
@@ -262,8 +272,13 @@ const LeafletMeetRunMap = ({
     }
   };
 
-  // Initialize map on mount
+  // Initialize map on mount and reset geolocation request
   useEffect(() => {
+    // Reset geolocation state on each mount (page visit)
+    setHasAskedGeolocation(false);
+    setShowGeolocationBanner(false);
+    setShowGeolocationModal(false);
+    
     initializeMap();
     
     return () => {
@@ -272,7 +287,7 @@ const LeafletMeetRunMap = ({
         map.current = null;
       }
     };
-  }, [initializeMap]);
+  }, []);
 
   // Fetch user enrollments when user changes
   useEffect(() => {
@@ -283,17 +298,12 @@ const LeafletMeetRunMap = ({
   useEffect(() => {
     if (!hasInitialized) return;
 
-    // Show modal on first visit if permission is prompt
-    if (permission === 'prompt' && !hasAsked) {
-      setShowGeolocationModal(true);
-    }
-
-    // Handle permission granted
+    // Handle permission granted - center on user location
     if (permission === 'granted' && position) {
       updateUserMarker(position.latitude, position.longitude, position.accuracy);
       
-      // Center map on user location if this is the first time
-      if (!hasAsked && map.current) {
+      // Always center map on user location when position is available
+      if (map.current) {
         map.current.setView([position.latitude, position.longitude], 14);
       }
 
@@ -304,8 +314,12 @@ const LeafletMeetRunMap = ({
       });
     }
 
-    // Handle permission denied
-    if (permission === 'denied' && hasAsked) {
+    // Handle permission denied - center on Wellington
+    if (permission === 'denied') {
+      if (map.current) {
+        map.current.setView(WELLINGTON_COORDS, 12);
+      }
+      
       setShowGeolocationBanner(true);
       toast({
         title: "Impossible d'obtenir votre position",
@@ -314,7 +328,7 @@ const LeafletMeetRunMap = ({
         duration: 4000,
       });
     }
-  }, [permission, position, hasAsked, hasInitialized, updateUserMarker, toast]);
+  }, [permission, position, hasInitialized, updateUserMarker, toast]);
 
   // Handle geolocation errors
   useEffect(() => {

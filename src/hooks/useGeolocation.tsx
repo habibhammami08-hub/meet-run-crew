@@ -51,6 +51,7 @@ export const useGeolocation = (): UseGeolocationReturn => {
     if (!('geolocation' in navigator)) {
       setError('La géolocalisation n\'est pas supportée par ce navigateur');
       setPosition(WELLINGTON_COORDS);
+      setPermission('denied');
       return;
     }
 
@@ -81,18 +82,21 @@ export const useGeolocation = (): UseGeolocationReturn => {
             break;
           case err.POSITION_UNAVAILABLE:
             errorMessage = 'Position indisponible';
+            setPermission('denied');
             break;
           case err.TIMEOUT:
             errorMessage = 'Délai dépassé pour obtenir la position';
+            setPermission('denied');
             break;
           default:
             errorMessage = 'Erreur de géolocalisation inconnue';
+            setPermission('denied');
             break;
         }
         
         setError(errorMessage);
         setIsLoading(false);
-        setPosition(WELLINGTON_COORDS); // Fallback to Wellington
+        // Don't set fallback position here - let the component handle it
       },
       {
         enableHighAccuracy: true,
