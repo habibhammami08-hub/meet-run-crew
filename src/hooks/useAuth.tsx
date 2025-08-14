@@ -105,33 +105,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    try {
-      console.log('🚪 Starting sign out process...');
-      
-      // Clear local state immediately for responsive UI
-      setUser(null);
-      setSession(null);
-      setHasActiveSubscription(false);
-      setSubscriptionStatus(null);
-      setSubscriptionEnd(null);
-      
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ Sign out error:', error);
-        throw error;
-      }
-      
-      console.log('✅ Sign out successful');
-      
-      // Force redirect to home page
-      window.location.href = '/';
-      
-    } catch (error) {
-      console.error('💥 Sign out failed:', error);
-      // Even if there's an error, force a page refresh to clear the session
-      window.location.href = '/';
-    }
+    await supabase.auth.signOut();
   };
 
   const value = {

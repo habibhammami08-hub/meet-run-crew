@@ -7,7 +7,6 @@ import { Crown, Check, X, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import SubscribeBuyButton from "@/components/SubscribeBuyButton";
 
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
@@ -15,7 +14,9 @@ const Subscription = () => {
   const [isPortalLoading, setIsPortalLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubscribe = () => {
+  const handleSubscribe = async () => {
+    console.log("handleSubscribe called", { user: !!user });
+    
     if (!user) {
       toast({
         title: "Connexion requise",
@@ -24,7 +25,34 @@ const Subscription = () => {
       });
       return;
     }
-    // The Stripe Buy Button will handle the subscription process
+
+    setIsLoading(true);
+    console.log("Starting subscription creation...");
+
+    try {
+      console.log("Invoking create-subscription-session function...");
+      const { data, error } = await supabase.functions.invoke('create-subscription-session');
+      
+      console.log("Function response:", { data, error });
+
+      if (error) throw error;
+
+      if (data.url) {
+        console.log("Redirecting to Stripe checkout:", data.url);
+        window.open(data.url, '_blank');
+      } else {
+        console.error("No URL returned from function:", data);
+        throw new Error("Aucune URL de paiement reçue");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleManageSubscription = async () => {
@@ -175,7 +203,15 @@ const Subscription = () => {
               </div>
 
               <div className="text-center">
-                <SubscribeBuyButton className="w-full" />
+                <Button 
+                  onClick={handleSubscribe} 
+                  disabled={isLoading}
+                  size="lg"
+                  className="w-full"
+                  variant="sport"
+                >
+                  {isLoading ? "Redirection vers le paiement..." : "S'abonner - 9,99 €/mois"}
+                </Button>
                 <p className="text-xs text-sport-gray mt-2">
                   Résiliable à tout moment
                 </p>

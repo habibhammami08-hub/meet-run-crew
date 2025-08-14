@@ -30,8 +30,7 @@ const Home = () => {
     setLoading(true);
     try {
       // Récupérer les sessions créées par l'utilisateur
-      console.log("🔍 Fetching user created sessions...");
-      const { data: createdSessions, error: createdError } = await supabase
+      const { data: createdSessions } = await supabase
         .from('sessions')
         .select(`
           *,
@@ -41,11 +40,8 @@ const Home = () => {
         .order('date', { ascending: false })
         .limit(3);
 
-      console.log("📊 Created sessions result:", { createdSessions, createdError });
-
       // Récupérer les sessions auxquelles l'utilisateur est inscrit
-      console.log("🔍 Fetching user enrolled sessions...");
-      const { data: enrolledSessions, error: enrolledError } = await supabase
+      const { data: enrolledSessions } = await supabase
         .from('enrollments')
         .select(`
           *,
@@ -54,8 +50,6 @@ const Home = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(3);
-
-      console.log("📊 Enrolled sessions result:", { enrolledSessions, enrolledError });
 
       // Combiner les activités avec un type
       const activities = [];

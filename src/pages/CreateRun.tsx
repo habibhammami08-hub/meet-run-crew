@@ -82,14 +82,8 @@ const CreateRun = () => {
     setLoading(true);
 
     try {
-      console.log('🚀 Starting session creation...');
-      
       // Basic validation
       if (!formData.title || !formData.date || !formData.time || !formData.area_hint) {
-        throw new Error('Veuillez remplir tous les champs obligatoires');
-      }
-
-      if (!formData.distance_km || !formData.intensity || !formData.type || !formData.max_participants) {
         throw new Error('Veuillez remplir tous les champs obligatoires');
       }
 
@@ -100,7 +94,6 @@ const CreateRun = () => {
       
       // Combine date and time
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
-      console.log('📅 Session date/time:', sessionDateTime);
       
       const sessionData = {
         title: formData.title,
@@ -117,15 +110,15 @@ const CreateRun = () => {
         host_id: user.id,
       };
 
-      console.log('📝 Session data to insert:', sessionData);
-
       const { data: newSession, error } = await supabase
         .from('sessions')
         .insert(sessionData)
-        .select()
+        .select(`
+          *,
+          profiles!host_id(full_name, avatar_url),
+          enrollments(id, user_id, status)
+        `)
         .single();
-
-      console.log('💾 Insert result:', { data: newSession, error });
 
       if (error) throw error;
 

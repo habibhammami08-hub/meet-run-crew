@@ -73,38 +73,14 @@ serve(async (req) => {
           status: subscription.status 
         });
 
-        // Find the user by Stripe customer ID or create/update mapping
-        let { data: profile, error: profileError } = await supabaseService
+        // Find the user by Stripe customer ID
+        const { data: profile, error: profileError } = await supabaseService
           .from('profiles')
-          .select('id, email')
+          .select('id')
           .eq('stripe_customer_id', subscription.customer)
           .single();
 
-        // If profile not found by customer ID, try to find by email
         if (profileError) {
-          const customer = await stripe.customers.retrieve(subscription.customer as string) as Stripe.Customer;
-          if (customer.email) {
-            const { data: emailProfile, error: emailError } = await supabaseService
-              .from('profiles')
-              .select('id, email')
-              .eq('email', customer.email)
-              .single();
-            
-            if (!emailError && emailProfile) {
-              // Update profile with customer ID
-              await supabaseService
-                .from('profiles')
-                .update({ stripe_customer_id: subscription.customer })
-                .eq('id', emailProfile.id);
-              
-              profile = emailProfile;
-              profileError = null;
-              logStep("Profile found by email and updated with customer ID", { email: customer.email });
-            }
-          }
-        }
-
-        if (profileError || !profile) {
           logStep("Profile not found for customer", { customerId: subscription.customer });
           break;
         }
@@ -155,38 +131,14 @@ serve(async (req) => {
           // Get the subscription details
           const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
           
-          // Find the user by Stripe customer ID or create/update mapping
-          let { data: profile, error: profileError } = await supabaseService
+          // Find the user by Stripe customer ID
+          const { data: profile, error: profileError } = await supabaseService
             .from('profiles')
-            .select('id, email')
+            .select('id')
             .eq('stripe_customer_id', session.customer)
             .single();
 
-          // If profile not found by customer ID, try to find by email
           if (profileError) {
-            const customer = await stripe.customers.retrieve(session.customer as string) as Stripe.Customer;
-            if (customer.email) {
-              const { data: emailProfile, error: emailError } = await supabaseService
-                .from('profiles')
-                .select('id, email')
-                .eq('email', customer.email)
-                .single();
-              
-              if (!emailError && emailProfile) {
-                // Update profile with customer ID
-                await supabaseService
-                  .from('profiles')
-                  .update({ stripe_customer_id: session.customer })
-                  .eq('id', emailProfile.id);
-                
-                profile = emailProfile;
-                profileError = null;
-                logStep("Profile found by email and updated with customer ID", { email: customer.email });
-              }
-            }
-          }
-
-          if (profileError || !profile) {
             logStep("Profile not found for customer", { customerId: session.customer });
             break;
           }
