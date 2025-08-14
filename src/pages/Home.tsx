@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
 import Navigation from "@/components/Navigation";
 import heroImage from "@/assets/hero-running.jpg";

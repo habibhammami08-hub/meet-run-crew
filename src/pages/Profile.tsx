@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
 import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 
 const Profile = () => {
@@ -76,7 +76,7 @@ const Profile = () => {
       .eq('user_id', user.id)
       .eq('status', 'paid');
 
-    const totalKm = sessionsData?.reduce((sum, enrollment) => {
+    const totalKm = sessionsData?.reduce((sum, enrollment: any) => {
       return sum + (enrollment.sessions?.distance_km || 0);
     }, 0) || 0;
 
@@ -135,40 +135,49 @@ const Profile = () => {
     setUserActivity(activities);
   };
 
-  const updateProfile = async (formData: FormData) => {
-    if (!user) return;
-    
-    setLoading(true);
-    try {
-      const updatedProfile = {
-        full_name: formData.get('full_name') as string,
-        age: parseInt(formData.get('age') as string),
-        gender: formData.get('gender') as string,
-        phone: formData.get('phone') as string,
-      };
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updatedProfile)
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      setProfile({ ...profile, ...updatedProfile });
-      setIsEditing(false);
-      toast({
-        title: "Profil mis à jour",
-        description: "Vos informations ont été sauvegardées avec succès.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+  const updateProfile = async (values: any) => {
+    const { data: auth } = await supabase.auth.getUser();
+    const me = auth?.user;
+    if (!me) { 
+      toast({ 
+        title: "Erreur", 
+        description: "Connecte-toi pour enregistrer.", 
+        variant: "destructive" 
+      }); 
+      return; 
     }
+
+    const payload = {
+      id: me.id,                              // CRUCIAL pour onConflict:'id'
+      full_name: (values.full_name ?? "").toString().slice(0,120) || null,
+      avatar_url: values.avatar_url ?? null,
+      phone: (values.phone ?? "").trim() || null,
+      age: values.age ? Number(values.age) : null,
+      gender: values.gender ?? null,
+    };
+
+    console.log("[profile] upsert payload:", payload);
+    const { data, error } = await supabase
+      .from("profiles")
+      .upsert(payload, { onConflict: "id" })
+      .select()
+      .single();
+    console.log("[profile] upsert result:", { data, error });
+
+    if (error) { 
+      toast({ 
+        title: "Erreur", 
+        description: "Profil non enregistré.", 
+        variant: "destructive" 
+      }); 
+      return; 
+    }
+    setProfile(data);
+    setIsEditing(false);
+    toast({
+      title: "Profil mis à jour !",
+      description: "Vos informations ont été sauvegardées.",
+    });
   };
 
   const uploadAvatar = async (file: File) => {
@@ -346,7 +355,15 @@ const Profile = () => {
             {isEditing ? (
               <form onSubmit={(e) => {
                 e.preventDefault();
-                updateProfile(new FormData(e.currentTarget));
+                const formData = new FormData(e.currentTarget);
+                const values = {
+                  full_name: formData.get('full_name') as string,
+                  age: formData.get('age') as string,
+                  gender: formData.get('gender') as string,
+                  phone: formData.get('phone') as string,
+                  avatar_url: profile?.avatar_url,
+                };
+                updateProfile(values);
               }}>
                 <div className="space-y-4">
                   <div>
@@ -563,6 +580,33 @@ const Profile = () => {
             variant="ghost" 
             size="lg" 
             className="w-full text-destructive"
+            onClick={async () => {
+              if (!confirm("Supprimer définitivement votre compte ?")) return;
+              try {
+                const { data: sess } = await supabase.auth.getSession();
+                const token = sess.session?.access_token;
+                const { data, error } = await supabase.functions.invoke("delete-account", {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (error) throw error;
+                await supabase.auth.signOut();
+                window.location.href = "/";
+              } catch (e: any) {
+                console.error(e);
+                toast({ 
+                  title: "Erreur", 
+                  description: e?.message || "Suppression impossible.", 
+                  variant: "destructive" 
+                });
+              }
+            }}
+          >
+            Supprimer mon compte
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="lg" 
+            className="w-full"
             onClick={signOut}
           >
             Se déconnecter

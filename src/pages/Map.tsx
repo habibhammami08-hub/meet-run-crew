@@ -3,9 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
 import { Filter, MapPin, Users, Clock } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 
 const Map = () => {
@@ -15,91 +15,52 @@ const Map = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const chRef = useRef<any>(null);
+  
   useEffect(() => {
     fetchSessions();
     if (user) {
       fetchUserEnrollments();
     }
-    
-    // Set up real-time subscription for sessions - une seule fois
-    const channel = supabase
-      .channel('public:sessions')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'sessions' },
-        async (payload) => {
-          console.log('New session created via Realtime:', payload.new);
-          // Fetch the complete session with host info
-          const { data: newSessionWithHost } = await supabase
-            .from('sessions')
-            .select(`
-              *,
-              host_profile:profiles!host_id(id, full_name, age, avatar_url),
-              enrollments(id, user_id, status)
-            `)
-            .eq('id', payload.new.id)
-            .single();
-          
-          if (newSessionWithHost) {
-            setSessions(prev => [newSessionWithHost, ...prev]);
-          }
-        }
-      )
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'sessions' },
-        async (payload) => {
-          console.log('Session updated via Realtime:', payload.new);
-          // Update session in list with latest data
-          const { data: updatedSession } = await supabase
-            .from('sessions')
-             .select(`
-               *,
-               host_profile:profiles!host_id(id, full_name, age, avatar_url),
-               enrollments(id, user_id, status)
-             `)
-            .eq('id', payload.new.id)
-            .single();
-          
-          if (updatedSession) {
-            setSessions(prev => prev.map(session => 
-              session.id === payload.new.id ? updatedSession : session
-            ));
-          }
-        }
-      )
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'sessions' },
-        (payload) => {
-          console.log('Session deleted via Realtime:', payload.old);
-          setSessions(prev => prev.filter(session => session.id !== payload.old.id));
-          if (selectedSession?.id === payload.old.id) {
-            setSelectedSession(null);
-          }
-        }
-      )
-      .subscribe();
+  }, [user]);
 
-    return () => {
-      console.log('Cleaning up Realtime subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [user]); // Dependency sur user seulement
+  useEffect(() => {
+    if (chRef.current) return;
+    chRef.current = supabase
+      .channel("public:sessions")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "sessions" }, (p) =>
+        setSessions(prev => [p.new as any, ...prev])
+      )
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions" }, (p) =>
+        setSessions(prev => prev.map(s => s.id === p.new.id ? (p.new as any) : s))
+      )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "sessions" }, (p) =>
+        setSessions(prev => prev.filter(s => s.id !== p.old.id))
+      )
+      .subscribe((status) => console.log("🛰️ Realtime sessions:", status));
+    return () => { chRef.current?.unsubscribe(); chRef.current = null; };
+  }, []);
 
   const fetchSessions = async () => {
-    const { data, error } = await supabase
-      .from('sessions')
+    let { data, error } = await supabase
+      .from("sessions")
       .select(`
-        *,
-        host_profile:profiles!host_id (id, full_name, age, avatar_url),
-        enrollments (id, user_id, status)
+        id, title, date, distance_km, intensity, type, max_participants,
+        location_lat, location_lng, end_lat, end_lng, blur_radius_m,
+        host_id, area_hint, price_cents,
+        profiles!host_id ( id, full_name, avatar_url )
       `)
       .gte('date', new Date().toISOString());
 
-    if (!error && data) {
-      console.log('Sessions fetched:', data);
-      setSessions(data);
-    } else if (error) {
-      console.error('Error fetching sessions:', error);
+    if (error) {
+      console.warn("[sessions] fallback join error:", error);
+      const fb = await supabase
+        .from("sessions")
+        .select("*")
+        .gte('date', new Date().toISOString());
+      data = fb.data ?? [];
     }
+    setSessions(data ?? []);
   };
 
   const fetchUserEnrollments = async () => {

@@ -10,7 +10,7 @@ import Header from "@/components/Header";
 import LocationPicker from "@/components/LocationPicker";
 import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 
 const CreateRun = () => {
@@ -94,41 +94,48 @@ const CreateRun = () => {
       
       // Combine date and time
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
+      const { start, end } = selectedLocations;
       
-      const sessionData = {
+      const payload = {
+        host_id: user.id,
         title: formData.title,
-        date: sessionDateTime.toISOString(),
-        location_lat: parseFloat(selectedLocations.start.lat.toString()),
-        location_lng: parseFloat(selectedLocations.start.lng.toString()),
-        end_lat: selectedLocations.end ? parseFloat(selectedLocations.end.lat.toString()) : null,
-        end_lng: selectedLocations.end ? parseFloat(selectedLocations.end.lng.toString()) : null,
-        area_hint: formData.area_hint,
-        distance_km: parseFloat(formData.distance_km),
+        date: sessionDateTime.toISOString(), // timestamptz
+        distance_km: Number(formData.distance_km),
         intensity: formData.intensity,
         type: formData.type,
-        max_participants: parseInt(formData.max_participants),
-        host_id: user.id,
+        max_participants: Number(formData.max_participants),
+        location_lat: Number(start.lat),
+        location_lng: Number(start.lng),
+        end_lat: end ? Number(end.lat) : null,
+        end_lng: end ? Number(end.lng) : null,
+        area_hint: formData.area_hint,
       };
 
-      const { data: newSession, error } = await supabase
-        .from('sessions')
-        .insert(sessionData)
-        .select(`
-          *,
-          profiles!host_id(full_name, avatar_url),
-          enrollments(id, user_id, status)
-        `)
+      console.log("[sessions] INSERT payload:", payload);
+      const { data, error } = await supabase
+        .from("sessions")
+        .insert(payload)
+        .select()
         .single();
+      console.log("[sessions] INSERT result:", { data, error });
 
-      if (error) throw error;
+      if (error) {
+        toast({
+          title: "Création de la session impossible",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
 
+      // (option) optimistic update local + retour/cadrage sur la Map
       toast({
-        title: "Session créée avec succès !",
+        title: "Session créée !",
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
       // Navigate to map with session coordinates in URL params for centering
-      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${newSession.id}`);
+      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
       
     } catch (error: any) {
       toast({
