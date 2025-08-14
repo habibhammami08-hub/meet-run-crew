@@ -335,7 +335,14 @@ const LeafletMeetRunMap = ({
       const marker = L.circleMarker([lat, lng], markerStyle);
 
       // Attach session data to marker
-      (marker as any).__sessionData = session;
+      (marker as any).__sessionData = {
+        id: session.id,
+        title: session.title,
+        date: session.date,
+        distance_km: session.distance_km,
+        intensity: session.intensity,
+        price_cents: session.price_cents
+      };
 
       // Create popup content
       const enrolledCount = session.enrollments?.filter((e: any) => e.status === 'paid')?.length || 0;
