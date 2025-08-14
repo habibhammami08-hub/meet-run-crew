@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
+// Configuration directe pour Lovable (les variables VITE_* ne sont pas supportées)
 const SUPABASE_URL = "https://qnupinrsetomnsdchhfa.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg";
 
@@ -13,5 +14,73 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
   }
 });
+
+// Fonction utilitaire pour vérifier la connexion
+export const checkSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.from('profiles').select('count').limit(1);
+    if (error) throw error;
+    console.log("[supabase] Connexion établie");
+    return true;
+  } catch (error) {
+    console.error("[supabase] Erreur de connexion:", error);
+    return false;
+  }
+};
+
+// Fonction pour créer/assurer un profil utilisateur
+export const ensureUserProfile = async (user: any) => {
+  if (!user) return null;
+  
+  try {
+    // Vérifier si le profil existe
+    const { data: existingProfile, error: selectError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      throw selectError;
+    }
+
+    if (!existingProfile) {
+      // Créer le profil avec upsert sécurisé
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[profile] Erreur création:", error);
+        throw error;
+      }
+
+      console.log("[profile] Profil créé:", data);
+      return data;
+    }
+
+    return existingProfile;
+  } catch (error) {
+    console.error("[profile] Erreur ensureUserProfile:", error);
+    throw error;
+  }
+};
