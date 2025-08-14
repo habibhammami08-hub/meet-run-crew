@@ -220,14 +220,30 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      console.log("[profile] Calling Supabase upsert...");
+      console.log("[profile] Testing connection first...");
+      // Test connection first
+      const { data: testData, error: testError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+      
+      console.log("[profile] Connection test result:", { testData, testError });
+      
+      if (testError && testError.code !== 'PGRST116') {
+        throw new Error(`Connection failed: ${testError.message}`);
+      }
+
+      console.log("[profile] Connection OK, attempting update instead of upsert...");
+      // Try update first, then insert if not exists
       const { data, error } = await supabase
         .from("profiles")
-        .upsert(payload, { onConflict: "id" })     // id doit être PK/UNIQUE
+        .update(payload)
+        .eq("id", user.id)
         .select()
         .single();
 
-      console.log("[profile] upsert result:", { data, error });
+      console.log("[profile] update result:", { data, error });
       if (error) {
         console.error("[profile] upsert error:", error);
         toast({
