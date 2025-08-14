@@ -14,39 +14,79 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  logStep("Request received", { method: req.method, url: req.url });
+  
   if (req.method === "OPTIONS") {
+    logStep("Handling CORS preflight");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     logStep("Function started");
 
+    // Check environment variables
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     const stripePriceId = Deno.env.get("STRIPE_PRICE_MONTHLY_EUR");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    logStep("Environment check", { 
+      hasStripeKey: !!stripeKey,
+      hasStripePriceId: !!stripePriceId,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+      stripePriceId: stripePriceId
+    });
+
+    if (!stripeKey) {
+      logStep("ERROR: STRIPE_SECRET_KEY is not set");
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    }
+    if (!stripePriceId) {
+      logStep("ERROR: STRIPE_PRICE_MONTHLY_EUR is not set");
+      throw new Error("STRIPE_PRICE_MONTHLY_EUR is not set");
+    }
+    if (!supabaseUrl) {
+      logStep("ERROR: SUPABASE_URL is not set");
+      throw new Error("SUPABASE_URL is not set");
+    }
+    if (!supabaseServiceKey) {
+      logStep("ERROR: SUPABASE_SERVICE_ROLE_KEY is not set");
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
+    }
+
     const appBaseUrl = "https://meet-run-crew.lovable.app";
+    logStep("Configuration verified", { stripePriceId, appBaseUrl });
 
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    if (!stripePriceId) throw new Error("STRIPE_PRICE_MONTHLY_EUR is not set");
-    logStep("Environment variables verified", { stripePriceId, appBaseUrl });
+    // Initialize Supabase client
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false }
+    });
+    logStep("Supabase client initialized");
 
-    // Use the service role key for database operations
-    const supabaseService = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
-
+    // Get auth header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      logStep("ERROR: No authorization header provided");
+      throw new Error("No authorization header provided");
+    }
     logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
     logStep("Authenticating user with token");
     
+    // Authenticate user
     const { data: userData, error: userError } = await supabaseService.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError) {
+      logStep("ERROR: Authentication failed", { error: userError.message });
+      throw new Error(`Authentication error: ${userError.message}`);
+    }
+    
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
+    if (!user?.email) {
+      logStep("ERROR: User not authenticated or email not available");
+      throw new Error("User not authenticated or email not available");
+    }
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     // Get user profile
@@ -56,61 +96,82 @@ serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    if (profileError) throw new Error(`Profile error: ${profileError.message}`);
+    if (profileError) {
+      logStep("ERROR: Profile not found", { error: profileError.message });
+      throw new Error(`Profile error: ${profileError.message}`);
+    }
     logStep("Profile found", { profileId: profile.id, stripeCustomerId: profile.stripe_customer_id });
 
+    // Initialize Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+    logStep("Stripe client initialized");
     
     let customerId = profile.stripe_customer_id;
     
     // Create Stripe customer if doesn't exist
     if (!customerId) {
       logStep("Creating new Stripe customer");
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: profile.full_name || undefined,
-        metadata: {
-          user_id: user.id,
-        }
-      });
-      customerId = customer.id;
-      
-      // Update profile with Stripe customer ID
-      await supabaseService
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
-      
-      logStep("Stripe customer created and profile updated", { customerId });
+      try {
+        const customer = await stripe.customers.create({
+          email: user.email,
+          name: profile.full_name || undefined,
+          metadata: {
+            user_id: user.id,
+          }
+        });
+        customerId = customer.id;
+        
+        // Update profile with Stripe customer ID
+        await supabaseService
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', user.id);
+        
+        logStep("Stripe customer created and profile updated", { customerId });
+      } catch (stripeError: any) {
+        logStep("ERROR: Failed to create Stripe customer", { error: stripeError.message });
+        throw new Error(`Failed to create Stripe customer: ${stripeError.message}`);
+      }
     }
 
     // Create Stripe checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      line_items: [
-        {
-          price: stripePriceId,
-          quantity: 1,
+    logStep("Creating checkout session", { customerId, stripePriceId });
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        line_items: [
+          {
+            price: stripePriceId,
+            quantity: 1,
+          },
+        ],
+        mode: "subscription",
+        success_url: `${appBaseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appBaseUrl}/subscription/cancel`,
+        metadata: {
+          user_id: user.id,
         },
-      ],
-      mode: "subscription",
-      success_url: `${appBaseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appBaseUrl}/subscription/cancel`,
-      metadata: {
-        user_id: user.id,
-      },
-    });
+      });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+      logStep("Checkout session created successfully", { sessionId: session.id, url: session.url });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+      return new Response(JSON.stringify({ url: session.url }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    } catch (stripeError: any) {
+      logStep("ERROR: Failed to create checkout session", { error: stripeError.message });
+      throw new Error(`Failed to create checkout session: ${stripeError.message}`);
+    }
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR in create-subscription-session", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      details: "Check function logs for more details"
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
