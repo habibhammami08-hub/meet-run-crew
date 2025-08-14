@@ -226,6 +226,8 @@ const Profile = () => {
       };
 
       console.log('Prepared profile data:', updatedProfile);
+      console.log('User ID for update:', user.id);
+      console.log('About to call Supabase update...');
 
       // Use update instead of upsert to be more explicit
       const { data, error } = await supabase
@@ -235,7 +237,9 @@ const Profile = () => {
         .select()
         .single();
 
-      console.log('Supabase response:', { data, error });
+      console.log('Supabase update completed');
+      console.log('Supabase response data:', data);
+      console.log('Supabase response error:', error);
 
       if (error) {
         console.error('Supabase error:', error);
