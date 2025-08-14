@@ -85,9 +85,26 @@ const Map = () => {
   }, [user]); // Dependency sur user seulement
 
   const fetchSessions = async () => {
-    console.log("🔍 Fetching sessions...");
+    console.log("🔍 Fetching sessions started...");
+    console.log("📅 Current datetime filter:", new Date().toISOString());
     
     try {
+      // First query: Simple test to check if we can read sessions at all
+      console.log("🧪 Testing basic select query...");
+      const { data: testData, error: testError } = await supabase
+        .from('sessions')
+        .select('id, title, date')
+        .limit(5);
+      
+      console.log("🧪 Basic query result:", { data: testData, error: testError });
+      
+      if (testError) {
+        console.error('❌ Basic query failed:', testError);
+        throw new Error(`Basic query failed: ${testError.message}`);
+      }
+
+      // Second query: Full query with joins and filters
+      console.log("🔍 Executing full sessions query...");
       const { data, error } = await supabase
         .from('sessions')
         .select(`
@@ -98,19 +115,42 @@ const Map = () => {
         .gte('date', new Date().toISOString())
         .order('date', { ascending: true });
 
-      console.log("📊 Sessions query result:", { data, error, count: data?.length });
+      console.log("📊 Full query result:", { 
+        data: data, 
+        error: error, 
+        count: data?.length,
+        raw_data_sample: data?.slice(0, 2)
+      });
 
       if (error) {
-        console.error('❌ Error fetching sessions:', error);
-        throw error;
+        console.error('❌ Full query error:', error);
+        throw new Error(`Query failed: ${error.message}`);
       }
 
-      if (data) {
+      if (data && data.length > 0) {
         console.log('✅ Sessions fetched successfully:', data.length, "sessions");
-        console.log('📋 Session details:', data.map(s => ({ id: s.id, title: s.title, date: s.date })));
+        console.log('📋 Session details:', data.map(s => ({ 
+          id: s.id, 
+          title: s.title, 
+          date: s.date,
+          lat: s.location_lat,
+          lng: s.location_lng
+        })));
+        
+        // Verify coordinate validity
+        const invalidSessions = data.filter(s => 
+          !Number.isFinite(s.location_lat) || 
+          !Number.isFinite(s.location_lng)
+        );
+        
+        if (invalidSessions.length > 0) {
+          console.warn('⚠️ Sessions with invalid coordinates:', invalidSessions);
+        }
+        
         setSessions(data);
+        console.log('✅ Sessions state updated successfully');
       } else {
-        console.log('⚠️ No sessions found');
+        console.log('⚠️ No sessions found or empty result');
         setSessions([]);
       }
     } catch (error) {
@@ -154,29 +194,41 @@ const Map = () => {
       
       {/* Interactive Map */}
       <div className="flex-1">
-        <LeafletMeetRunMap 
-          sessions={sessions.map(session => ({
-            id: session.id,
-            title: session.title,
-            date: session.date,
-            location_lat: parseFloat(session.location_lat.toString()),
-            location_lng: parseFloat(session.location_lng.toString()),
-            blur_radius_m: session.blur_radius_m || 1000,
-            area_hint: session.area_hint,
-            max_participants: session.max_participants,
-            price_cents: session.price_cents,
-            distance_km: parseFloat(session.distance_km.toString()),
-            intensity: session.intensity,
-            host_id: session.host_id,
-            enrollments: session.enrollments,
-            host_profile: session.host_profile
-          }))}
-          onSessionSelect={(sessionId) => {
-            const session = sessions.find(s => s.id === sessionId);
-            setSelectedSession(session);
-          }}
-          className="h-full"
-        />
+        {(() => {
+          console.log('🗺️ Rendering map with sessions:', sessions.length);
+          const mappedSessions = sessions.map(session => {
+            const mapped = {
+              id: session.id,
+              title: session.title,
+              date: session.date,
+              location_lat: parseFloat(session.location_lat.toString()),
+              location_lng: parseFloat(session.location_lng.toString()),
+              blur_radius_m: session.blur_radius_m || 1000,
+              area_hint: session.area_hint,
+              max_participants: session.max_participants,
+              price_cents: session.price_cents,
+              distance_km: parseFloat(session.distance_km.toString()),
+              intensity: session.intensity,
+              host_id: session.host_id,
+              enrollments: session.enrollments,
+              host_profile: session.host_profile
+            };
+            console.log('🗺️ Mapped session:', mapped);
+            return mapped;
+          });
+          
+          return (
+            <LeafletMeetRunMap 
+              sessions={mappedSessions}
+              onSessionSelect={(sessionId) => {
+                console.log('🎯 Session selected:', sessionId);
+                const session = sessions.find(s => s.id === sessionId);
+                setSelectedSession(session);
+              }}
+              className="h-full"
+            />
+          );
+        })()}
       </div>
 
       {/* Filter bar */}
