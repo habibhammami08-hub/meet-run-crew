@@ -87,9 +87,9 @@ const CreateRun = () => {
         throw new Error('Veuillez remplir tous les champs obligatoires');
       }
 
-      // Validate start location is selected
+      // Validate start location is selected (obligatoire)
       if (!selectedLocations.start) {
-        throw new Error('Veuillez sélectionner un point de départ sur la carte');
+        throw new Error('Veuillez sélectionner un point de départ sur la carte - c\'est obligatoire !');
       }
       
       // Combine date and time
@@ -98,10 +98,10 @@ const CreateRun = () => {
       const sessionData = {
         title: formData.title,
         date: sessionDateTime.toISOString(),
-        location_lat: selectedLocations.start.lat,
-        location_lng: selectedLocations.start.lng,
-        end_lat: selectedLocations.end?.lat || null,
-        end_lng: selectedLocations.end?.lng || null,
+        location_lat: parseFloat(selectedLocations.start.lat.toString()),
+        location_lng: parseFloat(selectedLocations.start.lng.toString()),
+        end_lat: selectedLocations.end ? parseFloat(selectedLocations.end.lat.toString()) : null,
+        end_lng: selectedLocations.end ? parseFloat(selectedLocations.end.lng.toString()) : null,
         area_hint: formData.area_hint,
         distance_km: parseFloat(formData.distance_km),
         intensity: formData.intensity,
@@ -110,10 +110,14 @@ const CreateRun = () => {
         host_id: user.id,
       };
 
-      const { data, error } = await supabase
+      const { data: newSession, error } = await supabase
         .from('sessions')
         .insert(sessionData)
-        .select()
+        .select(`
+          *,
+          profiles!host_id(full_name, avatar_url),
+          enrollments(id, user_id, status)
+        `)
         .single();
 
       if (error) throw error;
@@ -124,7 +128,7 @@ const CreateRun = () => {
       });
 
       // Navigate to map with session coordinates in URL params for centering
-      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
+      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${newSession.id}`);
       
     } catch (error: any) {
       toast({

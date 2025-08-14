@@ -21,13 +21,13 @@ const Map = () => {
       fetchUserEnrollments();
     }
     
-    // Set up real-time subscription for sessions
+    // Set up real-time subscription for sessions - une seule fois
     const channel = supabase
-      .channel('sessions-changes')
+      .channel('public:sessions')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'sessions' },
         async (payload) => {
-          console.log('New session created:', payload.new);
+          console.log('New session created via Realtime:', payload.new);
           // Fetch the complete session with host info
           const { data: newSessionWithHost } = await supabase
             .from('sessions')
@@ -40,14 +40,14 @@ const Map = () => {
             .single();
           
           if (newSessionWithHost) {
-            setSessions(prev => [...prev, newSessionWithHost]);
+            setSessions(prev => [newSessionWithHost, ...prev]);
           }
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions' },
         async (payload) => {
-          console.log('Session updated:', payload.new);
+          console.log('Session updated via Realtime:', payload.new);
           // Update session in list with latest data
           const { data: updatedSession } = await supabase
             .from('sessions')
@@ -69,7 +69,7 @@ const Map = () => {
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'sessions' },
         (payload) => {
-          console.log('Session deleted:', payload.old);
+          console.log('Session deleted via Realtime:', payload.old);
           setSessions(prev => prev.filter(session => session.id !== payload.old.id));
           if (selectedSession?.id === payload.old.id) {
             setSelectedSession(null);
@@ -79,9 +79,10 @@ const Map = () => {
       .subscribe();
 
     return () => {
+      console.log('Cleaning up Realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user]); // Dependency sur user seulement
 
   const fetchSessions = async () => {
     const { data, error } = await supabase

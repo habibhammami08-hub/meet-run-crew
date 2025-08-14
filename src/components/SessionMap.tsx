@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -183,14 +183,23 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
     userMarker.current.bindPopup("Votre position");
   };
 
-  // Update session markers
-  const updateSessionMarkers = () => {
+  // Update session markers with proper validation
+  const updateSessionMarkers = useCallback(() => {
     if (!map.current || !sessionMarkers.current) return;
 
     // Clear existing markers
     sessionMarkers.current.clearLayers();
 
     sessions.forEach((session) => {
+      const lat = Number(session.location_lat);
+      const lng = Number(session.location_lng);
+      
+      // Skip if coordinates are invalid
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn(`Invalid coordinates for session ${session.id}:`, { lat, lng });
+        return;
+      }
+
       const isPaid = isUserPaid(session.id);
       const isHost = isUserHost(session.host_id);
       const canSeeExactLocation = isPaid || isHost;
@@ -215,7 +224,7 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
           iconAnchor: [8, 8]
         });
 
-        const startMarker = L.marker([session.location_lat, session.location_lng], { 
+        const startMarker = L.marker([lat, lng], { 
           icon: startIcon 
         });
 
@@ -271,7 +280,7 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
         // Show blurred area (circle)
         const blurRadius = session.blur_radius_m || 1000;
         
-        const blurCircle = L.circle([session.location_lat, session.location_lng], {
+        const blurCircle = L.circle([lat, lng], {
           radius: blurRadius,
           fillColor: '#f59e0b',
           fillOpacity: 0.2,
@@ -298,7 +307,7 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
         sessionMarkers.current!.addLayer(blurCircle);
       }
     });
-  };
+  }, [sessions, userEnrollments, user, onSessionSelect]);
 
   // Geolocation handlers
   const handleAllowGeolocation = () => {
@@ -381,7 +390,7 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
     if (mapInitialized) {
       updateSessionMarkers();
     }
-  }, [sessions, userEnrollments, mapInitialized, user]);
+  }, [sessions, userEnrollments, mapInitialized, updateSessionMarkers]);
 
   if (!mapInitialized && geolocationLoading) {
     return (
