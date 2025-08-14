@@ -1,172 +1,425 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
-import Navigation from "@/components/Navigation";
-import { Edit, MapPin, Calendar, Users, Star, Award } from "lucide-react";
+import { Edit, MapPin, Calendar, Users, Star, Award, Save, X } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Profile = () => {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [userStats, setUserStats] = useState({
+    joined: 0,
+    created: 0,
+    totalKm: 0
+  });
+  const [userActivity, setUserActivity] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+      fetchUserStats();
+      fetchUserActivity();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (!error && data) {
+      setProfile(data);
+    }
+  };
+
+  const fetchUserStats = async () => {
+    if (!user) return;
+    
+    // Sessions créées
+    const { count: created } = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('host_id', user.id);
+
+    // Sessions rejointes (payées)
+    const { count: joined } = await supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'paid');
+
+    // Total km (approximatif basé sur les sessions rejointes)
+    const { data: sessionsData } = await supabase
+      .from('enrollments')
+      .select(`
+        sessions(distance_km)
+      `)
+      .eq('user_id', user.id)
+      .eq('status', 'paid');
+
+    const totalKm = sessionsData?.reduce((sum, enrollment) => {
+      return sum + (enrollment.sessions?.distance_km || 0);
+    }, 0) || 0;
+
+    setUserStats({
+      joined: joined || 0,
+      created: created || 0,
+      totalKm: Math.round(totalKm)
+    });
+  };
+
+  const fetchUserActivity = async () => {
+    if (!user) return;
+    
+    // Sessions créées
+    const { data: createdSessions } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        enrollments(count)
+      `)
+      .eq('host_id', user.id)
+      .order('date', { ascending: false })
+      .limit(5);
+
+    // Sessions rejointes
+    const { data: enrolledSessions } = await supabase
+      .from('enrollments')
+      .select(`
+        *,
+        sessions(*)
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const activities = [];
+    
+    if (createdSessions) {
+      activities.push(...createdSessions.map(session => ({
+        ...session,
+        activity_type: 'created',
+        activity_date: session.created_at
+      })));
+    }
+    
+    if (enrolledSessions) {
+      activities.push(...enrolledSessions.map(enrollment => ({
+        ...enrollment.sessions,
+        enrollment_status: enrollment.status,
+        activity_type: 'joined',
+        activity_date: enrollment.created_at
+      })));
+    }
+
+    activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
+    setUserActivity(activities);
+  };
+
+  const updateProfile = async (formData: FormData) => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const updatedProfile = {
+        full_name: formData.get('full_name') as string,
+        age: parseInt(formData.get('age') as string),
+        gender: formData.get('gender') as string,
+        phone: formData.get('phone') as string,
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updatedProfile)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setProfile({ ...profile, ...updatedProfile });
+      setIsEditing(false);
+      toast({
+        title: "Profil mis à jour",
+        description: "Vos informations ont été sauvegardées avec succès.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Si pas connecté, affichage écran d'accueil auth
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header title="Profil" />
+        
+        <div className="p-4 pt-20">
+          <Card className="shadow-card">
+            <CardContent className="p-8 text-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Users size={32} className="text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Créez votre profil</h2>
+              <p className="text-muted-foreground mb-8">
+                Rejoignez la communauté MeetRun pour créer et participer à des sessions de course.
+              </p>
+              <div className="space-y-3">
+                <Button 
+                  variant="sport" 
+                  size="lg" 
+                  className="w-full"
+                  onClick={() => navigate("/auth")}
+                >
+                  Créer un compte
+                </Button>
+                <Button 
+                  variant="sportOutline" 
+                  size="lg" 
+                  className="w-full"
+                  onClick={() => navigate("/auth")}
+                >
+                  Se connecter
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header 
         title="Profil"
         actions={
-          <Button variant="ghost" size="icon">
-            <Edit size={20} />
-          </Button>
+          !isEditing ? (
+            <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
+              <Edit size={20} />
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)}>
+                <X size={20} />
+              </Button>
+            </div>
+          )
         }
       />
       
-      <div className="p-4 space-y-6 pb-20">
+      <div className="p-4 space-y-6">
         {/* User info */}
         <Card className="shadow-card">
           <CardContent className="p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <Avatar className="w-20 h-20">
-                <AvatarFallback className="text-lg">JD</AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <h1 className="text-xl font-bold text-sport-black">Julie Dubois</h1>
-                <p className="text-sport-gray">28 ans • Femme</p>
-                <p className="text-sport-gray">📞 +1 (514) 555-0123</p>
-                <p className="text-sport-gray">✉️ julie.dubois@email.com</p>
-                
-                <div className="flex items-center gap-2 mt-2">
-                  <Star size={16} className="text-yellow-500 fill-current" />
-                  <span className="font-medium">4.9</span>
-                  <span className="text-sport-gray">(25 avis)</span>
+            {isEditing ? (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                updateProfile(new FormData(e.currentTarget));
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="full_name">Nom complet</Label>
+                    <Input
+                      id="full_name"
+                      name="full_name"
+                      defaultValue={profile?.full_name || ''}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="age">Âge</Label>
+                      <Input
+                        id="age"
+                        name="age"
+                        type="number"
+                        defaultValue={profile?.age || ''}
+                        min="16"
+                        max="99"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="gender">Genre</Label>
+                      <select
+                        id="gender"
+                        name="gender"
+                        defaultValue={profile?.gender || ''}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Sélectionner</option>
+                        <option value="homme">Homme</option>
+                        <option value="femme">Femme</option>
+                        <option value="autre">Autre</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Téléphone</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      defaultValue={profile?.phone || ''}
+                    />
+                  </div>
+                  <Button type="submit" variant="sport" disabled={loading}>
+                    {loading ? "Sauvegarde..." : "Sauvegarder"}
+                  </Button>
                 </div>
-              </div>
-            </div>
+              </form>
+            ) : (
+              <>
+                <div className="flex items-start gap-4 mb-4">
+                  <Avatar className="w-20 h-20">
+                    <AvatarImage src={profile?.avatar_url} />
+                    <AvatarFallback className="text-lg">
+                      {profile?.full_name?.split(' ').map((n: string) => n[0]).join('') || user?.email?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <h1 className="text-xl font-bold text-sport-black">
+                      {profile?.full_name || 'Nom non renseigné'}
+                    </h1>
+                    {profile?.age && profile?.gender && (
+                      <p className="text-sport-gray">{profile.age} ans • {profile.gender}</p>
+                    )}
+                    {profile?.phone && (
+                      <p className="text-sport-gray">📞 {profile.phone}</p>
+                    )}
+                    <p className="text-sport-gray">✉️ {user.email}</p>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-2xl font-bold text-primary">15</p>
-                <p className="text-sm text-sport-gray">Courses jointes</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">3</p>
-                <p className="text-sm text-sport-gray">Courses organisées</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">120</p>
-                <p className="text-sm text-sport-gray">km parcourus</p>
-              </div>
-            </div>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-primary">{userStats.joined}</p>
+                    <p className="text-sm text-sport-gray">Courses jointes</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-primary">{userStats.created}</p>
+                    <p className="text-sm text-sport-gray">Courses organisées</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-primary">{userStats.totalKm}</p>
+                    <p className="text-sm text-sport-gray">km parcourus</p>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         {/* Achievements */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Award size={20} />
-              Badges
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg">
-                <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
-                  🏃‍♀️
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Coureuse régulière</p>
-                  <p className="text-xs text-sport-gray">10 courses complétées</p>
-                </div>
+        {userStats.joined > 0 || userStats.created > 0 ? (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Award size={20} />
+                Badges
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {userStats.joined >= 5 && (
+                  <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg">
+                    <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
+                      🏃‍♀️
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Coureur régulier</p>
+                      <p className="text-xs text-sport-gray">{userStats.joined} courses complétées</p>
+                    </div>
+                  </div>
+                )}
+                {userStats.created >= 1 && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                      👥
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Organisateur</p>
+                      <p className="text-xs text-sport-gray">{userStats.created} sessions créées</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  👥
-                </div>
-                <div>
-                  <p className="font-medium text-sm">Organisatrice</p>
-                  <p className="text-xs text-sport-gray">3 sessions créées</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Running history */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Courses récentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="font-medium">Course urbaine - Centre-ville</h4>
-                    <Badge variant="secondary" className="text-xs">Terminée</Badge>
+        {userActivity.length > 0 && (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Activité récente</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {userActivity.map((activity, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.activity_type === 'created' ? 'bg-primary' : 
+                      activity.enrollment_status === 'paid' ? 'bg-green-500' : 'bg-blue-500'
+                    }`}></div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-1">
+                        <h4 className="font-medium">{activity.title}</h4>
+                        <Badge variant={
+                          activity.activity_type === 'created' ? 'default' :
+                          activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
+                        } className="text-xs">
+                          {activity.activity_type === 'created' ? 'Organisée' : 
+                           activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                        <Calendar size={12} />
+                        {new Date(activity.date).toLocaleDateString('fr-FR')}
+                      </p>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <MapPin size={12} />
+                        {activity.area_hint || 'Localisation masquée'}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm text-sport-gray flex items-center gap-1 mb-1">
-                    <Calendar size={12} />
-                    12 mars 2024
-                  </p>
-                  <p className="text-sm text-sport-gray flex items-center gap-1">
-                    <Users size={12} />
-                    6 participants • 8km
-                  </p>
-                </div>
+                ))}
               </div>
-
-              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="font-medium">Course matinale - Parc Central</h4>
-                    <Badge variant="outline" className="text-xs">Confirmée</Badge>
-                  </div>
-                  <p className="text-sm text-sport-gray flex items-center gap-1 mb-1">
-                    <Calendar size={12} />
-                    Demain, 15 mars
-                  </p>
-                  <p className="text-sm text-sport-gray flex items-center gap-1">
-                    <Users size={12} />
-                    5/8 participants • 8km
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className="w-2 h-2 bg-gray-400 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="font-medium">Trail en nature</h4>
-                    <Badge variant="outline" className="text-xs">Organisée</Badge>
-                  </div>
-                  <p className="text-sm text-sport-gray flex items-center gap-1 mb-1">
-                    <Calendar size={12} />
-                    20 mars 2024
-                  </p>
-                  <p className="text-sm text-sport-gray flex items-center gap-1">
-                    <Users size={12} />
-                    2/6 participants • 12km
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-3">
-          <Button variant="sport" size="lg" className="w-full">
-            Modifier le profil
-          </Button>
-          <Button variant="sportSecondary" size="lg" className="w-full">
-            Paramètres de notification
-          </Button>
-          <Button variant="ghost" size="lg" className="w-full text-destructive">
+          <Button 
+            variant="ghost" 
+            size="lg" 
+            className="w-full text-destructive"
+            onClick={signOut}
+          >
             Se déconnecter
           </Button>
         </div>
       </div>
-
-      <Navigation />
     </div>
   );
 };

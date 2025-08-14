@@ -274,7 +274,7 @@ const Home = () => {
         </div>
       )}
 
-      <Navigation />
+      
     </div>
   );
 };

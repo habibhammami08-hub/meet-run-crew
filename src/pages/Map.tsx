@@ -169,7 +169,7 @@ const Map = () => {
         </div>
       )}
 
-      <Navigation />
+      
     </div>
   );
 };

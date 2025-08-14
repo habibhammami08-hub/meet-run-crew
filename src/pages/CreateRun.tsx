@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -5,15 +7,148 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Header from "@/components/Header";
-import Navigation from "@/components/Navigation";
-import { Calendar, Clock, MapPin, Users, TrendingUp } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const CreateRun = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    date: '',
+    time: '',
+    location_lat: '',
+    location_lng: '',
+    area_hint: '',
+    distance_km: '',
+    intensity: '',
+    type: '',
+    max_participants: '',
+    description: ''
+  });
+
+  // Redirect to auth if not logged in
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header title="Créer une session" />
+        
+        <div className="p-4 pt-20">
+          <Card className="shadow-card">
+            <CardContent className="p-8 text-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Users size={32} className="text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Connexion requise</h2>
+              <p className="text-muted-foreground mb-8">
+                Vous devez être connecté pour créer une session de course.
+              </p>
+              <Button 
+                variant="sport" 
+                size="lg" 
+                onClick={() => navigate("/auth")}
+              >
+                Se connecter
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const handleInputChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Basic validation
+      if (!formData.title || !formData.date || !formData.time || !formData.area_hint) {
+        throw new Error('Veuillez remplir tous les champs obligatoires');
+      }
+
+      // For now, use Wellington coordinates as default (you can implement address geocoding later)
+      const defaultLat = -41.2924;
+      const defaultLng = 174.7787;
+      
+      // Combine date and time
+      const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
+      
+      const sessionData = {
+        title: formData.title,
+        date: sessionDateTime.toISOString(),
+        location_lat: formData.location_lat || defaultLat,
+        location_lng: formData.location_lng || defaultLng,
+        area_hint: formData.area_hint,
+        distance_km: parseFloat(formData.distance_km),
+        intensity: formData.intensity,
+        type: formData.type,
+        max_participants: parseInt(formData.max_participants),
+        host_id: user.id,
+        // Optional description can be stored in area_hint for now
+      };
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert([sessionData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Session créée avec succès !",
+        description: "Votre session apparaît maintenant sur la carte.",
+      });
+
+      // Navigate to map and center on the new session
+      navigate('/map');
+      
+    } catch (error: any) {
+      toast({
+        title: "Erreur lors de la création",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header title="Créer une session" />
       
-      <div className="p-4 space-y-6 pb-20">
+      <form onSubmit={handleSubmit} className="p-4 space-y-6">
+        {/* Basic Info */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Informations générales</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="title">Titre de la session *</Label>
+              <Input 
+                id="title"
+                value={formData.title}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                placeholder="Course matinale au parc"
+                className="mt-1"
+                required
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Location */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -23,24 +158,23 @@ const CreateRun = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="address">Adresse exacte</Label>
-              <Input 
-                id="address"
-                placeholder="123 Rue du Parc, Montréal, QC"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="description">Description du lieu</Label>
+              <Label htmlFor="area_hint">Description du lieu *</Label>
               <Textarea 
-                id="description"
+                id="area_hint"
+                value={formData.area_hint}
+                onChange={(e) => handleInputChange('area_hint', e.target.value)}
                 placeholder="Point de rendez-vous près de l'entrée principale du parc..."
                 className="mt-1"
+                required
               />
+              <p className="text-sm text-muted-foreground mt-1">
+                Cette description sera visible après inscription. Le lieu exact sera révélé sur la carte.
+              </p>
             </div>
           </CardContent>
         </Card>
 
+        {/* Date and Time */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -50,24 +184,32 @@ const CreateRun = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">Date *</Label>
               <Input 
                 id="date"
                 type="date"
+                value={formData.date}
+                onChange={(e) => handleInputChange('date', e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
                 className="mt-1"
+                required
               />
             </div>
             <div>
-              <Label htmlFor="time">Heure de départ</Label>
+              <Label htmlFor="time">Heure de départ *</Label>
               <Input 
                 id="time"
                 type="time"
+                value={formData.time}
+                onChange={(e) => handleInputChange('time', e.target.value)}
                 className="mt-1"
+                required
               />
             </div>
           </CardContent>
         </Card>
 
+        {/* Run Details */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -77,8 +219,8 @@ const CreateRun = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="distance">Distance (km)</Label>
-              <Select>
+              <Label htmlFor="distance">Distance (km) *</Label>
+              <Select value={formData.distance_km} onValueChange={(value) => handleInputChange('distance_km', value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner la distance" />
                 </SelectTrigger>
@@ -94,8 +236,8 @@ const CreateRun = () => {
             </div>
             
             <div>
-              <Label htmlFor="intensity">Intensité</Label>
-              <Select>
+              <Label htmlFor="intensity">Intensité *</Label>
+              <Select value={formData.intensity} onValueChange={(value) => handleInputChange('intensity', value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner l'intensité" />
                 </SelectTrigger>
@@ -108,8 +250,8 @@ const CreateRun = () => {
             </div>
 
             <div>
-              <Label htmlFor="type">Type de course</Label>
-              <Select>
+              <Label htmlFor="type">Type de course *</Label>
+              <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner le type" />
                 </SelectTrigger>
@@ -123,6 +265,7 @@ const CreateRun = () => {
           </CardContent>
         </Card>
 
+        {/* Participants */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -132,8 +275,8 @@ const CreateRun = () => {
           </CardHeader>
           <CardContent>
             <div>
-              <Label htmlFor="max-participants">Nombre maximum de participants</Label>
-              <Select>
+              <Label htmlFor="max-participants">Nombre maximum de participants *</Label>
+              <Select value={formData.max_participants} onValueChange={(value) => handleInputChange('max_participants', value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner le nombre max" />
                 </SelectTrigger>
@@ -146,36 +289,29 @@ const CreateRun = () => {
                   <SelectItem value="8">8 participants</SelectItem>
                   <SelectItem value="9">9 participants</SelectItem>
                   <SelectItem value="10">10 participants</SelectItem>
-                  <SelectItem value="11">11 participants</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Description additionnelle</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Textarea 
-              placeholder="Ajoutez des détails sur le parcours, le niveau recommandé, les points d'intérêt..."
-              rows={4}
-            />
-          </CardContent>
-        </Card>
-
+        {/* Submit */}
         <div className="space-y-3">
-          <Button variant="sport" size="lg" className="w-full">
+          <Button 
+            type="submit" 
+            variant="sport" 
+            size="lg" 
+            className="w-full" 
+            disabled={loading}
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Créer la session de running
           </Button>
           <p className="text-center text-sm text-sport-gray">
-            Votre session sera visible sur la carte une fois validée
+            Votre session sera visible sur la carte une fois créée
           </p>
         </div>
-      </div>
-
-      <Navigation />
+      </form>
     </div>
   );
 };
