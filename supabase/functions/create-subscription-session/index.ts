@@ -23,7 +23,7 @@ serve(async (req) => {
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     const stripePriceId = Deno.env.get("STRIPE_PRICE_MONTHLY_EUR");
-    const appBaseUrl = Deno.env.get("APP_BASE_URL") || req.headers.get("origin") || "http://localhost:3000";
+    const appBaseUrl = Deno.env.get("APP_BASE_URL") || "https://meet-run-crew.lovable.app";
 
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     if (!stripePriceId) throw new Error("STRIPE_PRICE_MONTHLY_EUR is not set");
