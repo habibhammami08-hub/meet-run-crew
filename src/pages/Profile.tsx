@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
-import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2 } from "lucide-react";
+import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,8 @@ const Profile = () => {
   });
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -166,6 +168,79 @@ const Profile = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const uploadAvatar = async (file: File) => {
+    if (!user) return;
+    
+    setUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      // Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
+      
+      toast({
+        title: "Photo de profil mise à jour",
+        description: "Votre avatar a été mis à jour avec succès.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur d'upload",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Type de fichier invalide",
+          description: "Veuillez sélectionner une image.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Fichier trop volumineux",
+          description: "La taille maximum est de 5MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      uploadAvatar(file);
     }
   };
 
@@ -327,12 +402,34 @@ const Profile = () => {
             ) : (
               <>
                 <div className="flex items-start gap-4 mb-4">
-                  <Avatar className="w-20 h-20">
-                    <AvatarImage src={profile?.avatar_url} />
-                    <AvatarFallback className="text-lg">
-                      {profile?.full_name?.split(' ').map((n: string) => n[0]).join('') || user?.email?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="w-20 h-20">
+                      <AvatarImage src={profile?.avatar_url} />
+                      <AvatarFallback className="text-lg">
+                        {profile?.full_name?.split(' ').map((n: string) => n[0]).join('') || user?.email?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingAvatar}
+                    >
+                      {uploadingAvatar ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent" />
+                      ) : (
+                        <Camera size={14} />
+                      )}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </div>
                   <div className="flex-1">
                     <h1 className="text-xl font-bold text-sport-black">
                       {profile?.full_name || 'Nom non renseigné'}

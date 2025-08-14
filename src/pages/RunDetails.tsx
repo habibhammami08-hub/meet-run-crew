@@ -47,7 +47,7 @@ const RunDetails = () => {
       .from('runs')
       .select(`
         *,
-        profiles:host_id (full_name, age, gender)
+        profiles:host_id (full_name, age, gender, avatar_url)
       `)
       .eq('id', id)
       .single();
@@ -216,9 +216,17 @@ const RunDetails = () => {
               {/* Host */}
               <div className="flex items-center justify-between p-3 bg-sport-light rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold">
-                    {run.profiles?.full_name?.charAt(0) || 'H'}
-                  </div>
+                  {run.profiles?.avatar_url ? (
+                    <img 
+                      src={run.profiles.avatar_url} 
+                      alt="Host avatar"
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold">
+                      {run.profiles?.full_name?.charAt(0) || 'H'}
+                    </div>
+                  )}
                   <div>
                     <p className="font-medium">{run.profiles?.full_name || 'Organisateur'}</p>
                     <p className="text-sm text-sport-gray">
