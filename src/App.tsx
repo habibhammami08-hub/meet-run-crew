@@ -8,6 +8,7 @@ import AppLayout from "./components/AppLayout";
 import Home from "./pages/Home";
 import Map from "./pages/Map";
 import RunDetails from "./pages/RunDetails";
+import SessionDetails from "./pages/SessionDetails";
 import CreateRun from "./pages/CreateRun";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
@@ -28,7 +29,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/map" element={<Map />} />
               <Route path="/run/:id" element={<RunDetails />} />
-              <Route path="/session/:id" element={<RunDetails />} />
+              <Route path="/session/:id" element={<SessionDetails />} />
               <Route path="/create" element={<CreateRun />} />
               <Route path="/profile" element={<Profile />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
