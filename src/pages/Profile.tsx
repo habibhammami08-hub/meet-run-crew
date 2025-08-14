@@ -227,28 +227,64 @@ const Profile = () => {
 
       console.log('Prepared profile data:', updatedProfile);
       console.log('User ID for update:', user.id);
-      console.log('About to call Supabase update...');
-
-      // Use update instead of upsert to be more explicit
-      const { data, error } = await supabase
+      
+      // First check if profile exists
+      console.log('Checking if profile exists...');
+      const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
-        .update(updatedProfile)
+        .select('id')
         .eq('id', user.id)
-        .select()
-        .single();
+        .maybeSingle();
 
-      console.log('Supabase update completed');
-      console.log('Supabase response data:', data);
-      console.log('Supabase response error:', error);
+      console.log('Profile check result:', { existingProfile, checkError });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+      if (checkError) {
+        console.error('Error checking profile existence:', checkError);
+        throw checkError;
       }
 
-      if (data) {
-        console.log('Profile updated successfully:', data);
-        setProfile({ ...profile, ...data });
+      let profileData;
+      let operationError;
+
+      if (existingProfile) {
+        // Profile exists, update it
+        console.log('Profile exists, updating...');
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(updatedProfile)
+          .eq('id', user.id)
+          .select()
+          .single();
+        
+        profileData = data;
+        operationError = error;
+        console.log('Update result:', { data, error });
+      } else {
+        // Profile doesn't exist, create it
+        console.log('Profile does not exist, creating...');
+        const { data, error } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email || '',
+            ...updatedProfile
+          })
+          .select()
+          .single();
+        
+        profileData = data;
+        operationError = error;
+        console.log('Insert result:', { data, error });
+      }
+
+      if (operationError) {
+        console.error('Operation error:', operationError);
+        throw operationError;
+      }
+
+      if (profileData) {
+        console.log('Profile operation successful:', profileData);
+        setProfile({ ...profile, ...profileData });
         setIsEditing(false);
         toast({
           title: "Profil mis à jour",
@@ -258,36 +294,8 @@ const Profile = () => {
         // Refresh profile data to ensure consistency
         await fetchProfile();
       } else {
-        console.warn('No data returned from update');
-        // Profile might not exist, try to create it
-        console.log('Attempting to create profile...');
-        
-        const { data: insertData, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: user.email || '',
-            ...updatedProfile
-          })
-          .select()
-          .single();
-
-        console.log('Insert response:', { insertData, insertError });
-
-        if (insertError) {
-          console.error('Insert error:', insertError);
-          throw insertError;
-        }
-
-        if (insertData) {
-          console.log('Profile created successfully:', insertData);
-          setProfile(insertData);
-          setIsEditing(false);
-          toast({
-            title: "Profil créé",
-            description: "Votre profil a été créé avec succès.",
-          });
-        }
+        console.warn('No data returned from profile operation');
+        throw new Error('Aucune donnée retournée de la base de données');
       }
     } catch (error: any) {
       console.error('Profile update error:', error);
