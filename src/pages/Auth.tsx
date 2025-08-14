@@ -105,7 +105,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-sport flex items-center justify-center p-4 pb-20">
+    <div className="min-h-screen gradient-sport flex items-center justify-center p-4 pb-20">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-sport-black">MeetRun</CardTitle>
