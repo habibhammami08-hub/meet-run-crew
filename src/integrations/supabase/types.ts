@@ -190,6 +190,8 @@ export type Database = {
           created_at: string
           date: string
           distance_km: number
+          end_lat: number | null
+          end_lng: number | null
           host_id: string
           host_payout_cents: number
           id: string
@@ -207,6 +209,8 @@ export type Database = {
           created_at?: string
           date: string
           distance_km: number
+          end_lat?: number | null
+          end_lng?: number | null
           host_id: string
           host_payout_cents?: number
           id?: string
@@ -224,6 +228,8 @@ export type Database = {
           created_at?: string
           date?: string
           distance_km?: number
+          end_lat?: number | null
+          end_lng?: number | null
           host_id?: string
           host_payout_cents?: number
           id?: string

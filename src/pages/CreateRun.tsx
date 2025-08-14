@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Header from "@/components/Header";
+import LocationPicker from "@/components/LocationPicker";
 import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,12 +18,15 @@ const CreateRun = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState<{
+    start?: { lat: number; lng: number };
+    end?: { lat: number; lng: number };
+  }>({});
   const [formData, setFormData] = useState({
     title: '',
     date: '',
     time: '',
-    location_lat: '',
-    location_lng: '',
     area_hint: '',
     distance_km: '',
     intensity: '',
@@ -65,6 +69,13 @@ const CreateRun = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleLocationSelect = (lat: number, lng: number, type: 'start' | 'end') => {
+    setSelectedLocations(prev => ({
+      ...prev,
+      [type]: { lat, lng }
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -75,9 +86,10 @@ const CreateRun = () => {
         throw new Error('Veuillez remplir tous les champs obligatoires');
       }
 
-      // For now, use Wellington coordinates as default (you can implement address geocoding later)
-      const defaultLat = -41.2924;
-      const defaultLng = 174.7787;
+      // Validate start location is selected
+      if (!selectedLocations.start) {
+        throw new Error('Veuillez sélectionner un point de départ sur la carte');
+      }
       
       // Combine date and time
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
@@ -85,8 +97,10 @@ const CreateRun = () => {
       const sessionData = {
         title: formData.title,
         date: sessionDateTime.toISOString(),
-        location_lat: parseFloat(formData.location_lat) || defaultLat,
-        location_lng: parseFloat(formData.location_lng) || defaultLng,
+        location_lat: selectedLocations.start.lat,
+        location_lng: selectedLocations.start.lng,
+        end_lat: selectedLocations.end?.lat || null,
+        end_lng: selectedLocations.end?.lng || null,
         area_hint: formData.area_hint,
         distance_km: parseFloat(formData.distance_km),
         intensity: formData.intensity,
@@ -108,8 +122,8 @@ const CreateRun = () => {
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
-      // Navigate to map and center on the new session
-      navigate('/map');
+      // Navigate to map with session coordinates in URL params for centering
+      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
       
     } catch (error: any) {
       toast({
@@ -147,15 +161,46 @@ const CreateRun = () => {
           </CardContent>
         </Card>
 
-        {/* Location */}
+        {/* Location Selection */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <MapPin size={20} />
-              Lieu de rendez-vous
+              Points de course
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <Label>Sélection des points *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowLocationPicker(true)}
+                className="w-full mt-2 flex items-center gap-2"
+              >
+                <MapPin size={16} />
+                {selectedLocations.start 
+                  ? `Points sélectionnés (${selectedLocations.end ? '2' : '1'}/2)`
+                  : 'Choisir sur la carte'
+                }
+              </Button>
+              
+              {selectedLocations.start && (
+                <div className="mt-2 space-y-1 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span>Départ: {selectedLocations.start.lat.toFixed(4)}, {selectedLocations.start.lng.toFixed(4)}</span>
+                  </div>
+                  {selectedLocations.end && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <span>Arrivée: {selectedLocations.end.lat.toFixed(4)}, {selectedLocations.end.lng.toFixed(4)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
             <div>
               <Label htmlFor="area_hint">Description du lieu *</Label>
               <Textarea 
@@ -311,6 +356,16 @@ const CreateRun = () => {
           </p>
         </div>
       </form>
+
+      {/* Location Picker Modal */}
+      {showLocationPicker && (
+        <LocationPicker
+          onLocationSelect={handleLocationSelect}
+          selectedStart={selectedLocations.start}
+          selectedEnd={selectedLocations.end}
+          onClose={() => setShowLocationPicker(false)}
+        />
+      )}
     </div>
   );
 };
