@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/leaflet.markercluster.js';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { Button } from '@/components/ui/button';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import GeolocationModal from '@/components/GeolocationModal';
@@ -14,12 +17,16 @@ import { useAuth } from '@/hooks/useAuth';
 interface Session {
   id: string;
   title: string;
+  date: string;
   location_lat: number;
   location_lng: number;
   blur_radius_m: number;
   area_hint?: string;
   max_participants: number;
   price_cents: number;
+  distance_km: number;
+  intensity: string;
+  host_id: string;
   enrollments?: Array<{
     user_id: string;
     status: string;
@@ -44,7 +51,7 @@ const LeafletMeetRunMap = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const userMarker = useRef<L.CircleMarker | null>(null);
-  const sessionMarkers = useRef<(L.CircleMarker | L.Circle)[]>([]);
+  const clusterGroup = useRef<any>(null);
   
   const [showGeolocationModal, setShowGeolocationModal] = useState(false);
   const [showGeolocationBanner, setShowGeolocationBanner] = useState(false);
@@ -75,6 +82,77 @@ const LeafletMeetRunMap = ({
     return userEnrollments.some(e => e.session_id === sessionId && e.status === 'paid');
   }, [userEnrollments]);
 
+  // Check if user is host of a session
+  const isUserHost = useCallback((session: Session) => {
+    return user?.id === session.host_id;
+  }, [user]);
+
+  // Convert meters to pixels for clustering
+  const metersToPixels = useCallback((meters: number, lat: number, zoom: number) => {
+    const metersPerPixel = (156543.03392 * Math.cos(lat * Math.PI / 180)) / Math.pow(2, zoom);
+    return meters / metersPerPixel;
+  }, []);
+
+  // Create cluster icon
+  const createClusterIcon = useCallback((cluster: any) => {
+    const count = cluster.getChildCount();
+    const size = count < 5 ? 24 : count < 12 ? 30 : 38;
+    return L.divIcon({
+      html: `<div style="
+        width:${size}px;height:${size}px;border-radius:50%;
+        background:#1e90ff;display:flex;align-items:center;justify-content:center;
+        color:#fff;font-weight:600;font-size:12px;
+        box-shadow:0 2px 8px rgba(0,0,0,.25)
+      ">${count}</div>`,
+      className: "cluster-blue",
+      iconSize: [size, size]
+    });
+  }, []);
+
+  // Get display coordinates (exact or blurred)
+  const getDisplayLatLng = useCallback((session: Session, canSeeExact: boolean) => {
+    if (canSeeExact) {
+      return { lat: session.location_lat, lng: session.location_lng };
+    }
+    
+    // Simple jitter for demo - in production you'd use proper geohash/blur
+    const jitterAmount = 0.005; // ~500m
+    const jitterLat = (Math.random() - 0.5) * jitterAmount;
+    const jitterLng = (Math.random() - 0.5) * jitterAmount;
+    
+    return {
+      lat: session.location_lat + jitterLat,
+      lng: session.location_lng + jitterLng
+    };
+  }, []);
+
+  // Calculate distance between two points in meters
+  const haversineMeters = useCallback((a: L.LatLng, b: L.LatLng) => {
+    const R = 6371000;
+    const dLat = (b.lat - a.lat) * Math.PI/180;
+    const dLng = (b.lng - a.lng) * Math.PI/180;
+    const la1 = a.lat * Math.PI/180, la2 = b.lat * Math.PI/180;
+    const A = Math.sin(dLat/2)**2 + Math.sin(dLng/2)**2 * Math.cos(la1)*Math.cos(la2);
+    return 2 * R * Math.asin(Math.sqrt(A));
+  }, []);
+
+  // Format date for display
+  const formatDate = useCallback((dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }, []);
+
+  // Open session details
+  const openSessionDetails = useCallback((sessionId: string) => {
+    onSessionSelect?.(sessionId);
+  }, [onSessionSelect]);
+
   // Initialize map
   const initializeMap = useCallback(() => {
     if (!mapContainer.current || map.current) return;
@@ -94,12 +172,70 @@ const LeafletMeetRunMap = ({
       maxZoom: 19
     }).addTo(map.current);
 
+    // Initialize cluster group
+    clusterGroup.current = (L as any).markerClusterGroup({
+      spiderfyOnMaxZoom: false,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: false,
+      iconCreateFunction: createClusterIcon,
+      maxClusterRadius: (zoom: number) => {
+        const lat = map.current?.getCenter().lat || -41.28664;
+        return Math.round(metersToPixels(300, lat, zoom));
+      },
+    });
+    map.current.addLayer(clusterGroup.current);
+
+    // Handle cluster clicks
+    clusterGroup.current.on('clusterclick', (e: any) => {
+      const center = e.layer.getLatLng();
+      const children = e.layer.getAllChildMarkers();
+      
+      // Filter sessions within 300m of cluster center
+      const items = children
+        .filter((m: any) => haversineMeters(center, m.getLatLng()) <= 300)
+        .map((m: any) => m.__sessionData)
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const html = `
+        <div style="min-width:240px">
+          <div style="font-weight:700;margin-bottom:6px">Sessions à ~300 m</div>
+          <ul style="margin:0;padding:0;list-style:none;max-height:220px;overflow:auto">
+            ${items.map((s: any) => `
+              <li style="padding:6px 0;border-bottom:1px solid #eee">
+                <div style="font-weight:600">${s.title || "Session"}</div>
+                <div style="font-size:12px;opacity:.8">${formatDate(s.date)} • ${s.distance_km} km • ${s.intensity}</div>
+                <button data-id="${s.id}" class="btn-open" style="margin-top:4px;font-size:12px;padding:2px 8px;background:#22c55e;color:white;border:none;border-radius:4px;cursor:pointer">Voir la session</button>
+              </li>`).join("")}
+          </ul>
+        </div>`;
+
+      const popup = L.popup({ maxWidth: 320 })
+        .setLatLng(center)
+        .setContent(html)
+        .openOn(map.current!);
+
+      // Add click handlers for session buttons
+      setTimeout(() => {
+        const container = popup.getElement();
+        container?.querySelectorAll('.btn-open').forEach((btn: any) => {
+          btn.onclick = () => openSessionDetails(btn.getAttribute('data-id'));
+        });
+      }, 0);
+    });
+
     // Handle map move/zoom events to reload sessions
     let reloadTimeout: NodeJS.Timeout;
     map.current.on('moveend zoomend', () => {
       clearTimeout(reloadTimeout);
       reloadTimeout = setTimeout(() => {
-        // Trigger session reload based on bounds - would be implemented by parent
+        // Update cluster radius on zoom change
+        if (clusterGroup.current && map.current) {
+          const zoom = map.current.getZoom();
+          const lat = map.current.getCenter().lat;
+          const newRadius = Math.round(metersToPixels(300, lat, zoom));
+          clusterGroup.current.options.maxClusterRadius = () => newRadius;
+        }
       }, 300);
     });
 
@@ -161,87 +297,63 @@ const LeafletMeetRunMap = ({
     }
   }, [toast]);
 
-  // Update session markers
+  // Update session markers with clustering
   const updateSessionMarkers = useCallback(() => {
-    if (!map.current) return;
+    if (!map.current || !clusterGroup.current) return;
 
     // Clear existing markers
-    sessionMarkers.current.forEach(marker => {
-      map.current!.removeLayer(marker);
-    });
-    sessionMarkers.current = [];
+    clusterGroup.current.clearLayers();
 
     // Add new markers for each session
     sessions.forEach(session => {
       const isPaid = isUserPaid(session.id);
-      const lat = session.location_lat;
-      const lng = session.location_lng;
+      const isHost = isUserHost(session);
+      const canSeeExact = isPaid || isHost;
+      
+      const { lat, lng } = getDisplayLatLng(session, canSeeExact);
 
-      if (isPaid) {
-        // Show exact location for paid users
-        const marker = L.circleMarker([lat, lng], {
-          radius: 6,
-          fillColor: '#22c55e',
-          color: '#ffffff',
-          weight: 2,
-          opacity: 1,
-          fillOpacity: 0.9
-        }).addTo(map.current!);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-        marker.bindPopup(`
-          <div class="p-2">
-            <h3 class="font-semibold text-sm">${session.title}</h3>
-            <p class="text-xs text-gray-600 mt-1">Point de rencontre exact</p>
-            <button 
-              class="mt-2 px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
-              onclick="window.selectSession && window.selectSession('${session.id}')"
-            >
-              Voir détails
-            </button>
-          </div>
-        `);
+      // Create blue circle marker
+      const marker = L.circleMarker([lat, lng], {
+        radius: 5,
+        color: "#1e90ff",
+        fillColor: "#1e90ff",
+        fillOpacity: 0.9,
+        weight: 0
+      });
 
-        sessionMarkers.current.push(marker);
-      } else {
-        // Show blurred area for unpaid users
-        const radius = session.blur_radius_m || 1000;
-        const circle = L.circle([lat, lng], {
-          radius: radius,
-          fillColor: '#22c55e',
-          color: '#22c55e',
-          weight: 2,
-          opacity: 0.6,
-          fillOpacity: 0.1,
-          interactive: true
-        }).addTo(map.current!);
+      // Attach session data to marker
+      (marker as any).__sessionData = session;
 
-        circle.bindPopup(`
-          <div class="p-2">
-            <h3 class="font-semibold text-sm">${session.title}</h3>
-            <p class="text-xs text-gray-600 mt-1">
-              ${session.area_hint || `Zone approx. ${Math.round(radius/1000)}km`}
-            </p>
-            <p class="text-xs text-orange-600 mt-1">
-              Inscrivez-vous pour voir le lieu exact
-            </p>
-            <button 
-              class="mt-2 px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
-              onclick="window.selectSession && window.selectSession('${session.id}')"
-            >
-              S'inscrire - ${(session.price_cents / 100).toFixed(2)}$
-            </button>
-          </div>
-        `);
+      // Create popup content
+      const popupContent = `
+        <div class="p-2">
+          <h3 class="font-semibold text-sm">${session.title}</h3>
+          <p class="text-xs text-gray-600 mt-1">${formatDate(session.date)}</p>
+          <p class="text-xs">${session.distance_km} km • ${session.intensity}</p>
+          ${canSeeExact ? 
+            '<p class="text-xs text-green-600 mt-1">Position exacte</p>' : 
+            '<p class="text-xs text-orange-600 mt-1">Zone ~300–600 m — Inscrivez-vous pour le lieu exact</p>'
+          }
+          <button 
+            class="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+            onclick="window.selectSession && window.selectSession('${session.id}')"
+          >
+            ${canSeeExact ? 'Voir détails' : `S'inscrire - ${(session.price_cents / 100).toFixed(2)}$`}
+          </button>
+        </div>
+      `;
 
-        sessionMarkers.current.push(circle);
-      }
+      marker.bindPopup(popupContent);
+      clusterGroup.current.addLayer(marker);
     });
 
     // Global function for session selection
     (window as any).selectSession = (sessionId: string) => {
       onSessionSelect?.(sessionId);
     };
-  }, [sessions, isUserPaid, onSessionSelect]);
+  }, [sessions, isUserPaid, isUserHost, getDisplayLatLng, formatDate, onSessionSelect]);
 
   // Handle geolocation responses
   const handleAllowGeolocation = () => {
@@ -286,6 +398,7 @@ const LeafletMeetRunMap = ({
         map.current.remove();
         map.current = null;
       }
+      clusterGroup.current = null;
     };
   }, []);
 
@@ -387,6 +500,14 @@ const LeafletMeetRunMap = ({
         className="w-full h-full"
         style={{ width: '100%', height: '100%' }}
       />
+
+      {/* Legend */}
+      <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
+        <div className="flex items-center text-xs text-gray-600">
+          <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+          <span>Les points bleus indiquent une zone approximative avant l'inscription</span>
+        </div>
+      </div>
 
       {/* Locate Me Button */}
       <Button
