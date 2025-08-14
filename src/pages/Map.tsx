@@ -21,6 +21,41 @@ const Map = () => {
     if (user) {
       fetchUserEnrollments();
     }
+    
+    // Set up real-time subscription for sessions
+    const channel = supabase
+      .channel('sessions-changes')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'sessions' },
+        (payload) => {
+          console.log('New session:', payload);
+          // Add new session to list
+          setSessions(prev => [...prev, payload.new]);
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions' },
+        (payload) => {
+          console.log('Updated session:', payload);
+          // Update session in list
+          setSessions(prev => prev.map(session => 
+            session.id === payload.new.id ? payload.new : session
+          ));
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'sessions' },
+        (payload) => {
+          console.log('Deleted session:', payload);
+          // Remove session from list
+          setSessions(prev => prev.filter(session => session.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchSessions = async () => {

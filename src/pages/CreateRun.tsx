@@ -85,20 +85,19 @@ const CreateRun = () => {
       const sessionData = {
         title: formData.title,
         date: sessionDateTime.toISOString(),
-        location_lat: formData.location_lat || defaultLat,
-        location_lng: formData.location_lng || defaultLng,
+        location_lat: parseFloat(formData.location_lat) || defaultLat,
+        location_lng: parseFloat(formData.location_lng) || defaultLng,
         area_hint: formData.area_hint,
         distance_km: parseFloat(formData.distance_km),
         intensity: formData.intensity,
         type: formData.type,
         max_participants: parseInt(formData.max_participants),
         host_id: user.id,
-        // Optional description can be stored in area_hint for now
       };
 
       const { data, error } = await supabase
         .from('sessions')
-        .insert([sessionData])
+        .insert(sessionData)
         .select()
         .single();
 
