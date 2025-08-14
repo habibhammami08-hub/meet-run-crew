@@ -88,11 +88,9 @@ const SessionDetails = () => {
 
   const handleSubscribeOrEnroll = async () => {
     if (!user) {
-      toast({
-        title: "Connexion requise",
-        description: "Vous devez être connecté pour continuer.",
-        variant: "destructive",
-      });
+      // Redirect to auth page with return parameter
+      const currentPath = `/session/${id}`;
+      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
       return;
     }
 

@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,18 @@ import { Loader2, Mail, Lock, User, Phone } from "lucide-react";
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const { toast } = useToast();
+  
+  const returnTo = searchParams.get('returnTo') || '/map';
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (user) {
+      navigate(returnTo);
+    }
+  }, [user, navigate, returnTo]);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -34,7 +46,7 @@ const Auth = () => {
         title: "Connexion réussie",
         description: "Bienvenue sur MeetRun !",
       });
-      navigate("/map");
+      navigate(returnTo);
     } catch (error: any) {
       toast({
         title: "Erreur de connexion",
@@ -59,7 +71,7 @@ const Auth = () => {
     const phone = formData.get("phone") as string;
 
     try {
-      const redirectUrl = `${window.location.origin}/`;
+      const redirectUrl = `${window.location.origin}${returnTo}`;
       
       const { error } = await supabase.auth.signUp({
         email,
