@@ -563,7 +563,10 @@ const Profile = () => {
             variant="ghost" 
             size="lg" 
             className="w-full text-destructive"
-            onClick={signOut}
+            onClick={async () => {
+              await signOut();
+              navigate('/');
+            }}
           >
             Se déconnecter
           </Button>
