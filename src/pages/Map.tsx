@@ -33,8 +33,8 @@ const Map = () => {
             .from('sessions')
             .select(`
               *,
-              profiles!host_id(full_name, avatar_url),
-              enrollments(id, user_id, status)
+              host_profile:profiles!host_id(id, full_name, age, avatar_url),
+              enrollments(id, user_id, status, profile:profiles!user_id(id, full_name, age, avatar_url))
             `)
             .eq('id', payload.new.id)
             .single();
@@ -51,11 +51,11 @@ const Map = () => {
           // Update session in list with latest data
           const { data: updatedSession } = await supabase
             .from('sessions')
-            .select(`
-              *,
-              profiles!host_id(full_name, avatar_url),
-              enrollments(id, user_id, status)
-            `)
+             .select(`
+               *,
+               host_profile:profiles!host_id(id, full_name, age, avatar_url),
+               enrollments(id, user_id, status, profile:profiles!user_id(id, full_name, age, avatar_url))
+             `)
             .eq('id', payload.new.id)
             .single();
           
@@ -89,8 +89,8 @@ const Map = () => {
       .from('sessions')
       .select(`
         *,
-        profiles!host_id (full_name, avatar_url),
-        enrollments (id, user_id, status)
+        host_profile:profiles!host_id (id, full_name, age, avatar_url),
+        enrollments (id, user_id, status, profile:profiles!user_id(id, full_name, age, avatar_url))
       `)
       .gte('date', new Date().toISOString());
 
@@ -151,7 +151,8 @@ const Map = () => {
             distance_km: parseFloat(session.distance_km.toString()),
             intensity: session.intensity,
             host_id: session.host_id,
-            enrollments: session.enrollments
+            enrollments: session.enrollments,
+            host_profile: session.host_profile
           }))}
           onSessionSelect={(sessionId) => {
             const session = sessions.find(s => s.id === sessionId);
