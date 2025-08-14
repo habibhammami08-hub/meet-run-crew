@@ -232,15 +232,15 @@ const Profile = () => {
       // 1) Tentative d'upsert (INSERT ou UPDATE sur id)
       const { data, error } = await supabase
         .from("profiles")
-        .upsert(payload, { onConflict: "id" })       // <— IMPORTANT : 'id' = PK
+        .upsert(payload, { onConflict: "id" })
         .select()
-        .single();                                   // force le retour d'une ligne
+        .single();
 
       if (error) {
         console.error("[profile] upsert error:", error);
         toast({
           title: "Erreur de sauvegarde",
-          description: "Impossible d'enregistrer le profil (upsert).",
+          description: `Impossible d'enregistrer le profil: ${error.message}`,
           variant: "destructive",
         });
         return;
