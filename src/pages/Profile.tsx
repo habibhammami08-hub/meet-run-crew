@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
-import { Edit, Users, X } from "lucide-react";
+import { Edit, Users, X, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ const Profile = () => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
   // Charger le profil au montage
@@ -75,6 +76,43 @@ const Profile = () => {
       console.error('Error updating profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!user) return;
+
+    // Double confirmation pour éviter les suppressions accidentelles
+    const firstConfirm = confirm(
+      "⚠️ ATTENTION ⚠️\n\nVoulez-vous vraiment supprimer votre profil ?\n\nCette action supprimera :\n- Votre profil complet\n- Toutes vos sessions créées\n- Toutes vos inscriptions\n- Votre compte utilisateur\n\nCette action est IRRÉVERSIBLE !"
+    );
+
+    if (!firstConfirm) return;
+
+    const secondConfirm = confirm(
+      "Dernière confirmation :\n\nÊtes-vous absolument certain de vouloir supprimer définitivement votre compte ?\n\nTapez OUI pour confirmer ou Annuler pour abandonner."
+    );
+
+    if (!secondConfirm) return;
+
+    setDeleting(true);
+    try {
+      // Appel de la fonction de suppression complète
+      const { error } = await supabase.rpc('delete_user_completely');
+
+      if (error) throw error;
+
+      toast.success("Profil supprimé avec succès. Redirection...");
+      
+      // Redirection vers la page d'accueil après suppression
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Error deleting profile:', error);
+      toast.error("Erreur lors de la suppression du profil");
+      setDeleting(false);
     }
   };
 
@@ -146,13 +184,15 @@ const Profile = () => {
         }
       />
       
-      <div className="p-4 pt-20 space-y-6">{!isEditing && (
+      <div className="p-4 pt-20 space-y-6">
+        {!isEditing && (
           <div className="text-center mb-4">
             <p className="text-sm text-muted-foreground">
               Cliquez sur <Edit size={14} className="inline mx-1" /> pour modifier vos informations
             </p>
           </div>
         )}
+        
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle>Informations personnelles</CardTitle>
@@ -255,6 +295,37 @@ const Profile = () => {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-card border-destructive/20">
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-destructive mb-2">Zone de danger</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  La suppression de votre profil est irréversible et supprimera toutes vos données.
+                </p>
+              </div>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteProfile}
+                disabled={deleting}
+                className="w-full"
+              >
+                {deleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                    Suppression en cours...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} className="mr-2" />
+                    Supprimer définitivement mon profil
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
         
