@@ -49,12 +49,7 @@ const Subscription = () => {
         window.open(data.url, '_blank');
       } else {
         console.error("No URL returned from function:", data);
-        toast({
-          title: "Configuration manquante",
-          description: "Veuillez configurer les secrets STRIPE_SECRET_KEY et STRIPE_PRICE_MONTHLY_EUR dans Supabase Edge Functions",
-          variant: "destructive",
-        });
-        throw new Error("Configuration manquante");
+        throw new Error("Aucune URL de paiement reçue");
       }
     } catch (error: any) {
       console.error("Full error:", error);

@@ -6,13 +6,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import Header from "@/components/Header";
+import Navigation from "@/components/Navigation";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,23 +118,31 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header 
-        title="MeetRun"
-        actions={
-          user ? (
-            <Button variant="ghost" onClick={() => navigate("/profile")}>
-              Profil
-            </Button>
-          ) : (
-            <Button variant="sport" onClick={() => navigate("/auth")}>
-              Se connecter
-            </Button>
-          )
-        }
-      />
+      {/* Header */}
+      <header className="bg-white border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Button variant="ghost" onClick={() => navigate("/profile")}>
+                  Profil
+                </Button>
+                <Button variant="ghost" onClick={signOut}>
+                  Déconnexion
+                </Button>
+              </>
+            ) : (
+              <Button variant="sport" onClick={() => navigate("/auth")}>
+                Se connecter
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
 
       {/* Hero Section */}
-      <div className="relative h-[50vh] overflow-hidden mt-16">
+      <div className="relative h-[50vh] overflow-hidden">
         <img 
           src={heroImage} 
           alt="MeetRun - Running collectif" 
