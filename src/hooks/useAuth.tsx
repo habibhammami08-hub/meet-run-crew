@@ -106,7 +106,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Clear local state first
+      setUser(null);
+      setSession(null);
+      setHasActiveSubscription(false);
+      setSubscriptionStatus(null);
+      setSubscriptionEnd(null);
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Signout error:', error);
+        // Even if signOut fails, force redirect to clear state
+      }
+      
+      // Force navigation to home page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Unexpected signout error:', error);
+      // Force clear everything and redirect anyway
+      setUser(null);
+      setSession(null);
+      setHasActiveSubscription(false);
+      setSubscriptionStatus(null);
+      setSubscriptionEnd(null);
+      window.location.href = '/';
+    }
   };
 
   const value = {
