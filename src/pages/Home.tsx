@@ -1,12 +1,40 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Users, Clock, Star } from "lucide-react";
-import heroImage from "@/assets/hero-running.jpg";
+import { MapPin, Users, Shield, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import Navigation from "@/components/Navigation";
+import heroImage from "@/assets/hero-running.jpg";
 
 const Home = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-white border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Button variant="ghost" onClick={() => navigate("/profile")}>
+                  Profil
+                </Button>
+                <Button variant="ghost" onClick={signOut}>
+                  Déconnexion
+                </Button>
+              </>
+            ) : (
+              <Button variant="sport" onClick={() => navigate("/auth")}>
+                Se connecter
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <div className="relative h-[50vh] overflow-hidden">
         <img 
@@ -15,16 +43,31 @@ const Home = () => {
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-        <div className="absolute inset-0 flex flex-col justify-end p-6 text-white">
-          <h1 className="text-4xl font-bold mb-2">MeetRun</h1>
-          <p className="text-lg opacity-90 mb-6">L'application de running collectif</p>
-          <div className="flex gap-3">
-            <Button variant="sport" size="lg" className="flex-1">
-              Créer un compte
-            </Button>
-            <Button variant="sportOutline" size="lg" className="flex-1 border-white text-white hover:bg-white hover:text-black">
-              Se connecter
-            </Button>
+        <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
+          <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
+          <p className="text-lg opacity-90 mb-6 text-center">L'application de running collectif à Wellington</p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            {user ? (
+              <>
+                <Button variant="sport" size="lg" onClick={() => navigate("/map")}>
+                  Voir les courses
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+                <Button variant="sportOutline" size="lg" onClick={() => navigate("/create")}>
+                  Créer une course
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="sport" size="lg" onClick={() => navigate("/auth")}>
+                  Créer un compte
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+                <Button variant="sportOutline" size="lg" onClick={() => navigate("/map")}>
+                  Voir les courses
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -79,96 +122,7 @@ const Home = () => {
           </Card>
         </div>
 
-        {/* Featured runs */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold mb-4 text-sport-black">Courses populaires</h3>
-          
-          <div className="space-y-4">
-            <Card className="shadow-card">
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="font-semibold text-sport-black">Course matinale - Parc Central</h4>
-                    <p className="text-sm text-sport-gray flex items-center gap-1">
-                      <MapPin size={14} />
-                      Zone approx. 10km (inscrivez-vous pour le lieu exact)
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-primary font-semibold">4,50$</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4 text-sm text-sport-gray mb-3">
-                  <span className="flex items-center gap-1">
-                    <Clock size={14} />
-                    Demain 7h30
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users size={14} />
-                    5/8 coureurs
-                  </span>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                    Moyenne
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <Star size={14} className="text-yellow-500 fill-current" />
-                    <span className="text-sm text-sport-gray">4.8 (12 avis)</span>
-                  </div>
-                  <Button variant="sport" size="sm">
-                    Rejoindre
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-card">
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="font-semibold text-sport-black">Course urbaine - Centre-ville</h4>
-                    <p className="text-sm text-sport-gray flex items-center gap-1">
-                      <MapPin size={14} />
-                      Zone approx. 10km (inscrivez-vous pour le lieu exact)
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-primary font-semibold">4,50$</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4 text-sm text-sport-gray mb-3">
-                  <span className="flex items-center gap-1">
-                    <Clock size={14} />
-                    Aujourd'hui 18h00
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users size={14} />
-                    3/6 coureurs
-                  </span>
-                  <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">
-                    Élevée
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <Star size={14} className="text-yellow-500 fill-current" />
-                    <span className="text-sm text-sport-gray">4.9 (8 avis)</span>
-                  </div>
-                  <Button variant="sport" size="sm">
-                    Rejoindre
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <Button variant="sportSecondary" size="lg" className="w-full">
+        <Button variant="sportSecondary" size="lg" className="w-full" onClick={() => navigate("/map")}>
           Voir toutes les courses
         </Button>
       </div>
