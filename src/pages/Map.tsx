@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import Navigation from "@/components/Navigation";
-import MapboxMap from "@/components/MapboxMap";
+import LeafletMap from "@/components/LeafletMap";
 import { Filter, MapPin, Users, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,7 +73,7 @@ const Map = () => {
       
       {/* Interactive Map */}
       <div className="flex-1 relative">
-        <MapboxMap 
+        <LeafletMap 
           runs={runs.map(run => ({
             id: run.id,
             latitude: parseFloat(run.latitude.toString()),
