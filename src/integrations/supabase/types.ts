@@ -61,6 +61,9 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           role: string | null
+          stripe_customer_id: string | null
+          sub_current_period_end: string | null
+          sub_status: string | null
           updated_at: string
         }
         Insert: {
@@ -74,6 +77,9 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role?: string | null
+          stripe_customer_id?: string | null
+          sub_current_period_end?: string | null
+          sub_status?: string | null
           updated_at?: string
         }
         Update: {
@@ -87,6 +93,9 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role?: string | null
+          stripe_customer_id?: string | null
+          sub_current_period_end?: string | null
+          sub_status?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -251,12 +260,51 @@ export type Database = {
           },
         ]
       }
+      subscribers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          stripe_customer_id: string | null
+          subscribed: boolean
+          subscription_end: string | null
+          subscription_tier: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
+          subscription_tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
+          subscription_tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_active_subscription: {
+        Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
