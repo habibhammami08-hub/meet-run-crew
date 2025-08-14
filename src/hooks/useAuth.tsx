@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { hasActiveSub } from "@/utils/subscription";
 
 interface AuthContextType {
   user: User | null;
@@ -53,10 +54,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      const isActive = data.sub_status === 'active' || data.sub_status === 'trialing';
-      const isNotExpired = !data.sub_current_period_end || new Date(data.sub_current_period_end) > new Date();
+      // Use the hasActiveSub helper function
+      const isActive = hasActiveSub(data);
       
-      setHasActiveSubscription(isActive && isNotExpired);
+      setHasActiveSubscription(isActive);
       setSubscriptionStatus(data.sub_status);
       setSubscriptionEnd(data.sub_current_period_end);
     } catch (error) {

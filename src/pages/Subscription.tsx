@@ -7,6 +7,7 @@ import { Crown, Check, X, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import SubscribeBuyButton from "@/components/SubscribeBuyButton";
 
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
@@ -203,15 +204,7 @@ const Subscription = () => {
               </div>
 
               <div className="text-center">
-                <Button 
-                  onClick={handleSubscribe} 
-                  disabled={isLoading}
-                  size="lg"
-                  className="w-full"
-                  variant="sport"
-                >
-                  {isLoading ? "Redirection vers le paiement..." : "S'abonner - 9,99 €/mois"}
-                </Button>
+                <SubscribeBuyButton />
                 <p className="text-xs text-sport-gray mt-2">
                   Résiliable à tout moment
                 </p>
