@@ -321,6 +321,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      backfill_missing_profiles: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       delete_user_completely: {
         Args: Record<PropertyKey, never>
         Returns: undefined
