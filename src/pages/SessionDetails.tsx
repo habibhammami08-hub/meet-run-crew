@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const SessionDetails = () => {
+  console.log("SessionDetails component rendering");
+  
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const [session, setSession] = useState<any>(null);
@@ -137,6 +139,8 @@ const SessionDetails = () => {
   
   // Check if user can see exact location
   const canSeeExactLocation = isEnrolled || isHost;
+
+  console.log("SessionDetails state:", { user: !!user, isEnrolled, isHost, canSeeExactLocation });
 
   return (
     <div className="min-h-screen bg-background">
