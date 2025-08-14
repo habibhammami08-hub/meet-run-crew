@@ -195,9 +195,7 @@ const Profile = () => {
   };
 
   async function saveProfile(formValues: any) {
-    console.log("[profile] Starting profile update for user:", user?.id);
     if (!user?.id) {
-      console.error("[profile] No user");
       toast({
         title: "Erreur",
         description: "Tu dois être connecté pour enregistrer ton profil.",
@@ -206,84 +204,43 @@ const Profile = () => {
       return;
     }
 
-    // Coercitions de types pour éviter 400 silencieux
-    const payload = {
-      id: user.id,                                       // CRUCIAL pour onConflict:'id'
-      email: user.email || '',                           // Requis par le schéma
-      full_name: (formValues.full_name ?? "").toString().slice(0, 120),
-      avatar_url: formValues.avatar_url ?? null,
-      phone: formValues.phone ?? null,
-      age: formValues.age !== "" && formValues.age != null ? Number(formValues.age) : null,
-      gender: formValues.gender ?? null,
-    };
-    console.log("[profile] Payload prepared:", payload);
-
     setLoading(true);
+    
     try {
-      // Check session first
-      console.log("[profile] Checking session...");
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log("[profile] Session check:", { sessionData, sessionError });
-      
-      if (!sessionData?.session) {
-        throw new Error("No valid session found");
-      }
+      // Simple update approach - no logs to avoid potential issues
+      const updateData = {
+        email: user.email || '',
+        full_name: String(formValues.full_name || '').slice(0, 120),
+        phone: formValues.phone || null,
+        age: formValues.age ? Number(formValues.age) : null,
+        gender: formValues.gender || null,
+      };
 
-      console.log("[profile] Session valid, testing simple query...");
-      // Test with a timeout
-      const queryPromise = supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .single();
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Query timeout")), 10000)
-      );
-      
-      const { data: testData, error: testError } = await Promise.race([queryPromise, timeoutPromise]) as any;
-      console.log("[profile] Query result:", { testData, testError });
-      
-      if (testError && testError.code !== 'PGRST116') {
-        throw new Error(`Query failed: ${testError.message}`);
-      }
-
-      console.log("[profile] Query successful, proceeding with update...");
-      // Now proceed with update
       const { data, error } = await supabase
         .from("profiles")
-        .update(payload)
+        .update(updateData)
         .eq("id", user.id)
         .select()
         .single();
 
-      console.log("[profile] Update result:", { data, error });
       if (error) {
-        console.error("[profile] update error:", error);
-        toast({
-          title: "Erreur",
-          description: `Impossible d'enregistrer le profil (${error.code ?? "err"}) - ${error.message}`,
-          variant: "destructive",
-        });
-        return;
+        throw error;
       }
 
-      console.log("[profile] update success, updating local state");
       setProfile(data);
       setIsEditing(false);
       toast({
         title: "Succès",
         description: "Profil mis à jour !",
       });
-    } catch (e) {
-      console.error("[profile] crash:", e);
+    } catch (error: any) {
+      console.error("Profile update error:", error);
       toast({
         title: "Erreur",
-        description: "Erreur inattendue pendant l'enregistrement.",
+        description: error.message || "Erreur lors de la sauvegarde",
         variant: "destructive",
       });
     } finally {
-      console.log("[profile] Setting loading to false");
       setLoading(false);
     }
   }
