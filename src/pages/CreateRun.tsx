@@ -33,7 +33,6 @@ const CreateRun = () => {
     intensity: '',
     type: '',
     max_participants: '',
-    description: ''
   });
 
   // Redirect to auth if not logged in
@@ -71,10 +70,62 @@ const CreateRun = () => {
   };
 
   const handleLocationSelect = (lat: number, lng: number, type: 'start' | 'end') => {
+    console.log(`Sélection ${type}:`, { lat, lng });
     setSelectedLocations(prev => ({
       ...prev,
       [type]: { lat, lng }
     }));
+  };
+
+  // Validation stricte des données
+  const validateFormData = () => {
+    const errors: string[] = [];
+
+    if (!formData.title?.trim()) errors.push("Le titre est obligatoire");
+    if (!formData.date) errors.push("La date est obligatoire");
+    if (!formData.time) errors.push("L'heure est obligatoire");
+    if (!formData.area_hint?.trim()) errors.push("La description du lieu est obligatoire");
+    if (!formData.distance_km) errors.push("La distance est obligatoire");
+    if (!formData.intensity) errors.push("L'intensité est obligatoire");
+    if (!formData.type) errors.push("Le type de course est obligatoire");
+    if (!formData.max_participants) errors.push("Le nombre de participants est obligatoire");
+    
+    if (!selectedLocations.start) {
+      errors.push("Le point de départ est obligatoire");
+    }
+
+    // Validation de la date/heure
+    if (formData.date && formData.time) {
+      const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
+      if (isNaN(sessionDateTime.getTime())) {
+        errors.push("Date/heure invalide");
+      } else if (sessionDateTime <= new Date()) {
+        errors.push("La session doit être dans le futur");
+      }
+    }
+
+    // Validation des coordonnées
+    if (selectedLocations.start) {
+      const { lat, lng } = selectedLocations.start;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        errors.push("Coordonnées de départ invalides");
+      }
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        errors.push("Coordonnées de départ hors limites");
+      }
+    }
+
+    if (selectedLocations.end) {
+      const { lat, lng } = selectedLocations.end;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        errors.push("Coordonnées d'arrivée invalides");
+      }
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        errors.push("Coordonnées d'arrivée hors limites");
+      }
+    }
+
+    return errors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,20 +134,15 @@ const CreateRun = () => {
 
     try {
       // Validation stricte
-      if (!formData.title || !formData.date || !formData.time || !formData.area_hint) {
-        throw new Error('Veuillez remplir tous les champs obligatoires');
-      }
-
-      if (!selectedLocations.start) {
-        throw new Error('Le point de départ est obligatoire');
+      const validationErrors = validateFormData();
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors[0]);
       }
 
       // Construction sécurisée de la date
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
-      if (isNaN(sessionDateTime.getTime())) {
-        throw new Error('Date/heure invalide');
-      }
-
+      
+      // Construction du payload avec validation
       const payload = {
         host_id: user.id,
         title: formData.title.trim(),
@@ -105,17 +151,17 @@ const CreateRun = () => {
         intensity: formData.intensity,
         type: formData.type,
         max_participants: Number(formData.max_participants),
-        location_lat: Number(selectedLocations.start.lat),
-        location_lng: Number(selectedLocations.start.lng),
+        location_lat: Number(selectedLocations.start!.lat),
+        location_lng: Number(selectedLocations.start!.lng),
         end_lat: selectedLocations.end ? Number(selectedLocations.end.lat) : null,
         end_lng: selectedLocations.end ? Number(selectedLocations.end.lng) : null,
         area_hint: formData.area_hint.trim(),
+        blur_radius_m: 1000, // Rayon de flou par défaut
+        price_cents: 450, // Prix par défaut (pourrait être configurable)
+        host_payout_cents: 200, // Rémunération hôte
       };
 
-      // Validation des coordonnées
-      if (!Number.isFinite(payload.location_lat) || !Number.isFinite(payload.location_lng)) {
-        throw new Error('Coordonnées invalides');
-      }
+      console.log("[sessions] Création avec payload:", payload);
 
       const { data, error } = await supabase
         .from("sessions")
@@ -123,19 +169,23 @@ const CreateRun = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[sessions] Erreur création:", error);
+        throw new Error(`Erreur de création: ${error.message}`);
+      }
 
       toast({
-        title: "Session créée !",
+        title: "Session créée avec succès !",
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
       navigate(`/map?sessionId=${data.id}`);
       
     } catch (error: any) {
+      console.error("[CreateRun] Erreur complète:", error);
       toast({
-        title: "Erreur",
-        description: error.message,
+        title: "Erreur de création",
+        description: error.message || "Une erreur inattendue s'est produite",
         variant: "destructive",
       });
     } finally {
