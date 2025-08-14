@@ -70,7 +70,7 @@ const SessionDetails = () => {
       .from('enrollments')
       .select(`
         *,
-        profiles:user_id (id, full_name, age, gender, avatar_url)
+        profiles!enrollments_user_id_fkey (id, full_name, age, gender, avatar_url)
       `)
       .eq('session_id', id)
       .in('status', ['paid', 'included_by_subscription']);
@@ -87,9 +87,12 @@ const SessionDetails = () => {
   };
 
   const handleSubscribeOrEnroll = async () => {
+    console.log("handleSubscribeOrEnroll called", { user: !!user, hasActiveSubscription });
+    
     if (!user) {
       // Redirect to auth page with return parameter
       const currentPath = `/session/${id}`;
+      console.log("Redirecting to auth", { currentPath });
       window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
       return;
     }
@@ -98,6 +101,7 @@ const SessionDetails = () => {
 
     // If user has active subscription, enroll directly
     if (hasActiveSubscription) {
+      console.log("User has active subscription, enrolling directly");
       setIsLoading(true);
       try {
         const { error } = await supabase
@@ -118,6 +122,7 @@ const SessionDetails = () => {
         // Refresh session details
         fetchSessionDetails();
       } catch (error: any) {
+        console.error("Error enrolling:", error);
         toast({
           title: "Erreur",
           description: error.message,
@@ -128,6 +133,7 @@ const SessionDetails = () => {
       }
     } else {
       // Redirect to subscription page
+      console.log("User doesn't have subscription, redirecting to subscription page");
       window.location.href = '/subscription';
     }
   };

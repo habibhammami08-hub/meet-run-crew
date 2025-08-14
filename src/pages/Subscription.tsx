@@ -15,6 +15,8 @@ const Subscription = () => {
   const { toast } = useToast();
 
   const handleSubscribe = async () => {
+    console.log("handleSubscribe called", { user: !!user });
+    
     if (!user) {
       toast({
         title: "Connexion requise",
@@ -25,14 +27,22 @@ const Subscription = () => {
     }
 
     setIsLoading(true);
+    console.log("Starting subscription creation...");
 
     try {
+      console.log("Invoking create-subscription-session function...");
       const { data, error } = await supabase.functions.invoke('create-subscription-session');
+      
+      console.log("Function response:", { data, error });
 
       if (error) throw error;
 
       if (data.url) {
+        console.log("Redirecting to Stripe checkout:", data.url);
         window.open(data.url, '_blank');
+      } else {
+        console.error("No URL returned from function:", data);
+        throw new Error("Aucune URL de paiement reçue");
       }
     } catch (error: any) {
       toast({
