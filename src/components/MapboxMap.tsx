@@ -18,7 +18,7 @@ interface MapboxMapProps {
 const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect }: MapboxMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFiaWJoYW1tIiwiYSI6ImNtZWFxNjVuZTExbGsyeHM4bnYxNXEya2cifQ.vZPUHGgq9_OkWBmetI1ZwQ';
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFiaWJoYW1tIiwiYSI6ImNtZWFxZDFpaDB3ZGQybHM4aHk4YnA2M3IifQ.lyxO1DHmp3zHqsy1xEz4jg';
 
   const initializeMap = () => {
     console.log('🗺️ Initializing Mapbox map...');
