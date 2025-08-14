@@ -232,12 +232,13 @@ const Profile = () => {
         console.error("[profile] upsert error:", error);
         toast({
           title: "Erreur",
-          description: `Impossible d'enregistrer le profil (${error.code ?? "err"})`,
+          description: `Impossible d'enregistrer le profil (${error.code ?? "err"}) - ${error.message}`,
           variant: "destructive",
         });
         return;
       }
 
+      console.log("[profile] upsert success, updating local state");
       setProfile(data);
       setIsEditing(false);
       toast({
@@ -252,6 +253,7 @@ const Profile = () => {
         variant: "destructive",
       });
     } finally {
+      console.log("[profile] Setting loading to false");
       setLoading(false);
     }
   }
