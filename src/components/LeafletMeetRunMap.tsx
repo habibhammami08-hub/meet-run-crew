@@ -364,8 +364,7 @@ const LeafletMeetRunMap = ({
               }
               <div>
                 <div style="font-weight: 600; color: #92400e; font-size: 11px;">
-                  ${hostProfile.full_name || 'Hôte'}
-                  ${hostProfile.age ? `, ${hostProfile.age} ans` : ''}
+                  ${hostProfile.full_name || 'Organisateur'}${hostProfile.age ? `, ${hostProfile.age} ans` : ''}
                 </div>
                 <div style="font-size: 9px; color: #92400e;">Organisateur</div>
               </div>
@@ -416,8 +415,7 @@ const LeafletMeetRunMap = ({
               }
               <div>
                 <div style="font-weight: 600; color: #2d3748; font-size: 12px;">
-                  ${hostProfile.full_name || 'Hôte'}
-                  ${hostProfile.age ? `, ${hostProfile.age} ans` : ''}
+                  ${hostProfile.full_name || 'Organisateur'}${hostProfile.age ? `, ${hostProfile.age} ans` : ''}
                 </div>
                 <div style="font-size: 10px; color: #64748b;">Organisateur</div>
               </div>
