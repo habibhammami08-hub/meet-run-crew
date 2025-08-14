@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
-import { Edit, MapPin, Calendar, Users, Star, Award, Save, X } from "lucide-react";
+import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ const Profile = () => {
     totalKm: 0
   });
   const [userActivity, setUserActivity] = useState<any[]>([]);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -165,6 +166,41 @@ const Profile = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!user) return;
+    
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.")) {
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès.",
+      });
+
+      // Actualiser les activités et statistiques
+      fetchUserActivity();
+      fetchUserStats();
+    } catch (error: any) {
+      toast({
+        title: "Erreur de suppression",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingSessionId(null);
     }
   };
 
@@ -382,26 +418,42 @@ const Profile = () => {
                       activity.activity_type === 'created' ? 'bg-primary' : 
                       activity.enrollment_status === 'paid' ? 'bg-green-500' : 'bg-blue-500'
                     }`}></div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-medium">{activity.title}</h4>
-                        <Badge variant={
-                          activity.activity_type === 'created' ? 'default' :
-                          activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
-                        } className="text-xs">
-                          {activity.activity_type === 'created' ? 'Organisée' : 
-                           activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                        <Calendar size={12} />
-                        {new Date(activity.date).toLocaleDateString('fr-FR')}
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <MapPin size={12} />
-                        {activity.area_hint || 'Localisation masquée'}
-                      </p>
-                    </div>
+                     <div className="flex-1">
+                       <div className="flex justify-between items-start mb-1">
+                         <h4 className="font-medium">{activity.title}</h4>
+                         <div className="flex items-center gap-2">
+                           <Badge variant={
+                             activity.activity_type === 'created' ? 'default' :
+                             activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
+                           } className="text-xs">
+                             {activity.activity_type === 'created' ? 'Organisée' : 
+                              activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
+                           </Badge>
+                           {activity.activity_type === 'created' && (
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleDeleteSession(activity.id);
+                               }}
+                               disabled={deletingSessionId === activity.id}
+                               className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                             >
+                               <Trash2 size={12} />
+                             </Button>
+                           )}
+                         </div>
+                       </div>
+                       <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                         <Calendar size={12} />
+                         {new Date(activity.date).toLocaleDateString('fr-FR')}
+                       </p>
+                       <p className="text-sm text-muted-foreground flex items-center gap-1">
+                         <MapPin size={12} />
+                         {activity.area_hint || 'Localisation masquée'}
+                       </p>
+                     </div>
                   </div>
                 ))}
               </div>

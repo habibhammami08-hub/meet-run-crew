@@ -1,19 +1,22 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star } from "lucide-react";
+import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import Navigation from "@/components/Navigation";
 import heroImage from "@/assets/hero-running.jpg";
+import { useToast } from "@/hooks/use-toast";
 
 const Home = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { toast } = useToast();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -76,6 +79,40 @@ const Home = () => {
       console.error('Erreur lors du chargement des activités:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!user) return;
+    
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.")) {
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès.",
+      });
+
+      // Actualiser les activités
+      fetchUserActivity();
+    } catch (error: any) {
+      toast({
+        title: "Erreur de suppression",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingSessionId(null);
     }
   };
 
@@ -223,35 +260,51 @@ const Home = () => {
                         activity.activity_type === 'created' ? 'bg-primary' : 
                         activity.enrollment_status === 'paid' ? 'bg-green-500' : 'bg-blue-500'
                       }`}></div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-1">
-                          <h4 className="font-medium">{activity.title}</h4>
-                          <Badge variant={
-                            activity.activity_type === 'created' ? 'default' :
-                            activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
-                          } className="text-xs">
-                            {activity.activity_type === 'created' ? 'Organisée' : 
-                             activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                          <Calendar size={12} />
-                          {new Date(activity.date).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'long'
-                          })}
-                        </p>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <MapPin size={12} />
-                          {activity.area_hint || 'Localisation masquée'}
-                          {activity.activity_type === 'created' && activity.enrollments && (
-                            <span className="ml-2 flex items-center gap-1">
-                              <Users size={12} />
-                              {activity.enrollments[0]?.count || 0}/{activity.max_participants}
-                            </span>
-                          )}
-                        </p>
-                      </div>
+                       <div className="flex-1">
+                         <div className="flex justify-between items-start mb-1">
+                           <h4 className="font-medium">{activity.title}</h4>
+                           <div className="flex items-center gap-2">
+                             <Badge variant={
+                               activity.activity_type === 'created' ? 'default' :
+                               activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
+                             } className="text-xs">
+                               {activity.activity_type === 'created' ? 'Organisée' : 
+                                activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
+                             </Badge>
+                             {activity.activity_type === 'created' && (
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   handleDeleteSession(activity.id);
+                                 }}
+                                 disabled={deletingSessionId === activity.id}
+                                 className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                               >
+                                 <Trash2 size={12} />
+                               </Button>
+                             )}
+                           </div>
+                         </div>
+                         <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                           <Calendar size={12} />
+                           {new Date(activity.date).toLocaleDateString('fr-FR', {
+                             day: 'numeric',
+                             month: 'long'
+                           })}
+                         </p>
+                         <p className="text-sm text-muted-foreground flex items-center gap-1">
+                           <MapPin size={12} />
+                           {activity.area_hint || 'Localisation masquée'}
+                           {activity.activity_type === 'created' && activity.enrollments && (
+                             <span className="ml-2 flex items-center gap-1">
+                               <Users size={12} />
+                               {activity.enrollments[0]?.count || 0}/{activity.max_participants}
+                             </span>
+                           )}
+                         </p>
+                       </div>
                     </div>
                   ))}
                   <Button 
