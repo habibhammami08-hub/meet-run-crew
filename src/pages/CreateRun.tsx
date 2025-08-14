@@ -10,7 +10,7 @@ import Header from "@/components/Header";
 import LocationPicker from "@/components/LocationPicker";
 import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const CreateRun = () => {
@@ -367,7 +367,7 @@ const CreateRun = () => {
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner la distance" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border z-50">
                   <SelectItem value="3">3 km</SelectItem>
                   <SelectItem value="5">5 km</SelectItem>
                   <SelectItem value="8">8 km</SelectItem>
@@ -384,7 +384,7 @@ const CreateRun = () => {
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner l'intensité" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border z-50">
                   <SelectItem value="low">Faible - Rythme tranquille (6-7 min/km)</SelectItem>
                   <SelectItem value="medium">Moyenne - Rythme modéré (5-6 min/km)</SelectItem>
                   <SelectItem value="high">Élevée - Rythme soutenu (4-5 min/km)</SelectItem>
@@ -398,7 +398,7 @@ const CreateRun = () => {
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner le type" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border z-50">
                   <SelectItem value="mixed">Mixte - Ouvert à tous</SelectItem>
                   <SelectItem value="women">Femmes uniquement</SelectItem>
                   <SelectItem value="men">Hommes uniquement</SelectItem>
@@ -423,7 +423,7 @@ const CreateRun = () => {
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Sélectionner le nombre max" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border z-50">
                   <SelectItem value="3">3 participants</SelectItem>
                   <SelectItem value="4">4 participants</SelectItem>
                   <SelectItem value="5">5 participants</SelectItem>
