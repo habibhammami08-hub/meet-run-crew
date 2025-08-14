@@ -71,6 +71,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Sync user metadata to profile table
+  const syncUserMetadataToProfile = async (user: User) => {
+    try {
+      const metadata = user.user_metadata;
+      if (!metadata) return;
+
+      const profileData = {
+        id: user.id,
+        email: user.email || '',
+        full_name: metadata.full_name || '',
+        phone: metadata.phone || null,
+        age: metadata.age ? Number(metadata.age) : null,
+        gender: metadata.gender || null,
+      };
+
+      console.log('Syncing user metadata to profile:', profileData);
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(profileData, { onConflict: 'id' });
+
+      if (error) {
+        console.error('Error syncing metadata to profile:', error);
+      } else {
+        console.log('User metadata synced to profile successfully');
+      }
+    } catch (error) {
+      console.error('Error in syncUserMetadataToProfile:', error);
+    }
+  };
+
   // Realtime subscription to get live profile updates
   const subRef = useRef<RealtimeChannel | null>(null);
   useEffect(() => {
@@ -108,6 +139,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         if (session?.user) {
           await fetchSubscriptionStatus(session.user.id);
+          // Sync user metadata to profile on login
+          if (event === 'SIGNED_IN') {
+            await syncUserMetadataToProfile(session.user);
+          }
         } else {
           setHasActiveSubscription(false);
           setSubscriptionStatus(null);
@@ -125,6 +160,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (session?.user) {
         await fetchSubscriptionStatus(session.user.id);
+        // Also sync metadata on initial load
+        await syncUserMetadataToProfile(session.user);
       }
       
       setLoading(false);

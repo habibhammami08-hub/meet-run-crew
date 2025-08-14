@@ -122,21 +122,37 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header 
-        title="Profil"
+        title="Mon Profil"
         actions={
           !isEditing ? (
-            <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setIsEditing(true)}
+              className="text-primary"
+            >
               <Edit size={20} />
             </Button>
           ) : (
-            <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setIsEditing(false)}
+              className="text-muted-foreground"
+            >
               <X size={20} />
             </Button>
           )
         }
       />
       
-      <div className="p-4 pt-20 space-y-6">
+      <div className="p-4 pt-20 space-y-6">{!isEditing && (
+          <div className="text-center mb-4">
+            <p className="text-sm text-muted-foreground">
+              Cliquez sur <Edit size={14} className="inline mx-1" /> pour modifier vos informations
+            </p>
+          </div>
+        )}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle>Informations personnelles</CardTitle>
