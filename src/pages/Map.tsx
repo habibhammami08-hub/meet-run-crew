@@ -33,7 +33,7 @@ const Map = () => {
             .from('sessions')
             .select(`
               *,
-              profiles:host_id(full_name, avatar_url),
+              profiles!host_id(full_name, avatar_url),
               enrollments(id, user_id, status)
             `)
             .eq('id', payload.new.id)
@@ -53,7 +53,7 @@ const Map = () => {
             .from('sessions')
             .select(`
               *,
-              profiles:host_id(full_name, avatar_url),
+              profiles!host_id(full_name, avatar_url),
               enrollments(id, user_id, status)
             `)
             .eq('id', payload.new.id)
@@ -88,7 +88,7 @@ const Map = () => {
       .from('sessions')
       .select(`
         *,
-        profiles:host_id (full_name),
+        profiles!host_id (full_name, avatar_url),
         enrollments (id, user_id, status)
       `)
       .gte('date', new Date().toISOString());
