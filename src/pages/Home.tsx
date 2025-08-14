@@ -151,25 +151,25 @@ const Home = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
         <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
           <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
-          <p className="text-lg opacity-90 mb-6 text-center">L'application de running collectif à Wellington</p>
+          <p className="text-lg opacity-90 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
               <>
-                <Button variant="sport" size="lg" onClick={() => navigate("/map")}>
+                <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary/20">
                   Voir les courses
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-                <Button variant="sportOutline" size="lg" onClick={() => navigate("/create")}>
+                <Button variant="sportOutline" size="lg" onClick={() => navigate("/create")} className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-primary hover:border-primary">
                   Créer une course
                 </Button>
               </>
             ) : (
               <>
-                <Button variant="sport" size="lg" onClick={() => navigate("/auth")}>
+                <Button variant="sport" size="lg" onClick={() => navigate("/auth")} className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-primary/20">
                   Créer un compte
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-                <Button variant="sportOutline" size="lg" onClick={() => navigate("/map")}>
+                <Button variant="sportOutline" size="lg" onClick={() => navigate("/map")} className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-primary hover:border-primary">
                   Voir les courses
                 </Button>
               </>
@@ -207,7 +207,7 @@ const Home = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sport-black mb-2">Inscris-toi</h3>
-                  <p className="text-sport-gray">Paie 4,50$ pour rejoindre une session et accéder aux détails complets.</p>
+                  <p className="text-sport-gray">Abonne-toi pour 9,99€ et accède à toutes les sessions de running collectif près de chez toi en illimité.</p>
                 </div>
               </div>
             </CardContent>
@@ -221,14 +221,14 @@ const Home = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sport-black mb-2">Cours ensemble</h3>
-                  <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ta course !</p>
+                  <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ton run en groupe !</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Button variant="sportSecondary" size="lg" className="w-full" onClick={() => navigate("/map")}>
+        <Button variant="sportSecondary" size="lg" className="w-full font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
           Voir toutes les courses
         </Button>
       </div>
