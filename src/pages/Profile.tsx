@@ -119,17 +119,35 @@ const Profile = () => {
     try {
       console.log('Starting account deletion...');
       
-      // Use the database function directly
-      const { data, error } = await supabase.rpc('delete_user_completely');
+      // Call the edge function directly with full URL
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
       
-      console.log('Delete function response:', { data, error });
-
-      if (error) {
-        console.error('Delete function error:', error);
-        throw error;
+      if (!accessToken) {
+        throw new Error('Pas de token d\'accès');
       }
 
-      console.log('Account deletion successful');
+      console.log('Calling edge function with token...');
+      const response = await fetch(
+        'https://qnupinrsetomnsdchhfa.supabase.co/functions/v1/delete-user-account',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ confirm: true })
+        }
+      );
+
+      console.log('Response status:', response.status);
+      const result = await response.json();
+      console.log('Response data:', result);
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erreur lors de la suppression');
+      }
+
       toast.success("Votre compte a été supprimé avec succès");
       
       // Force navigation to home page after deletion

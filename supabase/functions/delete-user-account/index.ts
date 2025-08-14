@@ -5,10 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface DeleteUserRequest {
-  confirm: boolean;
-}
-
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -17,20 +13,6 @@ Deno.serve(async (req) => {
 
   try {
     console.log('Delete user account request received');
-
-    // Get request body
-    const { confirm } = await req.json() as DeleteUserRequest;
-    
-    if (!confirm) {
-      console.log('Deletion not confirmed');
-      return new Response(
-        JSON.stringify({ error: 'Deletion not confirmed' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
 
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
