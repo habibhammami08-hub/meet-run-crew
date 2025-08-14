@@ -110,7 +110,10 @@ const Profile = () => {
       
       // Call the edge function to delete the account
       const { data, error } = await supabase.functions.invoke('delete-user-account', {
-        body: { confirm: true }
+        body: { confirm: true },
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        }
       });
 
       if (error) {
