@@ -159,7 +159,7 @@ const Home = () => {
                   Voir les courses
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-                <Button variant="sportOutline" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-white/10 backdrop-blur-sm border-2 border-white/30 hover:bg-white/20">
+                <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
                   Créer une course
                 </Button>
               </>
@@ -169,7 +169,7 @@ const Home = () => {
                   Créer un compte
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-                <Button variant="sportOutline" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-white/10 backdrop-blur-sm border-2 border-white/30 hover:bg-white/20">
+                <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
                   Voir les courses
                 </Button>
               </>
