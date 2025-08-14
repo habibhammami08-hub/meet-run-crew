@@ -27,6 +27,7 @@ const Profile = () => {
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -276,6 +277,54 @@ const Profile = () => {
       });
     } finally {
       setDeletingSessionId(null);
+    }
+  };
+
+  const handleSignOut = async () => {
+    // Demander confirmation
+    if (!confirm("Êtes-vous sûr de vouloir vous déconnecter ?")) {
+      return;
+    }
+
+    setSigningOut(true);
+    
+    try {
+      console.log('Starting sign out process...');
+      
+      // Nettoyer le localStorage spécifique à l'app si nécessaire
+      const keysToRemove = Object.keys(localStorage).filter(key => 
+        key.startsWith('meetrun_') || key.includes('profile_')
+      );
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Déconnexion Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Supabase signOut error:', error);
+        throw error;
+      }
+      
+      console.log('Successfully signed out from Supabase');
+      
+      // Toast de confirmation
+      toast({
+        title: "Déconnexion réussie",
+        description: "Vous avez été déconnecté avec succès.",
+      });
+      
+      // Redirection vers l'accueil
+      navigate('/', { replace: true });
+      
+    } catch (error: any) {
+      console.error('Error during sign out:', error);
+      toast({
+        title: "Erreur de déconnexion",
+        description: error.message || "Une erreur est survenue lors de la déconnexion.",
+        variant: "destructive",
+      });
+    } finally {
+      setSigningOut(false);
     }
   };
 
@@ -563,12 +612,17 @@ const Profile = () => {
             variant="ghost" 
             size="lg" 
             className="w-full text-destructive"
-            onClick={async () => {
-              await signOut();
-              navigate('/');
-            }}
+            onClick={handleSignOut}
+            disabled={signingOut}
           >
-            Se déconnecter
+            {signingOut ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                Déconnexion...
+              </div>
+            ) : (
+              "Se déconnecter"
+            )}
           </Button>
         </div>
       </div>
