@@ -195,49 +195,106 @@ const Profile = () => {
   };
 
   const updateProfile = async (formData: FormData) => {
-    if (!user) return;
+    if (!user) {
+      console.error('No user found for profile update');
+      return;
+    }
     
     setLoading(true);
+    console.log('Starting profile update for user:', user.id);
+    
     try {
       const firstName = formData.get('first_name') as string;
       const lastName = formData.get('last_name') as string;
+      const ageValue = formData.get('age') as string;
+      
+      console.log('Form data:', {
+        firstName,
+        lastName,
+        age: ageValue,
+        gender: formData.get('gender'),
+        phone: formData.get('phone')
+      });
       
       const updatedProfile = {
-        first_name: firstName,
-        last_name: lastName,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
         full_name: `${firstName} ${lastName}`.trim(),
-        age: formData.get('age') ? parseInt(formData.get('age') as string) : null,
-        gender: formData.get('gender') as string,
-        phone: formData.get('phone') as string,
+        age: ageValue ? parseInt(ageValue) : null,
+        gender: (formData.get('gender') as string) || null,
+        phone: (formData.get('phone') as string) || null,
       };
 
-      const { error } = await supabase
+      console.log('Prepared profile data:', updatedProfile);
+
+      // Use update instead of upsert to be more explicit
+      const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email || '',
-          ...updatedProfile
-        }, {
-          onConflict: 'id'
+        .update(updatedProfile)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      console.log('Supabase response:', { data, error });
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      if (data) {
+        console.log('Profile updated successfully:', data);
+        setProfile({ ...profile, ...data });
+        setIsEditing(false);
+        toast({
+          title: "Profil mis à jour",
+          description: "Vos informations ont été sauvegardées avec succès.",
         });
+        
+        // Refresh profile data to ensure consistency
+        await fetchProfile();
+      } else {
+        console.warn('No data returned from update');
+        // Profile might not exist, try to create it
+        console.log('Attempting to create profile...');
+        
+        const { data: insertData, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email || '',
+            ...updatedProfile
+          })
+          .select()
+          .single();
 
-      if (error) throw error;
+        console.log('Insert response:', { insertData, insertError });
 
-      setProfile({ ...profile, ...updatedProfile });
-      setIsEditing(false);
-      toast({
-        title: "Profil mis à jour",
-        description: "Vos informations ont été sauvegardées avec succès.",
-      });
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw insertError;
+        }
+
+        if (insertData) {
+          console.log('Profile created successfully:', insertData);
+          setProfile(insertData);
+          setIsEditing(false);
+          toast({
+            title: "Profil créé",
+            description: "Votre profil a été créé avec succès.",
+          });
+        }
+      }
     } catch (error: any) {
       console.error('Profile update error:', error);
       toast({
-        title: "Erreur",
-        description: error.message,
+        title: "Erreur de sauvegarde",
+        description: `Impossible de sauvegarder le profil: ${error.message}`,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      console.log('Profile update process completed');
     }
   };
 
