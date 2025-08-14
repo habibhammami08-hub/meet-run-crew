@@ -87,6 +87,10 @@ const CreateRun = () => {
         throw new Error('Veuillez remplir tous les champs obligatoires');
       }
 
+      if (!formData.distance_km || !formData.intensity || !formData.type || !formData.max_participants) {
+        throw new Error('Veuillez sélectionner tous les détails de la course');
+      }
+
       // Validate start location is selected (obligatoire)
       if (!selectedLocations.start) {
         throw new Error('Veuillez sélectionner un point de départ sur la carte - c\'est obligatoire !');
@@ -113,11 +117,7 @@ const CreateRun = () => {
       const { data: newSession, error } = await supabase
         .from('sessions')
         .insert(sessionData)
-        .select(`
-          *,
-          profiles!host_id(full_name, avatar_url),
-          enrollments(id, user_id, status)
-        `)
+        .select()
         .single();
 
       if (error) throw error;
