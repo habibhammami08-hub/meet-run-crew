@@ -171,20 +171,27 @@ const CreateRun = () => {
 
       if (error) {
         console.error("[sessions] Erreur création:", error);
-        throw new Error(`Erreur de création: ${error.message}`);
+        throw new Error(`Impossible de créer la session: ${error.message}`);
       }
 
+      if (!data) {
+        throw new Error("Aucune donnée retournée après création");
+      }
+
+      console.log("[sessions] Session créée avec succès:", data);
+
       toast({
-        title: "Session créée avec succès !",
+        title: "Session créée !",
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
-      navigate(`/map?sessionId=${data.id}`);
+      // Navigation vers la carte avec la nouvelle session
+      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
       
     } catch (error: any) {
-      console.error("[CreateRun] Erreur complète:", error);
+      console.error("[sessions] Erreur:", error);
       toast({
-        title: "Erreur de création",
+        title: "Erreur lors de la création",
         description: error.message || "Une erreur inattendue s'est produite",
         variant: "destructive",
       });
@@ -197,7 +204,7 @@ const CreateRun = () => {
     <div className="min-h-screen bg-background">
       <Header title="Créer une session" />
       
-      <form onSubmit={handleSubmit} className="p-4 space-y-6">
+      <form onSubmit={handleSubmit} className="p-4 space-y-6 pb-20">
         {/* Basic Info */}
         <Card className="shadow-card">
           <CardHeader>
@@ -213,7 +220,11 @@ const CreateRun = () => {
                 placeholder="Course matinale au parc"
                 className="mt-1"
                 required
+                maxLength={100}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Soyez descriptif pour attirer les participants
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -237,13 +248,22 @@ const CreateRun = () => {
                   setMode('start');
                   setShowLocationPicker(true);
                 }}
-                className="w-full mt-2 flex items-center gap-2"
+                className="w-full mt-2 flex items-center gap-2 h-auto py-3"
               >
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                {selectedLocations.start 
-                  ? `Départ sélectionné: ${selectedLocations.start.lat.toFixed(4)}, ${selectedLocations.start.lng.toFixed(4)}`
-                  : 'Choisir le point de départ'
-                }
+                <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                <div className="text-left">
+                  {selectedLocations.start 
+                    ? (
+                      <>
+                        <div className="font-medium">Point de départ sélectionné</div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedLocations.start.lat.toFixed(4)}, {selectedLocations.start.lng.toFixed(4)}
+                        </div>
+                      </>
+                    )
+                    : 'Choisir le point de départ'
+                  }
+                </div>
               </Button>
             </div>
 
@@ -257,13 +277,22 @@ const CreateRun = () => {
                   setMode('end');
                   setShowLocationPicker(true);
                 }}
-                className="w-full mt-2 flex items-center gap-2"
+                className="w-full mt-2 flex items-center gap-2 h-auto py-3"
               >
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                {selectedLocations.end 
-                  ? `Arrivée sélectionnée: ${selectedLocations.end.lat.toFixed(4)}, ${selectedLocations.end.lng.toFixed(4)}`
-                  : 'Choisir le point d\'arrivée'
-                }
+                <div className="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></div>
+                <div className="text-left">
+                  {selectedLocations.end 
+                    ? (
+                      <>
+                        <div className="font-medium">Point d'arrivée sélectionné</div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedLocations.end.lat.toFixed(4)}, {selectedLocations.end.lng.toFixed(4)}
+                        </div>
+                      </>
+                    )
+                    : 'Choisir le point d\'arrivée'
+                  }
+                </div>
               </Button>
               <p className="text-sm text-muted-foreground mt-1">
                 Si aucun point d'arrivée n'est spécifié, la course sera un aller-retour au point de départ.
@@ -276,9 +305,10 @@ const CreateRun = () => {
                 id="area_hint"
                 value={formData.area_hint}
                 onChange={(e) => handleInputChange('area_hint', e.target.value)}
-                placeholder="Point de rendez-vous près de l'entrée principale du parc..."
+                placeholder="Point de rendez-vous près de l'entrée principale du parc, devant la fontaine..."
                 className="mt-1"
                 required
+                maxLength={500}
               />
               <p className="text-sm text-muted-foreground mt-1">
                 Cette description sera visible après inscription. Le lieu exact sera révélé sur la carte.
@@ -355,9 +385,9 @@ const CreateRun = () => {
                   <SelectValue placeholder="Sélectionner l'intensité" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Faible - Rythme tranquille</SelectItem>
-                  <SelectItem value="medium">Moyenne - Rythme modéré</SelectItem>
-                  <SelectItem value="high">Élevée - Rythme soutenu</SelectItem>
+                  <SelectItem value="low">Faible - Rythme tranquille (6-7 min/km)</SelectItem>
+                  <SelectItem value="medium">Moyenne - Rythme modéré (5-6 min/km)</SelectItem>
+                  <SelectItem value="high">Élevée - Rythme soutenu (4-5 min/km)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -369,7 +399,7 @@ const CreateRun = () => {
                   <SelectValue placeholder="Sélectionner le type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mixed">Mixte</SelectItem>
+                  <SelectItem value="mixed">Mixte - Ouvert à tous</SelectItem>
                   <SelectItem value="women">Femmes uniquement</SelectItem>
                   <SelectItem value="men">Hommes uniquement</SelectItem>
                 </SelectContent>
@@ -404,6 +434,9 @@ const CreateRun = () => {
                   <SelectItem value="10">10 participants</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                Inclut vous-même en tant qu'organisateur
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -415,10 +448,10 @@ const CreateRun = () => {
             variant="sport" 
             size="lg" 
             className="w-full" 
-            disabled={loading}
+            disabled={loading || !selectedLocations.start}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Créer la session de running
+            {loading ? "Création en cours..." : "Créer la session de running"}
           </Button>
           <p className="text-center text-sm text-sport-gray">
             Votre session sera visible sur la carte une fois créée
