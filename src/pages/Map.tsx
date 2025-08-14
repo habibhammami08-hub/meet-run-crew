@@ -34,7 +34,7 @@ const Map = () => {
             .select(`
               *,
               host_profile:profiles!host_id(id, full_name, age, avatar_url),
-              enrollments(id, user_id, status, profile:profiles!user_id(id, full_name, age, avatar_url))
+              enrollments(id, user_id, status)
             `)
             .eq('id', payload.new.id)
             .single();
@@ -54,7 +54,7 @@ const Map = () => {
              .select(`
                *,
                host_profile:profiles!host_id(id, full_name, age, avatar_url),
-               enrollments(id, user_id, status, profile:profiles!user_id(id, full_name, age, avatar_url))
+               enrollments(id, user_id, status)
              `)
             .eq('id', payload.new.id)
             .single();
@@ -90,7 +90,7 @@ const Map = () => {
       .select(`
         *,
         host_profile:profiles!host_id (id, full_name, age, avatar_url),
-        enrollments (id, user_id, status, profile:profiles!user_id(id, full_name, age, avatar_url))
+        enrollments (id, user_id, status)
       `)
       .gte('date', new Date().toISOString());
 

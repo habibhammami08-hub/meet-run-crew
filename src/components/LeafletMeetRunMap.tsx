@@ -436,16 +436,14 @@ const LeafletMeetRunMap = ({
 
       marker.bindPopup(popupContent, { maxWidth: 340 });
 
-      // Handle marker clicks for non-popup actions
-      if (!canSeeExact) {
-        marker.on('click', () => {
+      // Add click handler for all markers to navigate to session
+      marker.on('click', (e) => {
+        // Prevent default popup if we want direct navigation
+        if (!canSeeExact) {
+          e.originalEvent?.stopPropagation();
           navigateToSession(session.id);
-        });
-      } else {
-        marker.on('click', () => {
-          navigateToSession(session.id);
-        });
-      }
+        }
+      });
 
       clusterGroup.current.addLayer(marker);
     });
