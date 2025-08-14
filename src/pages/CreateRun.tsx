@@ -79,6 +79,9 @@ const CreateRun = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🔥 handleSubmit appelé");
+    console.log("🔥 formData:", formData);
+    console.log("🔥 selectedLocations:", selectedLocations);
     setLoading(true);
 
     try {
@@ -98,6 +101,7 @@ const CreateRun = () => {
       
       // Combine date and time
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
+      console.log("🔥 sessionDateTime:", sessionDateTime);
       
       const sessionData = {
         title: formData.title,
@@ -113,6 +117,9 @@ const CreateRun = () => {
         max_participants: parseInt(formData.max_participants),
         host_id: user.id,
       };
+
+      console.log("🔥 sessionData avant insertion:", sessionData);
+      console.log("🔥 user.id:", user.id);
 
       const { data: newSession, error } = await supabase
         .from('sessions')
