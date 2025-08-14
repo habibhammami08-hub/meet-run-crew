@@ -79,9 +79,6 @@ const CreateRun = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("🔥 handleSubmit appelé");
-    console.log("🔥 formData:", formData);
-    console.log("🔥 selectedLocations:", selectedLocations);
     setLoading(true);
 
     try {
@@ -98,46 +95,55 @@ const CreateRun = () => {
       if (!selectedLocations.start) {
         throw new Error('Veuillez sélectionner un point de départ sur la carte - c\'est obligatoire !');
       }
-      
+
       // Combine date and time
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
-      console.log("🔥 sessionDateTime:", sessionDateTime);
       
-      const sessionData = {
+      const payload = {
+        host_id: user.id,
         title: formData.title,
-        date: sessionDateTime.toISOString(),
-        location_lat: parseFloat(selectedLocations.start.lat.toString()),
-        location_lng: parseFloat(selectedLocations.start.lng.toString()),
-        end_lat: selectedLocations.end ? parseFloat(selectedLocations.end.lat.toString()) : null,
-        end_lng: selectedLocations.end ? parseFloat(selectedLocations.end.lng.toString()) : null,
-        area_hint: formData.area_hint,
-        distance_km: parseFloat(formData.distance_km),
+        date: new Date(sessionDateTime).toISOString(), // important pour timestamptz
+        distance_km: Number(formData.distance_km),
         intensity: formData.intensity,
         type: formData.type,
-        max_participants: parseInt(formData.max_participants),
-        host_id: user.id,
+        max_participants: Number(formData.max_participants),
+        location_lat: Number(selectedLocations.start.lat),
+        location_lng: Number(selectedLocations.start.lng),
+        end_lat: selectedLocations.end ? Number(selectedLocations.end.lat) : null,
+        end_lng: selectedLocations.end ? Number(selectedLocations.end.lng) : null,
+        area_hint: formData.area_hint,
+        // laisser DB mettre les defaults: blur_radius_m, price_cents, host_payout_cents
       };
 
-      console.log("🔥 sessionData avant insertion:", sessionData);
-      console.log("🔥 user.id:", user.id);
+      console.log("INSERT payload:", payload);
 
-      const { data: newSession, error } = await supabase
-        .from('sessions')
-        .insert(sessionData)
+      const { data, error } = await supabase
+        .from("sessions")
+        .insert(payload)
         .select()
         .single();
 
-      if (error) throw error;
+      console.log("INSERT result:", { data, error });
+
+      if (error) { 
+        toast({
+          title: "Création échouée",
+          description: error.message,
+          variant: "destructive",
+        });
+        return; 
+      }
 
       toast({
-        title: "Session créée avec succès !",
+        title: "Session créée !",
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
       // Navigate to map with session coordinates in URL params for centering
-      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${newSession.id}`);
+      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
       
     } catch (error: any) {
+      console.error("Error in handleSubmit:", error);
       toast({
         title: "Erreur lors de la création",
         description: error.message,
