@@ -21,16 +21,28 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect }: MapboxMapProps)
   const MAPBOX_TOKEN = 'pk.eyJ1IjoiaGFiaWJoYW1tIiwiYSI6ImNtZWFxNjVuZTExbGsyeHM4bnYxNXEya2cifQ.vZPUHGgq9_OkWBmetI1ZwQ';
 
   const initializeMap = () => {
-    if (!mapContainer.current) return;
+    console.log('🗺️ Initializing Mapbox map...');
+    if (!mapContainer.current) {
+      console.error('❌ Map container not found');
+      return;
+    }
 
+    console.log('🔑 Setting Mapbox token...');
     mapboxgl.accessToken = MAPBOX_TOKEN;
     
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: [174.7762, -41.2865], // Wellington, NZ
-      zoom: 12,
-    });
+    console.log('🏗️ Creating map instance...');
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [174.7762, -41.2865], // Wellington, NZ
+        zoom: 12,
+      });
+      console.log('✅ Map created successfully');
+    } catch (error) {
+      console.error('❌ Error creating map:', error);
+      return;
+    }
 
     // Add navigation controls
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
@@ -56,23 +68,6 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect }: MapboxMapProps)
       });
     }
 
-    // Add run markers
-    runs.forEach((run) => {
-      const marker = new mapboxgl.Marker({ color: '#22c55e' })
-        .setLngLat([run.longitude, run.latitude])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 25 }).setHTML(
-            `<div class="p-2">
-              <h3 class="font-semibold">${run.title}</h3>
-              <button class="mt-2 px-3 py-1 bg-green-500 text-white rounded text-sm" onclick="window.selectRun('${run.id}')">
-                Voir détails
-              </button>
-            </div>`
-          )
-        )
-        .addTo(map.current!);
-    });
-
     // Global function for run selection
     (window as any).selectRun = (runId: string) => {
       onRunSelect?.(runId);
@@ -80,12 +75,40 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect }: MapboxMapProps)
   };
 
   useEffect(() => {
+    console.log('🔄 MapboxMap useEffect triggered');
     initializeMap();
 
     return () => {
+      console.log('🧹 Cleaning up map');
       map.current?.remove();
     };
   }, []);
+
+  useEffect(() => {
+    console.log('📦 Runs data updated:', runs);
+    if (map.current && runs.length > 0) {
+      // Clear existing markers first
+      const existingMarkers = document.querySelectorAll('.mapboxgl-marker');
+      existingMarkers.forEach(marker => marker.remove());
+      
+      // Add new markers
+      runs.forEach((run) => {
+        const marker = new mapboxgl.Marker({ color: '#22c55e' })
+          .setLngLat([run.longitude, run.latitude])
+          .setPopup(
+            new mapboxgl.Popup({ offset: 25 }).setHTML(
+              `<div class="p-2">
+                <h3 class="font-semibold">${run.title}</h3>
+                <button class="mt-2 px-3 py-1 bg-green-500 text-white rounded text-sm" onclick="window.selectRun('${run.id}')">
+                  Voir détails
+                </button>
+              </div>`
+            )
+          )
+          .addTo(map.current!);
+      });
+    }
+  }, [runs]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 };
