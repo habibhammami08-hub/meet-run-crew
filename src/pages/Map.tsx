@@ -86,22 +86,36 @@ const Map = () => {
 
   const fetchSessions = async () => {
     console.log("🔍 Fetching sessions...");
-    const { data, error } = await supabase
-      .from('sessions')
-      .select(`
-        *,
-        host_profile:profiles!host_id (id, full_name, age, avatar_url),
-        enrollments (id, user_id, status)
-      `)
-      .gte('date', new Date().toISOString());
+    
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select(`
+          *,
+          host_profile:profiles!host_id (id, full_name, age, avatar_url),
+          enrollments (id, user_id, status)
+        `)
+        .gte('date', new Date().toISOString())
+        .order('date', { ascending: true });
 
-    console.log("📊 Sessions query result:", { data, error, count: data?.length });
+      console.log("📊 Sessions query result:", { data, error, count: data?.length });
 
-    if (!error && data) {
-      console.log('✅ Sessions fetched successfully:', data.length, "sessions");
-      setSessions(data);
-    } else if (error) {
-      console.error('❌ Error fetching sessions:', error);
+      if (error) {
+        console.error('❌ Error fetching sessions:', error);
+        throw error;
+      }
+
+      if (data) {
+        console.log('✅ Sessions fetched successfully:', data.length, "sessions");
+        console.log('📋 Session details:', data.map(s => ({ id: s.id, title: s.title, date: s.date })));
+        setSessions(data);
+      } else {
+        console.log('⚠️ No sessions found');
+        setSessions([]);
+      }
+    } catch (error) {
+      console.error('💥 Failed to fetch sessions:', error);
+      setSessions([]);
     }
   };
 
