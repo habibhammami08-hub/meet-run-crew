@@ -31,13 +31,20 @@ const Subscription = () => {
 
     try {
       console.log("Invoking create-subscription-session function...");
-      const { data, error } = await supabase.functions.invoke('create-subscription-session');
+      const { data, error } = await supabase.functions.invoke('create-subscription-session', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
       
       console.log("Function response:", { data, error });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Function error:", error);
+        throw new Error(error.message || "Erreur lors de la création de la session");
+      }
 
-      if (data.url) {
+      if (data?.url) {
         console.log("Redirecting to Stripe checkout:", data.url);
         window.open(data.url, '_blank');
       } else {
@@ -45,9 +52,10 @@ const Subscription = () => {
         throw new Error("Aucune URL de paiement reçue");
       }
     } catch (error: any) {
+      console.error("Full error:", error);
       toast({
         title: "Erreur",
-        description: error.message,
+        description: error.message || "Une erreur est survenue",
         variant: "destructive",
       });
     } finally {
