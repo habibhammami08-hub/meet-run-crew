@@ -19,6 +19,7 @@ const CreateRun = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [mode, setMode] = useState<'start' | 'end'>('start');
   const [selectedLocations, setSelectedLocations] = useState<{
     start?: { lat: number; lng: number };
     end?: { lat: number; lng: number };
@@ -170,35 +171,47 @@ const CreateRun = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Point de départ */}
             <div>
-              <Label>Sélection des points *</Label>
+              <Label>Point de départ *</Label>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowLocationPicker(true)}
+                onClick={() => {
+                  setMode('start');
+                  setShowLocationPicker(true);
+                }}
                 className="w-full mt-2 flex items-center gap-2"
               >
-                <MapPin size={16} />
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 {selectedLocations.start 
-                  ? `Points sélectionnés (${selectedLocations.end ? '2' : '1'}/2)`
-                  : 'Choisir sur la carte'
+                  ? `Départ sélectionné: ${selectedLocations.start.lat.toFixed(4)}, ${selectedLocations.start.lng.toFixed(4)}`
+                  : 'Choisir le point de départ'
                 }
               </Button>
-              
-              {selectedLocations.start && (
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span>Départ: {selectedLocations.start.lat.toFixed(4)}, {selectedLocations.start.lng.toFixed(4)}</span>
-                  </div>
-                  {selectedLocations.end && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                      <span>Arrivée: {selectedLocations.end.lat.toFixed(4)}, {selectedLocations.end.lng.toFixed(4)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+            </div>
+
+            {/* Point d'arrivée */}
+            <div>
+              <Label>Point d'arrivée (optionnel)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setMode('end');
+                  setShowLocationPicker(true);
+                }}
+                className="w-full mt-2 flex items-center gap-2"
+              >
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                {selectedLocations.end 
+                  ? `Arrivée sélectionnée: ${selectedLocations.end.lat.toFixed(4)}, ${selectedLocations.end.lng.toFixed(4)}`
+                  : 'Choisir le point d\'arrivée'
+                }
+              </Button>
+              <p className="text-sm text-muted-foreground mt-1">
+                Si aucun point d'arrivée n'est spécifié, la course sera un aller-retour au point de départ.
+              </p>
             </div>
             
             <div>
@@ -363,6 +376,7 @@ const CreateRun = () => {
           onLocationSelect={handleLocationSelect}
           selectedStart={selectedLocations.start}
           selectedEnd={selectedLocations.end}
+          initialMode={mode}
           onClose={() => setShowLocationPicker(false)}
         />
       )}

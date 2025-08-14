@@ -18,15 +18,16 @@ interface LocationPickerProps {
   onLocationSelect: (lat: number, lng: number, type: 'start' | 'end') => void;
   selectedStart?: { lat: number; lng: number };
   selectedEnd?: { lat: number; lng: number };
+  initialMode?: 'start' | 'end';
   onClose: () => void;
 }
 
-const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose }: LocationPickerProps) => {
+const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, initialMode = 'start', onClose }: LocationPickerProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const startMarkerRef = useRef<L.Marker | null>(null);
   const endMarkerRef = useRef<L.Marker | null>(null);
-  const [mode, setMode] = useState<'start' | 'end'>('start');
+  const [mode, setMode] = useState<'start' | 'end'>(initialMode);
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;

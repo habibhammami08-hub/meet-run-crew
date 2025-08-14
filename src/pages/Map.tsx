@@ -23,38 +23,57 @@ const Map = () => {
     
     // Set up real-time subscription for sessions
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('sessions-changes')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'sessions' },
-        (payload) => {
+        async (payload) => {
           console.log('New session created:', payload.new);
-          // Add new session to list with enrollments structure
-          const newSession = {
-            ...payload.new,
-            profiles: null,
-            enrollments: []
-          };
-          setSessions(prev => [...prev, newSession]);
+          // Fetch the complete session with host info
+          const { data: newSessionWithHost } = await supabase
+            .from('sessions')
+            .select(`
+              *,
+              profiles:host_id(full_name, avatar_url),
+              enrollments(id, user_id, status)
+            `)
+            .eq('id', payload.new.id)
+            .single();
+          
+          if (newSessionWithHost) {
+            setSessions(prev => [...prev, newSessionWithHost]);
+          }
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions' },
-        (payload) => {
+        async (payload) => {
           console.log('Session updated:', payload.new);
-          // Update session in list
-          setSessions(prev => prev.map(session => 
-            session.id === payload.new.id 
-              ? { ...session, ...payload.new }
-              : session
-          ));
+          // Update session in list with latest data
+          const { data: updatedSession } = await supabase
+            .from('sessions')
+            .select(`
+              *,
+              profiles:host_id(full_name, avatar_url),
+              enrollments(id, user_id, status)
+            `)
+            .eq('id', payload.new.id)
+            .single();
+          
+          if (updatedSession) {
+            setSessions(prev => prev.map(session => 
+              session.id === payload.new.id ? updatedSession : session
+            ));
+          }
         }
       )
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'sessions' },
         (payload) => {
           console.log('Session deleted:', payload.old);
-          // Remove session from list
           setSessions(prev => prev.filter(session => session.id !== payload.old.id));
+          if (selectedSession?.id === payload.old.id) {
+            setSelectedSession(null);
+          }
         }
       )
       .subscribe();
