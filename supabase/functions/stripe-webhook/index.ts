@@ -37,19 +37,18 @@ serve(async (req) => {
 
     let event;
     
-    // Verify webhook signature if secret is provided
-    if (webhookSecret) {
-      try {
-        event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-        logStep("Webhook signature verified");
-      } catch (err) {
-        logStep("Webhook signature verification failed", { error: err.message });
-        return new Response(`Webhook signature verification failed: ${err.message}`, { status: 400 });
-      }
-    } else {
-      // Parse without verification if no secret is provided
-      event = JSON.parse(body);
-      logStep("Webhook parsed without signature verification");
+    // SECURITY: Always require webhook secret in production
+    if (!webhookSecret) {
+      logStep("CRITICAL ERROR: STRIPE_WEBHOOK_SECRET not configured");
+      return new Response("Webhook secret required for security", { status: 401 });
+    }
+
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      logStep("Webhook signature verified");
+    } catch (err) {
+      logStep("Webhook signature verification failed", { error: err.message });
+      return new Response(`Webhook signature verification failed: ${err.message}`, { status: 400 });
     }
 
     logStep("Processing event", { type: event.type, id: event.id });
@@ -172,11 +171,22 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in stripe-webhook", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const statusCode = error.name === 'ValidationError' ? 400 : 500;
+    
+    logStep("ERROR in stripe-webhook", {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+      type: error.constructor.name
+    });
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      code: error instanceof Error ? error.name : 'INTERNAL_ERROR'
+    }), {
+      status: statusCode,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 });
