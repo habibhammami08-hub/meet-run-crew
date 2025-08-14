@@ -43,6 +43,7 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
     // Handle map clicks
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
+      console.log(`Selecting ${mode} point:`, lat, lng);
       onLocationSelect(lat, lng, mode);
       
       if (mode === 'start') {
@@ -60,6 +61,7 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
         });
         
         startMarkerRef.current = L.marker([lat, lng], { icon: startIcon }).addTo(map);
+        startMarkerRef.current.bindPopup("Point de départ");
       } else {
         // Remove existing end marker
         if (endMarkerRef.current) {
@@ -75,6 +77,7 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
         });
         
         endMarkerRef.current = L.marker([lat, lng], { icon: endIcon }).addTo(map);
+        endMarkerRef.current.bindPopup("Point d'arrivée");
       }
     });
 
@@ -141,10 +144,46 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
+          console.log(`Setting ${mode} to current location:`, latitude, longitude);
           onLocationSelect(latitude, longitude, mode);
           
           if (mapRef.current) {
             mapRef.current.setView([latitude, longitude], 15);
+            
+            // Trigger the marker creation manually
+            const syntheticEvent = {
+              latlng: { lat: latitude, lng: longitude }
+            };
+            
+            if (mode === 'start') {
+              if (startMarkerRef.current) {
+                mapRef.current.removeLayer(startMarkerRef.current);
+              }
+              
+              const startIcon = L.divIcon({
+                html: '<div style="background-color: #22c55e; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                className: 'custom-marker',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+              });
+              
+              startMarkerRef.current = L.marker([latitude, longitude], { icon: startIcon }).addTo(mapRef.current);
+              startMarkerRef.current.bindPopup("Point de départ (ma position)");
+            } else {
+              if (endMarkerRef.current) {
+                mapRef.current.removeLayer(endMarkerRef.current);
+              }
+              
+              const endIcon = L.divIcon({
+                html: '<div style="background-color: #ef4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                className: 'custom-marker',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+              });
+              
+              endMarkerRef.current = L.marker([latitude, longitude], { icon: endIcon }).addTo(mapRef.current);
+              endMarkerRef.current.bindPopup("Point d'arrivée (ma position)");
+            }
           }
         },
         (error) => {

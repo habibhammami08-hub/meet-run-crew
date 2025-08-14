@@ -75,7 +75,10 @@ const Map = () => {
       .gte('date', new Date().toISOString());
 
     if (!error && data) {
+      console.log('Sessions fetched:', data);
       setSessions(data);
+    } else if (error) {
+      console.error('Error fetching sessions:', error);
     }
   };
 
