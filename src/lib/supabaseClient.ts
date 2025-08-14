@@ -1,11 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Utilisation des variables d'environnement Vite
-const URL = import.meta.env.VITE_SUPABASE_URL || "https://qnupinrsetomnsdchhfa.supabase.co";
-const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg";
+// Configuration directe pour Lovable (les variables VITE_* ne sont pas supportées)
+const URL = "https://qnupinrsetomnsdchhfa.supabase.co";
+const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg";
 
 if (!URL || !KEY) {
-  console.error("[supabase] Variables d'environnement manquantes");
+  console.error("[supabase] Configuration Supabase manquante");
   throw new Error("Configuration Supabase incomplète");
 }
 
