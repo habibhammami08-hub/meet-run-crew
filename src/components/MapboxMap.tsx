@@ -38,19 +38,40 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect, center }: MapboxM
   const initializeMap = (token: string, initialCenter?: [number, number]) => {
     if (!mapContainer.current) return;
 
+    if (!token || token.trim() === '') {
+      console.error('MAPBOX TOKEN manquant');
+      toast({
+        title: "Erreur Mapbox",
+        description: "Token Mapbox manquant",
+        variant: "destructive",
+      });
+      return;
+    }
+
     mapboxgl.accessToken = token;
     
     const defaultCenter: [number, number] = [174.77557, -41.28664]; // Wellington, NZ
     
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: center || initialCenter || defaultCenter,
-      zoom: 12,
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: center || initialCenter || defaultCenter,
+        zoom: 12,
+      });
 
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      // Handle map load errors
+      map.current.on('error', (e) => {
+        console.error('MAPBOX 401/403 – vérifier token ou URL restrictions', e);
+        toast({
+          title: "Erreur Mapbox",
+          description: "Vérifier le token ou les restrictions d'URL",
+          variant: "destructive",
+        });
+      });
+
+      // Add navigation controls
+      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     // Add click handler for location selection
     if (onLocationSelect) {
@@ -88,7 +109,28 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect, center }: MapboxM
           )
         )
         .addTo(map.current!);
-    });
+      });
+
+      // Handle resize when map becomes visible
+      map.current.on('load', () => {
+        // Create ResizeObserver to handle container size changes
+        if (mapContainer.current) {
+          const resizeObserver = new ResizeObserver(() => {
+            if (map.current) {
+              map.current.resize();
+            }
+          });
+          resizeObserver.observe(mapContainer.current);
+        }
+      });
+    } catch (error) {
+      console.error('Erreur initialisation Mapbox:', error);
+      toast({
+        title: "Erreur d'initialisation",
+        description: "Impossible d'initialiser la carte Mapbox",
+        variant: "destructive",
+      });
+    }
 
     // Global function for run selection
     (window as any).selectRun = (runId: string) => {
@@ -289,7 +331,7 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect, center }: MapboxM
   }
 
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full relative" style={{ height: '60vh', minHeight: '60vh' }}>
       {/* Geolocation Modal */}
       <GeolocationModal
         isOpen={showGeolocationModal}
@@ -305,7 +347,11 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect, center }: MapboxM
       />
 
       {/* Map Container */}
-      <div ref={mapContainer} className="w-full h-full" />
+      <div 
+        ref={mapContainer} 
+        className="w-full h-full"
+        style={{ width: '100%', height: '100%' }}
+      />
 
       {/* Locate Me Button */}
       <Button
@@ -314,6 +360,7 @@ const MapboxMap = ({ onLocationSelect, runs = [], onRunSelect, center }: MapboxM
         className="absolute bottom-4 right-4 z-10 shadow-sport"
         onClick={centerOnUser}
         disabled={isLoading}
+        title="Me localiser"
       >
         {isLoading ? (
           <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent" />
