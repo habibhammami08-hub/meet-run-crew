@@ -100,11 +100,11 @@ const LeafletMeetRunMap = ({
     return L.divIcon({
       html: `<div style="
         width:${size}px;height:${size}px;border-radius:50%;
-        background:#1e90ff;display:flex;align-items:center;justify-content:center;
+        background:#22c55e;display:flex;align-items:center;justify-content:center;
         color:#fff;font-weight:600;font-size:12px;
         box-shadow:0 2px 8px rgba(0,0,0,.25)
       ">${count}</div>`,
-      className: "cluster-blue",
+      className: "cluster-green",
       iconSize: [size, size]
     });
   }, []);
@@ -314,11 +314,12 @@ const LeafletMeetRunMap = ({
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-      // Create blue circle marker
+      // Create blue circle marker for paid/host users, green for non-paid
+      const markerColor = canSeeExact ? "#1e90ff" : "#22c55e";
       const marker = L.circleMarker([lat, lng], {
         radius: 5,
-        color: "#1e90ff",
-        fillColor: "#1e90ff",
+        color: markerColor,
+        fillColor: markerColor,
         fillOpacity: 0.9,
         weight: 0
       });
@@ -333,11 +334,11 @@ const LeafletMeetRunMap = ({
           <p class="text-xs text-gray-600 mt-1">${formatDate(session.date)}</p>
           <p class="text-xs">${session.distance_km} km • ${session.intensity}</p>
           ${canSeeExact ? 
-            '<p class="text-xs text-green-600 mt-1">Position exacte</p>' : 
+            '<p class="text-xs text-blue-600 mt-1">Position exacte</p>' : 
             '<p class="text-xs text-orange-600 mt-1">Zone ~300–600 m — Inscrivez-vous pour le lieu exact</p>'
           }
           <button 
-            class="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+            class="mt-2 px-3 py-1 ${canSeeExact ? 'bg-blue-500 hover:bg-blue-600' : 'bg-green-500 hover:bg-green-600'} text-white rounded text-xs"
             onclick="window.selectSession && window.selectSession('${session.id}')"
           >
             ${canSeeExact ? 'Voir détails' : `S'inscrire - ${(session.price_cents / 100).toFixed(2)}$`}
@@ -503,9 +504,15 @@ const LeafletMeetRunMap = ({
 
       {/* Legend */}
       <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
-        <div className="flex items-center text-xs text-gray-600">
-          <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-          <span>Les points bleus indiquent une zone approximative avant l'inscription</span>
+        <div className="space-y-1">
+          <div className="flex items-center text-xs text-gray-600">
+            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+            <span>Position exacte (inscrit/hôte)</span>
+          </div>
+          <div className="flex items-center text-xs text-gray-600">
+            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+            <span>Zone approximative (non-inscrit)</span>
+          </div>
         </div>
       </div>
 
