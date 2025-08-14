@@ -119,28 +119,17 @@ const Profile = () => {
     try {
       console.log('Starting account deletion...');
       
-      // Get current session
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log('Current session:', sessionData);
+      // Use the database function directly
+      const { data, error } = await supabase.rpc('delete_user_completely');
       
-      if (sessionError || !sessionData.session) {
-        throw new Error('Pas de session active');
-      }
-      
-      // Call the edge function to delete the account
-      console.log('Calling delete-user-account function...');
-      const { data, error } = await supabase.functions.invoke('delete-user-account', {
-        body: { confirm: true }
-      });
-
-      console.log('Edge function response:', { data, error });
+      console.log('Delete function response:', { data, error });
 
       if (error) {
-        console.error('Edge function error:', error);
+        console.error('Delete function error:', error);
         throw error;
       }
 
-      console.log('Account deletion successful:', data);
+      console.log('Account deletion successful');
       toast.success("Votre compte a été supprimé avec succès");
       
       // Force navigation to home page after deletion
