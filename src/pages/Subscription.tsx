@@ -31,9 +31,18 @@ const Subscription = () => {
 
     try {
       console.log("Invoking create-subscription-session function...");
+      
+      // Get current session
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
+      if (!token) {
+        throw new Error("Pas de token d'authentification");
+      }
+      
       const { data, error } = await supabase.functions.invoke('create-subscription-session', {
         headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       
