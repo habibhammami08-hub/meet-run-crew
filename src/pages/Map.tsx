@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
-import SessionMap from "@/components/SessionMap";
+import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
 import { Filter, MapPin, Users, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -137,22 +137,19 @@ const Map = () => {
       
       {/* Interactive Map */}
       <div className="flex-1">
-        <SessionMap 
+        <LeafletMeetRunMap 
           sessions={sessions.map(session => ({
             id: session.id,
             title: session.title,
             date: session.date,
             location_lat: parseFloat(session.location_lat.toString()),
             location_lng: parseFloat(session.location_lng.toString()),
-            end_lat: session.end_lat ? parseFloat(session.end_lat.toString()) : undefined,
-            end_lng: session.end_lng ? parseFloat(session.end_lng.toString()) : undefined,
             blur_radius_m: session.blur_radius_m || 1000,
             area_hint: session.area_hint,
             max_participants: session.max_participants,
             price_cents: session.price_cents,
             distance_km: parseFloat(session.distance_km.toString()),
             intensity: session.intensity,
-            type: session.type,
             host_id: session.host_id,
             enrollments: session.enrollments
           }))}
