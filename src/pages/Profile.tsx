@@ -1,168 +1,285 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
-import { Edit, Users, X, Trash2 } from "lucide-react";
+import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 const Profile = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  
   const [profile, setProfile] = useState<any>(null);
+  const [userStats, setUserStats] = useState({
+    joined: 0,
+    created: 0,
+    totalKm: 0
+  });
+  const [userActivity, setUserActivity] = useState<any[]>([]);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Charger le profil au montage
   useEffect(() => {
     if (user) {
-      loadProfile();
+      fetchProfile();
+      fetchUserStats();
+      fetchUserActivity();
     }
   }, [user]);
 
-  const loadProfile = async () => {
+  const fetchProfile = async () => {
     if (!user) return;
     
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
 
-      if (data) {
-        setProfile(data);
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
+    if (!error && data) {
+      setProfile(data);
     }
   };
 
-  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!user) {
-      console.error('No user found for profile update');
-      return;
+  const fetchUserStats = async () => {
+    if (!user) return;
+    
+    // Sessions créées
+    const { count: created } = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('host_id', user.id);
+
+    // Sessions rejointes (payées)
+    const { count: joined } = await supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'paid');
+
+    // Total km (approximatif basé sur les sessions rejointes)
+    const { data: sessionsData } = await supabase
+      .from('enrollments')
+      .select(`
+        sessions(distance_km)
+      `)
+      .eq('user_id', user.id)
+      .eq('status', 'paid');
+
+    const totalKm = sessionsData?.reduce((sum, enrollment) => {
+      return sum + (enrollment.sessions?.distance_km || 0);
+    }, 0) || 0;
+
+    setUserStats({
+      joined: joined || 0,
+      created: created || 0,
+      totalKm: Math.round(totalKm)
+    });
+  };
+
+  const fetchUserActivity = async () => {
+    if (!user) return;
+    
+    // Sessions créées
+    const { data: createdSessions } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        enrollments(count)
+      `)
+      .eq('host_id', user.id)
+      .order('date', { ascending: false })
+      .limit(5);
+
+    // Sessions rejointes
+    const { data: enrolledSessions } = await supabase
+      .from('enrollments')
+      .select(`
+        *,
+        sessions(*)
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const activities = [];
+    
+    if (createdSessions) {
+      activities.push(...createdSessions.map(session => ({
+        ...session,
+        activity_type: 'created',
+        activity_date: session.created_at
+      })));
+    }
+    
+    if (enrolledSessions) {
+      activities.push(...enrolledSessions.map(enrollment => ({
+        ...enrollment.sessions,
+        enrollment_status: enrollment.status,
+        activity_type: 'joined',
+        activity_date: enrollment.created_at
+      })));
     }
 
-    console.log('Starting profile update for user:', user.id);
-    setLoading(true);
-    const formData = new FormData(e.currentTarget);
+    activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
+    setUserActivity(activities);
+  };
+
+  const updateProfile = async (formData: FormData) => {
+    if (!user) return;
     
+    setLoading(true);
     try {
-      const updateData = {
+      const updatedProfile = {
         full_name: formData.get('full_name') as string,
-        phone: formData.get('phone') as string,
-        age: formData.get('age') ? Number(formData.get('age')) : null,
+        age: parseInt(formData.get('age') as string),
         gender: formData.get('gender') as string,
+        phone: formData.get('phone') as string,
       };
 
-      console.log('Update data:', updateData);
-
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('profiles')
-        .update(updateData)
-        .eq('id', user.id)
-        .select()
-        .single();
+        .update(updatedProfile)
+        .eq('id', user.id);
 
-      console.log('Supabase response:', { data, error });
+      if (error) throw error;
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      setProfile(data);
+      setProfile({ ...profile, ...updatedProfile });
       setIsEditing(false);
-      toast.success("Profil mis à jour avec succès !");
+      toast({
+        title: "Profil mis à jour",
+        description: "Vos informations ont été sauvegardées avec succès.",
+      });
     } catch (error: any) {
-      console.error('Error updating profile:', error);
-      toast.error("Erreur lors de la mise à jour du profil: " + (error.message || 'Erreur inconnue'));
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteAccount = async () => {
+  const uploadAvatar = async (file: File) => {
     if (!user) return;
-
-    const confirmed = window.confirm(
-      "⚠️ ATTENTION ⚠️\n\n" +
-      "Cette action est IRRÉVERSIBLE !\n\n" +
-      "Toutes vos données seront définitivement supprimées :\n" +
-      "• Votre profil\n" +
-      "• Vos sessions créées\n" +
-      "• Vos inscriptions\n" +
-      "• Votre compte utilisateur\n\n" +
-      "Êtes-vous absolument sûr(e) de vouloir supprimer votre compte ?"
-    );
-
-    if (!confirmed) return;
-
-    const doubleConfirm = window.confirm(
-      "Dernière confirmation !\n\n" +
-      "Cette action supprimera définitivement votre compte.\n" +
-      "Confirmez-vous la suppression ?"
-    );
-
-    if (!doubleConfirm) return;
-
-    setDeletingAccount(true);
+    
+    setUploadingAvatar(true);
     try {
-      console.log('Starting account deletion...');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      // Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
       
-      // Call the edge function directly with full URL
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      
-      if (!accessToken) {
-        throw new Error('Pas de token d\'accès');
-      }
-
-      console.log('Calling edge function with token...');
-      const response = await fetch(
-        'https://qnupinrsetomnsdchhfa.supabase.co/functions/v1/delete-user-account',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ confirm: true })
-        }
-      );
-
-      console.log('Response status:', response.status);
-      const result = await response.json();
-      console.log('Response data:', result);
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erreur lors de la suppression');
-      }
-
-      toast.success("Votre compte a été supprimé avec succès");
-      
-      // Force navigation to home page after deletion
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 1000);
+      toast({
+        title: "Photo de profil mise à jour",
+        description: "Votre avatar a été mis à jour avec succès.",
+      });
     } catch (error: any) {
-      console.error('Error deleting account:', error);
-      toast.error("Erreur lors de la suppression du compte : " + (error.message || 'Erreur inconnue'));
-      setDeletingAccount(false);
+      toast({
+        title: "Erreur d'upload",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Type de fichier invalide",
+          description: "Veuillez sélectionner une image.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Fichier trop volumineux",
+          description: "La taille maximum est de 5MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      uploadAvatar(file);
+    }
+  };
 
-  // Si pas connecté
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!user) return;
+    
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.")) {
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès.",
+      });
+
+      // Actualiser les activités et statistiques
+      fetchUserActivity();
+      fetchUserStats();
+    } catch (error: any) {
+      toast({
+        title: "Erreur de suppression",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
+
+  // Si pas connecté, affichage écran d'accueil auth
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
@@ -206,184 +323,251 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header 
-        title="Mon Profil"
+        title="Profil"
         actions={
           !isEditing ? (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setIsEditing(true)}
-              className="text-primary"
-            >
+            <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
               <Edit size={20} />
             </Button>
           ) : (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setIsEditing(false)}
-              className="text-muted-foreground"
-            >
-              <X size={20} />
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)}>
+                <X size={20} />
+              </Button>
+            </div>
           )
         }
       />
       
-      <div className="p-4 pt-20 space-y-6">
-        {!isEditing && (
-          <div className="text-center mb-4">
-            <p className="text-sm text-muted-foreground">
-              Cliquez sur <Edit size={14} className="inline mx-1" /> pour modifier vos informations
-            </p>
-          </div>
-        )}
-        
+      <div className="p-4 space-y-6">
+        {/* User info */}
         <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle>Informations personnelles</CardTitle>
-          </CardHeader>
           <CardContent className="p-6">
             {isEditing ? (
-              <form onSubmit={handleSaveProfile} className="space-y-4">
-                <div>
-                  <Label htmlFor="full_name">Nom complet</Label>
-                  <Input
-                    id="full_name"
-                    name="full_name"
-                    defaultValue={profile?.full_name || ''}
-                    placeholder="Votre nom complet"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="phone">Téléphone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    defaultValue={profile?.phone || ''}
-                    placeholder="Votre numéro de téléphone"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                updateProfile(new FormData(e.currentTarget));
+              }}>
+                <div className="space-y-4">
                   <div>
-                    <Label htmlFor="age">Âge</Label>
+                    <Label htmlFor="full_name">Nom complet</Label>
                     <Input
-                      id="age"
-                      name="age"
-                      type="number"
-                      defaultValue={profile?.age || ''}
-                      placeholder="Votre âge"
-                      min="16"
-                      max="99"
+                      id="full_name"
+                      name="full_name"
+                      defaultValue={profile?.full_name || ''}
+                      required
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="gender">Genre</Label>
-                    <select
-                      id="gender"
-                      name="gender"
-                      defaultValue={profile?.gender || ''}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="">Sélectionner</option>
-                      <option value="homme">Homme</option>
-                      <option value="femme">Femme</option>
-                      <option value="autre">Autre</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="age">Âge</Label>
+                      <Input
+                        id="age"
+                        name="age"
+                        type="number"
+                        defaultValue={profile?.age || ''}
+                        min="16"
+                        max="99"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="gender">Genre</Label>
+                      <select
+                        id="gender"
+                        name="gender"
+                        defaultValue={profile?.gender || ''}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Sélectionner</option>
+                        <option value="homme">Homme</option>
+                        <option value="femme">Femme</option>
+                        <option value="autre">Autre</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex gap-2 pt-4">
-                  <Button type="submit" disabled={loading} className="flex-1">
+                  <div>
+                    <Label htmlFor="phone">Téléphone</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      defaultValue={profile?.phone || ''}
+                    />
+                  </div>
+                  <Button type="submit" variant="sport" disabled={loading}>
                     {loading ? "Sauvegarde..." : "Sauvegarder"}
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setIsEditing(false)}
-                  >
-                    Annuler
                   </Button>
                 </div>
               </form>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 mb-6">
-                  <Avatar className="w-16 h-16">
-                    <AvatarImage src={profile?.avatar_url} />
-                    <AvatarFallback className="text-lg">
-                      {profile?.full_name?.split(' ').map((n: string) => n[0]).join('') || user?.email?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="text-xl font-semibold">{profile?.full_name || 'Nom non renseigné'}</h3>
-                    <p className="text-muted-foreground">{user.email}</p>
+              <>
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="relative">
+                    <Avatar className="w-20 h-20">
+                      <AvatarImage src={profile?.avatar_url} />
+                      <AvatarFallback className="text-lg">
+                        {profile?.full_name?.split(' ').map((n: string) => n[0]).join('') || user?.email?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingAvatar}
+                    >
+                      {uploadingAvatar ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent" />
+                      ) : (
+                        <Camera size={14} />
+                      )}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h1 className="text-xl font-bold text-sport-black">
+                      {profile?.full_name || 'Nom non renseigné'}
+                    </h1>
+                    {profile?.age && profile?.gender && (
+                      <p className="text-sport-gray">{profile.age} ans • {profile.gender}</p>
+                    )}
+                    {profile?.phone && (
+                      <p className="text-sport-gray">📞 {profile.phone}</p>
+                    )}
+                    <p className="text-sport-gray">✉️ {user.email}</p>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+
+                <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <Label className="text-sm font-medium">Téléphone</Label>
-                    <p className="text-sm text-muted-foreground">{profile?.phone || 'Non renseigné'}</p>
+                    <p className="text-2xl font-bold text-primary">{userStats.joined}</p>
+                    <p className="text-sm text-sport-gray">Courses jointes</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Âge</Label>
-                    <p className="text-sm text-muted-foreground">{profile?.age || 'Non renseigné'}</p>
+                    <p className="text-2xl font-bold text-primary">{userStats.created}</p>
+                    <p className="text-sm text-sport-gray">Courses organisées</p>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Genre</Label>
-                    <p className="text-sm text-muted-foreground">{profile?.gender || 'Non renseigné'}</p>
+                    <p className="text-2xl font-bold text-primary">{userStats.totalKm}</p>
+                    <p className="text-sm text-sport-gray">km parcourus</p>
                   </div>
                 </div>
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
-        
-        <Card className="shadow-card border-destructive/20">
-          <CardContent className="p-6 space-y-4">
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-destructive">Zone dangereuse</h3>
-              <p className="text-sm text-muted-foreground">
-                Actions irréversibles qui suppriment définitivement vos données.
-              </p>
-            </div>
-            
-            <div className="space-y-3">
-              <Button 
-                variant="outline" 
-                onClick={signOut}
-                className="w-full"
-                disabled={deletingAccount}
-              >
-                Se déconnecter
-              </Button>
-              
-              <Button 
-                variant="destructive" 
-                onClick={handleDeleteAccount}
-                className="w-full"
-                disabled={deletingAccount}
-              >
-                {deletingAccount ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Suppression en cours...
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Trash2 size={16} />
-                    Supprimer définitivement mon compte
+
+        {/* Achievements */}
+        {userStats.joined > 0 || userStats.created > 0 ? (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Award size={20} />
+                Badges
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {userStats.joined >= 5 && (
+                  <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg">
+                    <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
+                      🏃‍♀️
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Coureur régulier</p>
+                      <p className="text-xs text-sport-gray">{userStats.joined} courses complétées</p>
+                    </div>
                   </div>
                 )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                {userStats.created >= 1 && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                      👥
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Organisateur</p>
+                      <p className="text-xs text-sport-gray">{userStats.created} sessions créées</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Running history */}
+        {userActivity.length > 0 && (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Activité récente</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {userActivity.map((activity, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.activity_type === 'created' ? 'bg-primary' : 
+                      activity.enrollment_status === 'paid' ? 'bg-green-500' : 'bg-blue-500'
+                    }`}></div>
+                     <div className="flex-1">
+                       <div className="flex justify-between items-start mb-1">
+                         <h4 className="font-medium">{activity.title}</h4>
+                         <div className="flex items-center gap-2">
+                           <Badge variant={
+                             activity.activity_type === 'created' ? 'default' :
+                             activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
+                           } className="text-xs">
+                             {activity.activity_type === 'created' ? 'Organisée' : 
+                              activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
+                           </Badge>
+                           {activity.activity_type === 'created' && (
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleDeleteSession(activity.id);
+                               }}
+                               disabled={deletingSessionId === activity.id}
+                               className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                             >
+                               <Trash2 size={12} />
+                             </Button>
+                           )}
+                         </div>
+                       </div>
+                       <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                         <Calendar size={12} />
+                         {new Date(activity.date).toLocaleDateString('fr-FR')}
+                       </p>
+                       <p className="text-sm text-muted-foreground flex items-center gap-1">
+                         <MapPin size={12} />
+                         {activity.area_hint || 'Localisation masquée'}
+                       </p>
+                     </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="space-y-3">
+          <Button 
+            variant="ghost" 
+            size="lg" 
+            className="w-full text-destructive"
+            onClick={signOut}
+          >
+            Se déconnecter
+          </Button>
+        </div>
       </div>
     </div>
   );

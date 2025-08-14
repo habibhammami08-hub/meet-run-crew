@@ -63,57 +63,6 @@ serve(async (req) => {
 
     // Handle different event types
     switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        logStep("Processing completed checkout session", { 
-          sessionId: session.id, 
-          customerId: session.customer,
-          customerEmail: session.customer_details?.email,
-          mode: session.mode
-        });
-
-        if (session.mode === 'subscription' && session.subscription && session.customer_details?.email) {
-          // Get the subscription details
-          const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
-          logStep("Retrieved subscription", { 
-            subscriptionId: subscription.id,
-            status: subscription.status,
-            currentPeriodEnd: subscription.current_period_end
-          });
-          
-          // Find user by email in profiles table
-          const { data: profile, error: profileError } = await supabaseService
-            .from('profiles')
-            .select('id, email')
-            .eq('email', session.customer_details.email)
-            .single();
-
-          if (profileError) {
-            logStep("Profile not found for email", { email: session.customer_details.email, error: profileError });
-            break;
-          }
-
-          // Update subscription status in profiles
-          const updateData = {
-            stripe_customer_id: session.customer as string,
-            sub_status: subscription.status,
-            sub_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          };
-
-          const { error: updateError } = await supabaseService
-            .from('profiles')
-            .update(updateData)
-            .eq('id', profile.id);
-
-          if (updateError) {
-            logStep("Error updating profile", { error: updateError.message });
-          } else {
-            logStep("Profile updated successfully", { profileId: profile.id, ...updateData });
-          }
-        }
-        break;
-      }
-
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
@@ -124,28 +73,20 @@ serve(async (req) => {
           status: subscription.status 
         });
 
-        // Get customer email from Stripe
-        const customer = await stripe.customers.retrieve(subscription.customer as string);
-        if (!customer || customer.deleted || !customer.email) {
-          logStep("Customer not found or no email", { customerId: subscription.customer });
-          break;
-        }
-
-        // Find user by email in profiles table
+        // Find the user by Stripe customer ID
         const { data: profile, error: profileError } = await supabaseService
           .from('profiles')
-          .select('id, email')
-          .eq('email', customer.email)
+          .select('id')
+          .eq('stripe_customer_id', subscription.customer)
           .single();
 
         if (profileError) {
-          logStep("Profile not found for customer email", { email: customer.email });
+          logStep("Profile not found for customer", { customerId: subscription.customer });
           break;
         }
 
         // Update subscription status
         const updateData = {
-          stripe_customer_id: subscription.customer as string,
           sub_status: subscription.status,
           sub_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
         };
@@ -161,6 +102,64 @@ serve(async (req) => {
           logStep("Profile updated successfully", { profileId: profile.id, ...updateData });
         }
 
+        // Also update subscribers table for compatibility
+        await supabaseService
+          .from('subscribers')
+          .upsert({
+            user_id: profile.id,
+            email: (await supabaseService.auth.admin.getUserById(profile.id)).data.user?.email || '',
+            stripe_customer_id: subscription.customer as string,
+            subscribed: ['active', 'trialing'].includes(subscription.status),
+            subscription_tier: 'premium',
+            subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+
+        break;
+      }
+
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        
+        if (session.mode === 'subscription' && session.subscription) {
+          logStep("Processing completed checkout session", { 
+            sessionId: session.id, 
+            customerId: session.customer,
+            subscriptionId: session.subscription 
+          });
+
+          // Get the subscription details
+          const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+          
+          // Find the user by Stripe customer ID
+          const { data: profile, error: profileError } = await supabaseService
+            .from('profiles')
+            .select('id')
+            .eq('stripe_customer_id', session.customer)
+            .single();
+
+          if (profileError) {
+            logStep("Profile not found for customer", { customerId: session.customer });
+            break;
+          }
+
+          // Update subscription status
+          const updateData = {
+            sub_status: subscription.status,
+            sub_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          };
+
+          const { error: updateError } = await supabaseService
+            .from('profiles')
+            .update(updateData)
+            .eq('id', profile.id);
+
+          if (updateError) {
+            logStep("Error updating profile", { error: updateError.message });
+          } else {
+            logStep("Profile updated successfully", { profileId: profile.id, ...updateData });
+          }
+        }
         break;
       }
 
