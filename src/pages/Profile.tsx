@@ -16,7 +16,8 @@ const Profile = () => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  
   const [profile, setProfile] = useState<any>(null);
 
   // Charger le profil au montage
@@ -79,42 +80,49 @@ const Profile = () => {
     }
   };
 
-  const handleDeleteProfile = async () => {
+  const handleDeleteAccount = async () => {
     if (!user) return;
 
-    // Double confirmation pour éviter les suppressions accidentelles
-    const firstConfirm = confirm(
-      "⚠️ ATTENTION ⚠️\n\nVoulez-vous vraiment supprimer votre profil ?\n\nCette action supprimera :\n- Votre profil complet\n- Toutes vos sessions créées\n- Toutes vos inscriptions\n- Votre compte utilisateur\n\nCette action est IRRÉVERSIBLE !"
+    const confirmed = window.confirm(
+      "⚠️ ATTENTION ⚠️\n\n" +
+      "Cette action est IRRÉVERSIBLE !\n\n" +
+      "Toutes vos données seront définitivement supprimées :\n" +
+      "• Votre profil\n" +
+      "• Vos sessions créées\n" +
+      "• Vos inscriptions\n" +
+      "• Votre compte utilisateur\n\n" +
+      "Êtes-vous absolument sûr(e) de vouloir supprimer votre compte ?"
     );
 
-    if (!firstConfirm) return;
+    if (!confirmed) return;
 
-    const secondConfirm = confirm(
-      "Dernière confirmation :\n\nÊtes-vous absolument certain de vouloir supprimer définitivement votre compte ?\n\nTapez OUI pour confirmer ou Annuler pour abandonner."
+    const doubleConfirm = window.confirm(
+      "Dernière confirmation !\n\n" +
+      "Tapez 'SUPPRIMER' pour confirmer la suppression définitive de votre compte."
     );
 
-    if (!secondConfirm) return;
+    if (!doubleConfirm) return;
 
-    setDeleting(true);
+    setDeletingAccount(true);
     try {
-      // Appel de la fonction de suppression complète
+      // Call the database function to delete everything
       const { error } = await supabase.rpc('delete_user_completely');
 
       if (error) throw error;
 
-      toast.success("Profil supprimé avec succès. Redirection...");
+      toast.success("Votre compte a été supprimé avec succès");
       
-      // Redirection vers la page d'accueil après suppression
+      // Force navigation to home page after deletion
       setTimeout(() => {
         window.location.href = '/';
-      }, 2000);
-
+      }, 1000);
     } catch (error: any) {
-      console.error('Error deleting profile:', error);
-      toast.error("Erreur lors de la suppression du profil");
-      setDeleting(false);
+      console.error('Error deleting account:', error);
+      toast.error("Erreur lors de la suppression du compte");
+      setDeletingAccount(false);
     }
   };
+
 
   // Si pas connecté
   if (!user) {
@@ -299,45 +307,43 @@ const Profile = () => {
         </Card>
         
         <Card className="shadow-card border-destructive/20">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold text-destructive mb-2">Zone de danger</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  La suppression de votre profil est irréversible et supprimera toutes vos données.
-                </p>
-              </div>
+          <CardContent className="p-6 space-y-4">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-destructive">Zone dangereuse</h3>
+              <p className="text-sm text-muted-foreground">
+                Actions irréversibles qui suppriment définitivement vos données.
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              <Button 
+                variant="outline" 
+                onClick={signOut}
+                className="w-full"
+                disabled={deletingAccount}
+              >
+                Se déconnecter
+              </Button>
+              
               <Button 
                 variant="destructive" 
-                onClick={handleDeleteProfile}
-                disabled={deleting}
+                onClick={handleDeleteAccount}
                 className="w-full"
+                disabled={deletingAccount}
               >
-                {deleting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                {deletingAccount ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     Suppression en cours...
-                  </>
+                  </div>
                 ) : (
-                  <>
-                    <Trash2 size={16} className="mr-2" />
-                    Supprimer définitivement mon profil
-                  </>
+                  <div className="flex items-center gap-2">
+                    <Trash2 size={16} />
+                    Supprimer définitivement mon compte
+                  </div>
                 )}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-card">
-          <CardContent className="p-6">
-            <Button 
-              variant="outline" 
-              onClick={signOut}
-              className="w-full"
-            >
-              Se déconnecter
-            </Button>
           </CardContent>
         </Card>
       </div>
