@@ -30,19 +30,23 @@ const Subscription = () => {
     console.log("Starting subscription creation...");
 
     try {
-      console.log("Starting subscription process...");
+      console.log("Invoking create-subscription-session function...");
       
-      // Simple invocation without complex headers
-      const { data, error } = await supabase.functions.invoke('create-subscription-session');
+      const { data, error } = await supabase.functions.invoke('create-subscription-session', {
+        body: { 
+          user_id: user.id, 
+          email: user.email, 
+          full_name: user.user_metadata?.full_name || ''
+        }
+      });
       
       console.log("Function response:", { data, error });
 
       if (error) {
         console.error("Function error:", error);
-        console.error("Error details:", JSON.stringify(error, null, 2));
         toast({
-          title: "Erreur de fonction",
-          description: `Erreur: ${error.message || JSON.stringify(error)}`,
+          title: "Erreur de configuration",
+          description: `Erreur: ${error.message}`,
           variant: "destructive",
         });
         throw new Error(error.message || "Erreur lors de la création de la session");
@@ -50,21 +54,19 @@ const Subscription = () => {
 
       if (data?.url) {
         console.log("Redirecting to Stripe checkout:", data.url);
-        window.open(data.url, '_blank');
+        // Redirection directe vers Stripe
+        window.location.href = data.url;
       } else {
         console.error("No URL returned from function:", data);
         toast({
           title: "Configuration manquante",
-          description: "Veuillez configurer les secrets STRIPE_SECRET_KEY et STRIPE_PRICE_MONTHLY_EUR dans Supabase Edge Functions",
+          description: "Aucune URL de paiement reçue. Vérifiez la configuration Stripe.",
           variant: "destructive",
         });
         throw new Error("Configuration manquante");
       }
     } catch (error: any) {
       console.error("Full error:", error);
-      console.error("Error name:", error.name);
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
       
       toast({
         title: "Erreur",
