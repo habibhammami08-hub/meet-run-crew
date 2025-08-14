@@ -5,7 +5,7 @@ import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
 import { Filter, MapPin, Users, Clock } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Map = () => {
@@ -86,6 +86,8 @@ const Map = () => {
       setLoading(true);
       setError(null);
 
+      console.log("[sessions] Récupération des sessions...");
+
       // Tentative avec jointure pour récupérer les profils des hôtes
       let { data, error } = await supabase
         .from("sessions")
@@ -111,7 +113,11 @@ const Map = () => {
           throw new Error(`Erreur récupération sessions: ${fallbackError.message}`);
         }
         
-        data = fallbackData || [];
+        data = fallbackData?.map(session => ({
+          ...session,
+          host_profile: null,
+          enrollments: []
+        })) || [];
         
         // Récupérer les profils séparément si nécessaire
         if (data.length > 0) {
@@ -121,10 +127,20 @@ const Map = () => {
             .select('id, full_name, avatar_url')
             .in('id', hostIds);
 
-          // Associer les profils aux sessions
+          const { data: enrollments } = await supabase
+            .from('enrollments')
+            .select('id, session_id, user_id, status')
+            .in('session_id', data.map(s => s.id));
+
+          // Associer les profils et enrollments aux sessions
           data = data.map(session => ({
             ...session,
-            host_profile: profiles?.find(p => p.id === session.host_id) || null
+            host_profile: profiles?.find(p => p.id === session.host_id) || null,
+            enrollments: enrollments?.filter(e => e.session_id === session.id).map(e => ({
+              id: e.id,
+              user_id: e.user_id,
+              status: e.status
+            })) || []
           }));
         }
       }
