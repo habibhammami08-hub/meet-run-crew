@@ -14,7 +14,134 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          age: number | null
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          gender: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          gender?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          gender?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      registrations: {
+        Row: {
+          id: string
+          payment_status: string
+          registered_at: string
+          run_id: string
+          stripe_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          payment_status?: string
+          registered_at?: string
+          run_id: string
+          stripe_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          payment_status?: string
+          registered_at?: string
+          run_id?: string
+          stripe_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrations_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      runs: {
+        Row: {
+          created_at: string
+          date: string
+          description: string | null
+          distance: string
+          host_id: string
+          id: string
+          intensity: string
+          latitude: number
+          location_name: string
+          longitude: number
+          max_participants: number
+          price_cents: number
+          time: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          description?: string | null
+          distance: string
+          host_id: string
+          id?: string
+          intensity: string
+          latitude: number
+          location_name: string
+          longitude: number
+          max_participants: number
+          price_cents?: number
+          time: string
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          description?: string | null
+          distance?: string
+          host_id?: string
+          id?: string
+          intensity?: string
+          latitude?: number
+          location_name?: string
+          longitude?: number
+          max_participants?: number
+          price_cents?: number
+          time?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
