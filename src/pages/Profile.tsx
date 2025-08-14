@@ -195,18 +195,19 @@ const Profile = () => {
   };
 
   const updateProfile = async (formData: FormData) => {
+    console.log("[profile] Starting profile update for user:", user?.id);
+
     if (!user?.id) {
-      console.error('No user ID found for profile update');
+      console.error("[profile] No user");
       toast({
         title: "Erreur d'authentification",
-        description: "Impossible d'identifier l'utilisateur.",
+        description: "Tu dois être connecté pour enregistrer ton profil.",
         variant: "destructive",
       });
       return;
     }
-    
+
     setLoading(true);
-    console.log('Starting profile update for user:', user.id);
     
     try {
       const firstName = (formData.get('first_name') as string)?.trim() || '';
@@ -215,87 +216,51 @@ const Profile = () => {
       const genderValue = formData.get('gender') as string;
       const phoneValue = formData.get('phone') as string;
       
-      console.log('Form data extracted:', {
-        firstName,
-        lastName,
-        age: ageValue,
-        gender: genderValue,
-        phone: phoneValue
-      });
-      
+      // Nettoyage/coercition pour éviter les erreurs de type côté DB
       const payload = {
         id: user.id,
         email: user.email || '',
-        first_name: firstName,
-        last_name: lastName,
-        full_name: `${firstName} ${lastName}`.trim(),
-        age: ageValue ? parseInt(ageValue) : null,
+        first_name: firstName.slice(0, 120),
+        last_name: lastName.slice(0, 120),
+        full_name: `${firstName} ${lastName}`.trim().slice(0, 120),
+        age: ageValue ? Number(ageValue) : null,
         gender: genderValue || null,
         phone: phoneValue || null,
       };
+      console.log("[profile] Payload prepared:", payload);
 
-      console.log('Payload prepared:', payload);
-      console.log('Calling Supabase upsert...');
-
+      // 1) Tentative d'upsert (INSERT ou UPDATE sur id)
       const { data, error } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
+        .from("profiles")
+        .upsert(payload, { onConflict: "id" })       // <— IMPORTANT : 'id' = PK
         .select()
-        .single();
-
-      console.log('Supabase upsert response:', { data, error });
+        .single();                                   // force le retour d'une ligne
 
       if (error) {
-        console.error('Supabase upsert error:', error);
-        let errorMessage = 'Erreur lors de la sauvegarde du profil';
-        
-        if (error.message.includes('permission denied')) {
-          errorMessage = 'Permission refusée - vérifiez vos droits d\'accès';
-        } else if (error.message.includes('violates row-level security')) {
-          errorMessage = 'Violation de sécurité - impossible de modifier ce profil';
-        } else if (error.message.includes('duplicate key')) {
-          errorMessage = 'Ce profil existe déjà';
-        }
-        
+        console.error("[profile] upsert error:", error);
         toast({
           title: "Erreur de sauvegarde",
-          description: `${errorMessage}: ${error.message}`,
+          description: "Impossible d'enregistrer le profil (upsert).",
           variant: "destructive",
         });
         return;
       }
-
-      if (!data) {
-        console.error('No data returned from upsert');
-        toast({
-          title: "Erreur",
-          description: "Aucune donnée retournée par la base de données",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log('Profile upsert successful:', data);
+      console.log("[profile] upsert OK:", data);
       setProfile(data);
       setIsEditing(false);
-      
       toast({
         title: "Profil mis à jour",
-        description: "Vos informations ont été sauvegardées avec succès.",
+        description: "Profil mis à jour !",
       });
-      
-      console.log('Profile update completed successfully');
-      
-    } catch (error: any) {
-      console.error('Unexpected error during profile update:', error);
+    } catch (e) {
+      console.error("[profile] crash:", e);
       toast({
         title: "Erreur inattendue",
-        description: `Une erreur est survenue: ${error.message}`,
+        description: "Erreur inattendue pendant l'enregistrement.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
-      console.log('Profile update process finished');
     }
   };
 

@@ -75,20 +75,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Stable Realtime subscription for profile updates
   useEffect(() => {
     if (!user?.id || realtimeSubRef.current) {
-      console.log('Skipping realtime setup - user:', !!user?.id, 'existing sub:', !!realtimeSubRef.current);
       return;
     }
 
-    console.log('Setting up Realtime subscription for profile updates');
+    console.log('[profile] Setting up Realtime subscription for profile updates');
     realtimeSubRef.current = supabase
-      .channel(`profile:${user.id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'profiles',
+      .channel("me:profile")
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public", 
+        table: "profiles",
         filter: `id=eq.${user.id}`
       }, (payload) => {
-        console.log('Profile updated via Realtime:', payload.new);
+        console.log('[profile] Realtime update:', payload.new);
         const updatedProfile = payload.new as any;
         const isActive = hasActiveSub(updatedProfile);
         setHasActiveSubscription(isActive);
@@ -96,17 +95,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSubscriptionEnd(updatedProfile.sub_current_period_end);
       })
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
+        console.log("Realtime subscription status:", status);
       });
 
     return () => {
-      console.log('Cleaning up Realtime subscription');
+      console.log('[profile] Cleaning up Realtime subscription');
       if (realtimeSubRef.current) {
         realtimeSubRef.current.unsubscribe();
         realtimeSubRef.current = null;
       }
     };
-  }, [user?.id]); // Only depend on user.id, not other state
+  }, [user?.id]);
 
   // Auth state management (separate from profile subscription)
   useEffect(() => {
