@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Header from "@/components/Header";
-import Navigation from "@/components/Navigation";
 import { MapPin, Calendar, Clock, Users, Share2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -129,7 +128,6 @@ const SessionDetails = () => {
         <div className="p-4 pt-20">
           <div className="text-center">Chargement...</div>
         </div>
-        <Navigation />
       </div>
     );
   }
@@ -300,8 +298,6 @@ const SessionDetails = () => {
           </CardContent>
         </Card>
       </div>
-
-      <Navigation />
     </div>
   );
 };
