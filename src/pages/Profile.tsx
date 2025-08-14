@@ -40,14 +40,42 @@ const Profile = () => {
   const fetchProfile = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    if (!error && data) {
-      setProfile(data);
+      if (error) {
+        console.error('Error fetching profile:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger le profil",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data) {
+        setProfile(data);
+      } else {
+        // Create a default profile if none exists
+        const defaultProfile = {
+          id: user.id,
+          email: user.email || '',
+          first_name: '',
+          last_name: '',
+          full_name: '',
+          age: null,
+          gender: '',
+          phone: '',
+          avatar_url: null
+        };
+        setProfile(defaultProfile);
+      }
+    } catch (error) {
+      console.error('Unexpected error fetching profile:', error);
     }
   };
 
@@ -90,49 +118,80 @@ const Profile = () => {
   const fetchUserActivity = async () => {
     if (!user) return;
     
-    // Sessions créées
-    const { data: createdSessions } = await supabase
-      .from('sessions')
-      .select(`
-        *,
-        enrollments(count)
-      `)
-      .eq('host_id', user.id)
-      .order('date', { ascending: false })
-      .limit(5);
+    try {
+      // Sessions créées par l'utilisateur
+      const { data: createdSessions, error: createdError } = await supabase
+        .from('sessions')
+        .select(`
+          id,
+          title,
+          date,
+          area_hint,
+          distance_km,
+          type,
+          intensity,
+          created_at,
+          max_participants
+        `)
+        .eq('host_id', user.id)
+        .order('date', { ascending: false })
+        .limit(10);
 
-    // Sessions rejointes
-    const { data: enrolledSessions } = await supabase
-      .from('enrollments')
-      .select(`
-        *,
-        sessions(*)
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(5);
+      if (createdError) {
+        console.error('Error fetching created sessions:', createdError);
+      }
 
-    const activities = [];
-    
-    if (createdSessions) {
-      activities.push(...createdSessions.map(session => ({
-        ...session,
-        activity_type: 'created',
-        activity_date: session.created_at
-      })));
+      // Sessions auxquelles l'utilisateur s'est inscrit
+      const { data: enrolledSessions, error: enrolledError } = await supabase
+        .from('enrollments')
+        .select(`
+          status,
+          created_at,
+          sessions!inner(
+            id,
+            title,
+            date,
+            area_hint,
+            distance_km,
+            type,
+            intensity
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (enrolledError) {
+        console.error('Error fetching enrolled sessions:', enrolledError);
+      }
+
+      const activities = [];
+      
+      // Ajouter les sessions créées
+      if (createdSessions) {
+        activities.push(...createdSessions.map(session => ({
+          ...session,
+          activity_type: 'created',
+          activity_date: session.created_at
+        })));
+      }
+      
+      // Ajouter les sessions rejointes
+      if (enrolledSessions) {
+        activities.push(...enrolledSessions.map(enrollment => ({
+          ...enrollment.sessions,
+          enrollment_status: enrollment.status,
+          activity_type: 'joined',
+          activity_date: enrollment.created_at
+        })));
+      }
+
+      // Trier par date décroissante
+      activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
+      setUserActivity(activities.slice(0, 10)); // Limiter à 10 activités
+    } catch (error) {
+      console.error('Unexpected error fetching user activity:', error);
     }
-    
-    if (enrolledSessions) {
-      activities.push(...enrolledSessions.map(enrollment => ({
-        ...enrollment.sessions,
-        enrollment_status: enrollment.status,
-        activity_type: 'joined',
-        activity_date: enrollment.created_at
-      })));
-    }
-
-    activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
-    setUserActivity(activities);
   };
 
   const updateProfile = async (formData: FormData) => {
@@ -140,17 +199,27 @@ const Profile = () => {
     
     setLoading(true);
     try {
+      const firstName = formData.get('first_name') as string;
+      const lastName = formData.get('last_name') as string;
+      
       const updatedProfile = {
-        full_name: formData.get('full_name') as string,
-        age: parseInt(formData.get('age') as string),
+        first_name: firstName,
+        last_name: lastName,
+        full_name: `${firstName} ${lastName}`.trim(),
+        age: formData.get('age') ? parseInt(formData.get('age') as string) : null,
         gender: formData.get('gender') as string,
         phone: formData.get('phone') as string,
       };
 
       const { error } = await supabase
         .from('profiles')
-        .update(updatedProfile)
-        .eq('id', user.id);
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          ...updatedProfile
+        }, {
+          onConflict: 'id'
+        });
 
       if (error) throw error;
 
@@ -161,6 +230,7 @@ const Profile = () => {
         description: "Vos informations ont été sauvegardées avec succès.",
       });
     } catch (error: any) {
+      console.error('Profile update error:', error);
       toast({
         title: "Erreur",
         description: error.message,
@@ -349,15 +419,43 @@ const Profile = () => {
                 updateProfile(new FormData(e.currentTarget));
               }}>
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="full_name">Nom complet</Label>
-                    <Input
-                      id="full_name"
-                      name="full_name"
-                      defaultValue={profile?.full_name || ''}
-                      required
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="first_name">Prénom *</Label>
+                      <Input
+                        id="first_name"
+                        name="first_name"
+                        defaultValue={profile?.first_name || ''}
+                        required
+                        placeholder="Votre prénom"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="last_name">Nom *</Label>
+                      <Input
+                        id="last_name"
+                        name="last_name"
+                        defaultValue={profile?.last_name || ''}
+                        required
+                        placeholder="Votre nom"
+                      />
+                    </div>
                   </div>
+                  
+                  <div>
+                    <Label htmlFor="email">Adresse email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={user?.email || ''}
+                      disabled
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      L'adresse email ne peut pas être modifiée
+                    </p>
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="age">Âge</Label>
@@ -368,6 +466,7 @@ const Profile = () => {
                         defaultValue={profile?.age || ''}
                         min="16"
                         max="99"
+                        placeholder="Votre âge"
                       />
                     </div>
                     <div>
@@ -385,6 +484,7 @@ const Profile = () => {
                       </select>
                     </div>
                   </div>
+                  
                   <div>
                     <Label htmlFor="phone">Téléphone</Label>
                     <Input
@@ -392,11 +492,23 @@ const Profile = () => {
                       name="phone"
                       type="tel"
                       defaultValue={profile?.phone || ''}
+                      placeholder="Votre numéro de téléphone"
                     />
                   </div>
-                  <Button type="submit" variant="sport" disabled={loading}>
-                    {loading ? "Sauvegarde..." : "Sauvegarder"}
-                  </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button type="submit" variant="sport" disabled={loading} className="flex-1">
+                      {loading ? "Sauvegarde..." : "Sauvegarder"}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsEditing(false)}
+                      disabled={loading}
+                    >
+                      Annuler
+                    </Button>
+                  </div>
                 </div>
               </form>
             ) : (
@@ -432,7 +544,9 @@ const Profile = () => {
                   </div>
                   <div className="flex-1">
                     <h1 className="text-xl font-bold text-sport-black">
-                      {profile?.full_name || 'Nom non renseigné'}
+                      {profile?.first_name || profile?.last_name 
+                        ? `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
+                        : profile?.full_name || 'Nom non renseigné'}
                     </h1>
                     {profile?.age && profile?.gender && (
                       <p className="text-sport-gray">{profile.age} ans • {profile.gender}</p>
@@ -441,6 +555,18 @@ const Profile = () => {
                       <p className="text-sport-gray">📞 {profile.phone}</p>
                     )}
                     <p className="text-sport-gray">✉️ {user.email}</p>
+                    
+                    {!isEditing && (!profile?.first_name || !profile?.last_name) && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-2"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Edit size={14} className="mr-1" />
+                        Compléter le profil
+                      </Button>
+                    )}
                   </div>
                 </div>
 
