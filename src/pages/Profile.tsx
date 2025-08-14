@@ -194,75 +194,67 @@ const Profile = () => {
     }
   };
 
-  const updateProfile = async (formData: FormData) => {
+  async function saveProfile(formValues: any) {
     console.log("[profile] Starting profile update for user:", user?.id);
-
     if (!user?.id) {
       console.error("[profile] No user");
       toast({
-        title: "Erreur d'authentification",
+        title: "Erreur",
         description: "Tu dois être connecté pour enregistrer ton profil.",
         variant: "destructive",
       });
       return;
     }
 
-    setLoading(true);
-    
-    try {
-      const firstName = (formData.get('first_name') as string)?.trim() || '';
-      const lastName = (formData.get('last_name') as string)?.trim() || '';
-      const ageValue = formData.get('age') as string;
-      const genderValue = formData.get('gender') as string;
-      const phoneValue = formData.get('phone') as string;
-      
-      // Nettoyage/coercition pour éviter les erreurs de type côté DB
-      const payload = {
-        id: user.id,
-        email: user.email || '',
-        first_name: firstName.slice(0, 120),
-        last_name: lastName.slice(0, 120),
-        full_name: `${firstName} ${lastName}`.trim().slice(0, 120),
-        age: ageValue ? Number(ageValue) : null,
-        gender: genderValue || null,
-        phone: phoneValue || null,
-      };
-      console.log("[profile] Payload prepared:", payload);
+    // Coercitions de types pour éviter 400 silencieux
+    const payload = {
+      id: user.id,                                       // CRUCIAL pour onConflict:'id'
+      email: user.email || '',                           // Requis par le schéma
+      full_name: (formValues.full_name ?? "").toString().slice(0, 120),
+      avatar_url: formValues.avatar_url ?? null,
+      phone: formValues.phone ?? null,
+      age: formValues.age !== "" && formValues.age != null ? Number(formValues.age) : null,
+      gender: formValues.gender ?? null,
+    };
+    console.log("[profile] Payload prepared:", payload);
 
-      // 1) Tentative d'upsert (INSERT ou UPDATE sur id)
+    setLoading(true);
+    try {
+      console.log("[profile] Calling Supabase upsert...");
       const { data, error } = await supabase
         .from("profiles")
-        .upsert(payload, { onConflict: "id" })
+        .upsert(payload, { onConflict: "id" })     // id doit être PK/UNIQUE
         .select()
         .single();
 
+      console.log("[profile] upsert result:", { data, error });
       if (error) {
         console.error("[profile] upsert error:", error);
         toast({
-          title: "Erreur de sauvegarde",
-          description: `Impossible d'enregistrer le profil: ${error.message}`,
+          title: "Erreur",
+          description: `Impossible d'enregistrer le profil (${error.code ?? "err"})`,
           variant: "destructive",
         });
         return;
       }
-      console.log("[profile] upsert OK:", data);
+
       setProfile(data);
       setIsEditing(false);
       toast({
-        title: "Profil mis à jour",
+        title: "Succès",
         description: "Profil mis à jour !",
       });
     } catch (e) {
       console.error("[profile] crash:", e);
       toast({
-        title: "Erreur inattendue",
+        title: "Erreur",
         description: "Erreur inattendue pendant l'enregistrement.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const uploadAvatar = async (file: File) => {
     if (!user) return;
@@ -439,7 +431,15 @@ const Profile = () => {
             {isEditing ? (
               <form onSubmit={(e) => {
                 e.preventDefault();
-                updateProfile(new FormData(e.currentTarget));
+                const formData = new FormData(e.currentTarget);
+                const formValues = {
+                  full_name: formData.get('full_name'),
+                  age: formData.get('age'),
+                  gender: formData.get('gender'),
+                  phone: formData.get('phone'),
+                  avatar_url: profile?.avatar_url
+                };
+                saveProfile(formValues);
               }}>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -508,16 +508,27 @@ const Profile = () => {
                     </div>
                   </div>
                   
-                  <div>
-                    <Label htmlFor="phone">Téléphone</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      defaultValue={profile?.phone || ''}
-                      placeholder="Votre numéro de téléphone"
-                    />
-                  </div>
+                   <div>
+                     <Label htmlFor="full_name">Nom complet *</Label>
+                     <Input
+                       id="full_name"
+                       name="full_name"
+                       defaultValue={profile?.full_name || ''}
+                       required
+                       placeholder="Votre nom complet"
+                     />
+                   </div>
+                   
+                   <div>
+                     <Label htmlFor="phone">Téléphone</Label>
+                     <Input
+                       id="phone"
+                       name="phone"
+                       type="tel"
+                       defaultValue={profile?.phone || ''}
+                       placeholder="Votre numéro de téléphone"
+                     />
+                   </div>
                   
                   <div className="flex gap-2">
                     <Button type="submit" variant="sport" disabled={loading} className="flex-1">

@@ -40,7 +40,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
-  const realtimeSubRef = useRef<RealtimeChannel | null>(null);
 
   const fetchSubscriptionStatus = async (userId: string) => {
     try {
@@ -72,38 +71,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Stable Realtime subscription for profile updates
+  // Realtime subscription to get live profile updates
+  const subRef = useRef<RealtimeChannel | null>(null);
   useEffect(() => {
-    if (!user?.id || realtimeSubRef.current) {
-      return;
-    }
-
-    console.log('[profile] Setting up Realtime subscription for profile updates');
-    realtimeSubRef.current = supabase
+    if (!user?.id || subRef.current) return; // empêche les doubles subs
+    console.log("[profile] Setting up Realtime subscription for profile updates");
+    subRef.current = supabase
       .channel("me:profile")
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public", 
-        table: "profiles",
-        filter: `id=eq.${user.id}`
-      }, (payload) => {
-        console.log('[profile] Realtime update:', payload.new);
-        const updatedProfile = payload.new as any;
-        const isActive = hasActiveSub(updatedProfile);
-        setHasActiveSubscription(isActive);
-        setSubscriptionStatus(updatedProfile.sub_status);
-        setSubscriptionEnd(updatedProfile.sub_current_period_end);
-      })
-      .subscribe((status) => {
-        console.log("Realtime subscription status:", status);
-      });
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+        (payload) => {
+          console.log("[profile] Realtime update:", payload.new);
+          const updatedProfile = payload.new as any;
+          const isActive = hasActiveSub(updatedProfile);
+          setHasActiveSubscription(isActive);
+          setSubscriptionStatus(updatedProfile.sub_status);
+          setSubscriptionEnd(updatedProfile.sub_current_period_end);
+        }
+      )
+      .subscribe((status) => console.log("Realtime subscription status:", status));
 
     return () => {
-      console.log('[profile] Cleaning up Realtime subscription');
-      if (realtimeSubRef.current) {
-        realtimeSubRef.current.unsubscribe();
-        realtimeSubRef.current = null;
-      }
+      console.log("[profile] Cleaning up Realtime subscription");
+      subRef.current?.unsubscribe();
+      subRef.current = null;
     };
   }, [user?.id]);
 
@@ -145,10 +136,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     try {
       // Clean up Realtime subscription first
-      if (realtimeSubRef.current) {
+      if (subRef.current) {
         console.log('Cleaning up Realtime subscription during signout');
-        realtimeSubRef.current.unsubscribe();
-        realtimeSubRef.current = null;
+        subRef.current.unsubscribe();
+        subRef.current = null;
       }
       
       // Clear local state first
