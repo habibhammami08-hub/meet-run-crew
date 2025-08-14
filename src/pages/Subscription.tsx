@@ -30,21 +30,10 @@ const Subscription = () => {
     console.log("Starting subscription creation...");
 
     try {
-      console.log("Invoking create-subscription-session function...");
+      console.log("Starting subscription process...");
       
-      // Get current session
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      
-      if (!token) {
-        throw new Error("Pas de token d'authentification");
-      }
-      
-      const { data, error } = await supabase.functions.invoke('create-subscription-session', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Simple invocation without complex headers
+      const { data, error } = await supabase.functions.invoke('create-subscription-session');
       
       console.log("Function response:", { data, error });
 

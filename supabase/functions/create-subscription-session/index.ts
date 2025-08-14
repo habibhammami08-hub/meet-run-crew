@@ -64,13 +64,18 @@ serve(async (req) => {
     });
     logStep("Supabase client initialized");
 
-    // Get auth header
-    const authHeader = req.headers.get("Authorization");
+    // Get auth header - try multiple methods
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    logStep("Auth header check", { 
+      hasAuthHeader: !!authHeader,
+      headerValue: authHeader ? authHeader.substring(0, 20) + "..." : "none"
+    });
+    
+    // If no auth header, try to get user from anon key
     if (!authHeader) {
       logStep("ERROR: No authorization header provided");
-      throw new Error("No authorization header provided");
+      throw new Error("No authorization header provided. User must be authenticated.");
     }
-    logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
     logStep("Authenticating user with token");
