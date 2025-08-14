@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import Navigation from "@/components/Navigation";
-import MapMeetRun from "@/components/MapMeetRun";
+import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
 import { Filter, MapPin, Users, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,60 +10,60 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
 const Map = () => {
-  const [selectedRun, setSelectedRun] = useState<any>(null);
-  const [runs, setRuns] = useState<any[]>([]);
-  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchRuns();
+    fetchSessions();
     if (user) {
-      fetchUserRegistrations();
+      fetchUserEnrollments();
     }
   }, [user]);
 
-  const fetchRuns = async () => {
+  const fetchSessions = async () => {
     const { data, error } = await supabase
-      .from('runs')
+      .from('sessions')
       .select(`
         *,
         profiles:host_id (full_name),
-        registrations (id, user_id, payment_status)
+        enrollments (id, user_id, status)
       `)
-      .gte('date', new Date().toISOString().split('T')[0]);
+      .gte('date', new Date().toISOString());
 
     if (!error && data) {
-      setRuns(data);
+      setSessions(data);
     }
   };
 
-  const fetchUserRegistrations = async () => {
+  const fetchUserEnrollments = async () => {
     if (!user) return;
     
     const { data, error } = await supabase
-      .from('registrations')
+      .from('enrollments')
       .select('*')
       .eq('user_id', user.id)
-      .eq('payment_status', 'completed');
+      .eq('status', 'paid');
 
     if (!error && data) {
-      setRegistrations(data);
+      setEnrollments(data);
     }
   };
 
-  const isRegistered = (runId: string) => {
-    return registrations.some(reg => reg.run_id === runId);
+  const isEnrolled = (sessionId: string) => {
+    return enrollments.some(enr => enr.session_id === sessionId);
   };
 
-  const getParticipantCount = (run: any) => {
-    return run.registrations?.filter((r: any) => r.payment_status === 'completed').length || 0;
+  const getParticipantCount = (session: any) => {
+    return session.enrollments?.filter((e: any) => e.status === 'paid').length || 0;
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header 
-        title="Carte des courses"
+        title="Carte des sessions"
         actions={
           <Button variant="ghost" size="icon">
             <Filter size={20} />
@@ -73,16 +73,21 @@ const Map = () => {
       
       {/* Interactive Map */}
       <div className="flex-1">
-        <MapMeetRun 
-          runs={runs.map(run => ({
-            id: run.id,
-            latitude: parseFloat(run.latitude.toString()),
-            longitude: parseFloat(run.longitude.toString()),
-            title: run.title
+        <LeafletMeetRunMap 
+          sessions={sessions.map(session => ({
+            id: session.id,
+            title: session.title,
+            location_lat: parseFloat(session.location_lat.toString()),
+            location_lng: parseFloat(session.location_lng.toString()),
+            blur_radius_m: session.blur_radius_m || 1000,
+            area_hint: session.area_hint,
+            max_participants: session.max_participants,
+            price_cents: session.price_cents,
+            enrollments: session.enrollments
           }))}
-          onRunSelect={(runId) => {
-            const run = runs.find(r => r.id === runId);
-            setSelectedRun(run);
+          onSessionSelect={(sessionId) => {
+            const session = sessions.find(s => s.id === sessionId);
+            setSelectedSession(session);
           }}
         />
       </div>
@@ -101,26 +106,26 @@ const Map = () => {
         </div>
       </div>
 
-      {/* Selected run details */}
-      {selectedRun && (
+      {/* Selected session details */}
+      {selectedSession && (
         <div className="p-4 bg-white border-t border-border">
           <Card className="shadow-card">
             <CardContent className="p-4">
               <div className="flex justify-between items-start mb-3">
                 <div>
-                  <h4 className="font-semibold text-sport-black">{selectedRun.title}</h4>
+                  <h4 className="font-semibold text-sport-black">{selectedSession.title}</h4>
                   <p className="text-sm text-sport-gray flex items-center gap-1">
                     <MapPin size={14} />
-                    {isRegistered(selectedRun.id) 
-                      ? selectedRun.location_name 
-                      : "Zone approx. 10km (inscrivez-vous pour voir le lieu exact)"
+                    {isEnrolled(selectedSession.id) 
+                      ? selectedSession.area_hint || "Lieu exact visible après inscription"
+                      : `Zone approx. ${Math.round((selectedSession.blur_radius_m || 1000)/1000)}km`
                     }
                   </p>
                 </div>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => setSelectedRun(null)}
+                  onClick={() => setSelectedSession(null)}
                 >
                   ✕
                 </Button>
@@ -129,18 +134,18 @@ const Map = () => {
               <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
                 <span className="flex items-center gap-1">
                   <Clock size={14} />
-                  {new Date(selectedRun.date).toLocaleDateString('fr-FR')} {selectedRun.time}
+                  {new Date(selectedSession.date).toLocaleDateString('fr-FR')}
                 </span>
                 <span className="flex items-center gap-1">
                   <Users size={14} />
-                  {getParticipantCount(selectedRun)}/{selectedRun.max_participants} coureurs
+                  {getParticipantCount(selectedSession)}/{selectedSession.max_participants} coureurs
                 </span>
                 <span className={`px-2 py-1 rounded-full text-xs ${
-                  selectedRun.intensity === 'faible' ? 'bg-green-100 text-green-800' :
-                  selectedRun.intensity === 'moyenne' ? 'bg-yellow-100 text-yellow-800' :
+                  selectedSession.intensity === 'low' ? 'bg-green-100 text-green-800' :
+                  selectedSession.intensity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-red-100 text-red-800'
                 }`}>
-                  {selectedRun.intensity}
+                  {selectedSession.intensity}
                 </span>
               </div>
               
@@ -149,13 +154,13 @@ const Map = () => {
                   variant="sportOutline" 
                   size="sm" 
                   className="flex-1"
-                  onClick={() => navigate(`/run/${selectedRun.id}`)}
+                  onClick={() => navigate(`/session/${selectedSession.id}`)}
                 >
                   Voir détails
                 </Button>
-                {!isRegistered(selectedRun.id) && getParticipantCount(selectedRun) < selectedRun.max_participants && (
+                {!isEnrolled(selectedSession.id) && getParticipantCount(selectedSession) < selectedSession.max_participants && (
                   <Button variant="sport" size="sm" className="flex-1">
-                    Rejoindre - {(selectedRun.price_cents / 100).toFixed(2)}$
+                    Rejoindre - {(selectedSession.price_cents / 100).toFixed(2)}$
                   </Button>
                 )}
               </div>
