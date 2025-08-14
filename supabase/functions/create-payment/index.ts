@@ -113,10 +113,22 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Error creating payment:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const statusCode = error.name === 'ValidationError' ? 400 : 500;
+    
+    console.error("[CREATE-PAYMENT] Error:", {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+      type: error.constructor.name
+    });
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      code: error instanceof Error ? error.name : 'INTERNAL_ERROR'
+    }), {
+      status: statusCode,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 });
