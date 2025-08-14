@@ -50,6 +50,12 @@ const Subscription = () => {
 
       if (error) {
         console.error("Function error:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        toast({
+          title: "Erreur de fonction",
+          description: `Erreur: ${error.message || JSON.stringify(error)}`,
+          variant: "destructive",
+        });
         throw new Error(error.message || "Erreur lors de la création de la session");
       }
 
@@ -67,9 +73,13 @@ const Subscription = () => {
       }
     } catch (error: any) {
       console.error("Full error:", error);
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      
       toast({
         title: "Erreur",
-        description: error.message || "Une erreur est survenue",
+        description: `Détails: ${error.message || "Une erreur est survenue"}`,
         variant: "destructive",
       });
     } finally {
