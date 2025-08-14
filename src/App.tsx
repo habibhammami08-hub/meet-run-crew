@@ -12,6 +12,9 @@ import SessionDetails from "./pages/SessionDetails";
 import CreateRun from "./pages/CreateRun";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
+import Subscription from "./pages/Subscription";
+import SubscriptionSuccess from "./pages/SubscriptionSuccess";
+import SubscriptionCancel from "./pages/SubscriptionCancel";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +35,9 @@ const App = () => (
               <Route path="/session/:id" element={<SessionDetails />} />
               <Route path="/create" element={<CreateRun />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/subscription" element={<Subscription />} />
+              <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+              <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

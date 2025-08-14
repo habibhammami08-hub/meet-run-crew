@@ -16,7 +16,7 @@ const SessionDetails = () => {
   const [participants, setParticipants] = useState<any[]>([]);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -65,7 +65,7 @@ const SessionDetails = () => {
       setSession(sessionData);
     }
 
-    // Fetch participants
+    // Fetch participants (both paid and subscription-based)
     const { data: participantsData } = await supabase
       .from('enrollments')
       .select(`
@@ -73,7 +73,7 @@ const SessionDetails = () => {
         profiles:user_id (id, full_name, age, gender, avatar_url)
       `)
       .eq('session_id', id)
-      .eq('status', 'paid');
+      .in('status', ['paid', 'included_by_subscription']);
 
     if (participantsData) {
       setParticipants(participantsData);
@@ -86,11 +86,11 @@ const SessionDetails = () => {
     }
   };
 
-  const handleEnroll = async () => {
+  const handleSubscribeOrEnroll = async () => {
     if (!user) {
       toast({
         title: "Connexion requise",
-        description: "Vous devez être connecté pour vous inscrire.",
+        description: "Vous devez être connecté pour continuer.",
         variant: "destructive",
       });
       return;
@@ -98,26 +98,39 @@ const SessionDetails = () => {
 
     if (!session) return;
 
-    setIsLoading(true);
+    // If user has active subscription, enroll directly
+    if (hasActiveSubscription) {
+      setIsLoading(true);
+      try {
+        const { error } = await supabase
+          .from('enrollments')
+          .insert({
+            session_id: session.id,
+            user_id: user.id,
+            status: 'included_by_subscription'
+          });
 
-    try {
-      const { data, error } = await supabase.functions.invoke('create-payment', {
-        body: { sessionId: session.id }
-      });
+        if (error) throw error;
 
-      if (error) throw error;
-
-      if (data.url) {
-        window.open(data.url, '_blank');
+        toast({
+          title: "Inscription réussie !",
+          description: "Vous êtes maintenant inscrit à cette session.",
+        });
+        
+        // Refresh session details
+        fetchSessionDetails();
+      } catch (error: any) {
+        toast({
+          title: "Erreur",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error: any) {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Redirect to subscription page
+      window.location.href = '/subscription';
     }
   };
 
@@ -135,8 +148,8 @@ const SessionDetails = () => {
   // Check if user is host
   const isHost = user && session.host_id === user.id;
   
-  // Check if user can see exact location
-  const canSeeExactLocation = isEnrolled || isHost;
+  // Check if user can see exact location (subscription-based now)
+  const canSeeExactLocation = isHost || hasActiveSubscription;
 
   return (
     <div className="min-h-screen bg-background">
@@ -165,7 +178,11 @@ const SessionDetails = () => {
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-2xl font-bold text-primary">{(session.price_cents / 100).toFixed(2)}€</span>
+                {hasActiveSubscription ? (
+                  <span className="text-lg font-bold text-green-600">Inclus</span>
+                ) : (
+                  <span className="text-lg font-bold text-primary">Abonnement requis</span>
+                )}
               </div>
             </div>
             
@@ -197,9 +214,15 @@ const SessionDetails = () => {
             </div>
             
             {!isEnrolled && !isHost && participants.length < session.max_participants ? (
-              <Button variant="sport" size="lg" className="w-full" onClick={handleEnroll} disabled={isLoading}>
-                {isLoading ? "Redirection vers le paiement..." : `S'inscrire maintenant - ${(session.price_cents / 100).toFixed(2)}€`}
-              </Button>
+              hasActiveSubscription ? (
+                <Button variant="sport" size="lg" className="w-full" onClick={handleSubscribeOrEnroll} disabled={isLoading}>
+                  {isLoading ? "Inscription en cours..." : "Rejoindre maintenant"}
+                </Button>
+              ) : (
+                <Button variant="sport" size="lg" className="w-full" onClick={handleSubscribeOrEnroll} disabled={isLoading}>
+                  {isLoading ? "Redirection..." : "S'abonner - 9,99 €/mois"}
+                </Button>
+              )
             ) : isEnrolled ? (
               <Button variant="sportOutline" size="lg" className="w-full" disabled>
                 ✓ Vous êtes inscrit(e)
@@ -224,7 +247,7 @@ const SessionDetails = () => {
               <MapPin size={14} />
               {canSeeExactLocation 
                 ? session.area_hint || "Coordonnées exactes disponibles"
-                : `Zone approximative (${session.blur_radius_m || 1000}m) - Inscrivez-vous pour voir le lieu exact`
+                : `Zone approximative (${session.blur_radius_m || 1000}m) - Abonnez-vous pour voir le lieu exact`
               }
             </p>
           </CardContent>

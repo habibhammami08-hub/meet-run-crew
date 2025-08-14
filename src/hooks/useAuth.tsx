@@ -6,6 +6,10 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  hasActiveSubscription: boolean;
+  subscriptionStatus: string | null;
+  subscriptionEnd: string | null;
+  refreshSubscription: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -13,6 +17,10 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  hasActiveSubscription: false,
+  subscriptionStatus: null,
+  subscriptionEnd: null,
+  refreshSubscription: async () => {},
   signOut: async () => {},
 });
 
@@ -28,21 +36,68 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+
+  const fetchSubscriptionStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('sub_status, sub_current_period_end')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching subscription status:', error);
+        return;
+      }
+
+      const isActive = data.sub_status === 'active' || data.sub_status === 'trialing';
+      const isNotExpired = !data.sub_current_period_end || new Date(data.sub_current_period_end) > new Date();
+      
+      setHasActiveSubscription(isActive && isNotExpired);
+      setSubscriptionStatus(data.sub_status);
+      setSubscriptionEnd(data.sub_current_period_end);
+    } catch (error) {
+      console.error('Error in fetchSubscriptionStatus:', error);
+    }
+  };
+
+  const refreshSubscription = async () => {
+    if (user) {
+      await fetchSubscriptionStatus(user.id);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchSubscriptionStatus(session.user.id);
+        } else {
+          setHasActiveSubscription(false);
+          setSubscriptionStatus(null);
+          setSubscriptionEnd(null);
+        }
+        
         setLoading(false);
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await fetchSubscriptionStatus(session.user.id);
+      }
+      
       setLoading(false);
     });
 
@@ -57,6 +112,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     user,
     session,
     loading,
+    hasActiveSubscription,
+    subscriptionStatus,
+    subscriptionEnd,
+    refreshSubscription,
     signOut,
   };
 

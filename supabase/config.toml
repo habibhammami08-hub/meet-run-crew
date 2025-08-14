@@ -5,3 +5,12 @@ verify_jwt = true
 
 [functions.verify-payment]
 verify_jwt = false
+
+[functions.create-subscription-session]
+verify_jwt = true
+
+[functions.create-customer-portal-session]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
