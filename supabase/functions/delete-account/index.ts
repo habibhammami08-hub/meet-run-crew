@@ -94,28 +94,28 @@ serve(async (req) => {
       console.warn('Erreur lors de la suppression du storage:', storageError)
     }
 
-    // 2. Supprimer les courses organisées par l'utilisateur
+    // 2. Supprimer les sessions organisées par l'utilisateur
     try {
-      const { data: userCourses, error: coursesQueryError } = await supabaseAdmin
-        .from('courses')
+      const { data: userSessions, error: sessionsQueryError } = await supabaseAdmin
+        .from('sessions')
         .select('id')
-        .eq('organizer_id', user.id)
+        .eq('host_id', user.id)
 
-      if (coursesQueryError) {
-        console.warn('Erreur lors de la récupération des courses:', coursesQueryError)
-      } else if (userCourses && userCourses.length > 0) {
-        const courseIds = userCourses.map(course => course.id)
-        console.log(`[delete-account] ${courseIds.length} course(s) à supprimer`)
+      if (sessionsQueryError) {
+        console.warn('Erreur lors de la récupération des sessions:', sessionsQueryError)
+      } else if (userSessions && userSessions.length > 0) {
+        const sessionIds = userSessions.map(session => session.id)
+        console.log(`[delete-account] ${sessionIds.length} session(s) à supprimer`)
 
-        const { error: coursesDeleteError } = await supabaseAdmin
-          .from('courses')
+        const { error: sessionsDeleteError } = await supabaseAdmin
+          .from('sessions')
           .delete()
-          .eq('organizer_id', user.id)
+          .eq('host_id', user.id)
 
-        if (coursesDeleteError) {
-          console.error('Erreur suppression courses:', coursesDeleteError)
+        if (sessionsDeleteError) {
+          console.error('Erreur suppression sessions:', sessionsDeleteError)
           return new Response(
-            JSON.stringify({ error: 'Erreur lors de la suppression des courses organisées' }),
+            JSON.stringify({ error: 'Erreur lors de la suppression des sessions organisées' }),
             { 
               status: 500, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -123,14 +123,14 @@ serve(async (req) => {
           )
         }
 
-        console.log('[delete-account] Courses organisées supprimées')
+        console.log('[delete-account] Sessions organisées supprimées')
       } else {
-        console.log('[delete-account] Aucune course organisée à supprimer')
+        console.log('[delete-account] Aucune session organisée à supprimer')
       }
-    } catch (coursesError) {
-      console.error('Erreur lors de la suppression des courses:', coursesError)
+    } catch (sessionsError) {
+      console.error('Erreur lors de la suppression des sessions:', sessionsError)
       return new Response(
-        JSON.stringify({ error: 'Erreur lors de la suppression des courses' }),
+        JSON.stringify({ error: 'Erreur lors de la suppression des sessions' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
