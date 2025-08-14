@@ -82,64 +82,59 @@ const CreateRun = () => {
     setLoading(true);
 
     try {
-      // Basic validation
+      // Validation stricte
       if (!formData.title || !formData.date || !formData.time || !formData.area_hint) {
         throw new Error('Veuillez remplir tous les champs obligatoires');
       }
 
-      // Validate start location is selected (obligatoire)
       if (!selectedLocations.start) {
-        throw new Error('Veuillez sélectionner un point de départ sur la carte - c\'est obligatoire !');
+        throw new Error('Le point de départ est obligatoire');
       }
-      
-      // Combine date and time
+
+      // Construction sécurisée de la date
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
-      const { start, end } = selectedLocations;
-      
+      if (isNaN(sessionDateTime.getTime())) {
+        throw new Error('Date/heure invalide');
+      }
+
       const payload = {
         host_id: user.id,
-        title: formData.title,
-        date: sessionDateTime.toISOString(), // timestamptz
+        title: formData.title.trim(),
+        date: sessionDateTime.toISOString(),
         distance_km: Number(formData.distance_km),
         intensity: formData.intensity,
         type: formData.type,
         max_participants: Number(formData.max_participants),
-        location_lat: Number(start.lat),
-        location_lng: Number(start.lng),
-        end_lat: end ? Number(end.lat) : null,
-        end_lng: end ? Number(end.lng) : null,
-        area_hint: formData.area_hint,
+        location_lat: Number(selectedLocations.start.lat),
+        location_lng: Number(selectedLocations.start.lng),
+        end_lat: selectedLocations.end ? Number(selectedLocations.end.lat) : null,
+        end_lng: selectedLocations.end ? Number(selectedLocations.end.lng) : null,
+        area_hint: formData.area_hint.trim(),
       };
 
-      console.log("[sessions] INSERT payload:", payload);
+      // Validation des coordonnées
+      if (!Number.isFinite(payload.location_lat) || !Number.isFinite(payload.location_lng)) {
+        throw new Error('Coordonnées invalides');
+      }
+
       const { data, error } = await supabase
         .from("sessions")
         .insert(payload)
         .select()
         .single();
-      console.log("[sessions] INSERT result:", { data, error });
 
-      if (error) {
-        toast({
-          title: "Création de la session impossible",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
+      if (error) throw error;
 
-      // (option) optimistic update local + retour/cadrage sur la Map
       toast({
         title: "Session créée !",
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
-      // Navigate to map with session coordinates in URL params for centering
-      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
+      navigate(`/map?sessionId=${data.id}`);
       
     } catch (error: any) {
       toast({
-        title: "Erreur lors de la création",
+        title: "Erreur",
         description: error.message,
         variant: "destructive",
       });

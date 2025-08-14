@@ -42,25 +42,31 @@ const Map = () => {
   }, []);
 
   const fetchSessions = async () => {
+    // Tentative avec jointure
     let { data, error } = await supabase
       .from("sessions")
       .select(`
-        id, title, date, distance_km, intensity, type, max_participants,
-        location_lat, location_lng, end_lat, end_lng, blur_radius_m,
-        host_id, area_hint, price_cents,
-        profiles!host_id ( id, full_name, avatar_url )
+        *, 
+        host_profile:profiles!host_id(id, full_name, avatar_url)
       `)
       .gte('date', new Date().toISOString());
 
+    // Fallback sans jointure si erreur
     if (error) {
-      console.warn("[sessions] fallback join error:", error);
-      const fb = await supabase
+      console.warn("Jointure échouée, fallback sans profils:", error);
+      const { data: fallbackData, error: fallbackError } = await supabase
         .from("sessions")
         .select("*")
         .gte('date', new Date().toISOString());
-      data = fb.data ?? [];
+      
+      if (fallbackError) {
+        console.error("Erreur fallback:", fallbackError);
+        return;
+      }
+      data = fallbackData || [];
     }
-    setSessions(data ?? []);
+
+    setSessions(data || []);
   };
 
   const fetchUserEnrollments = async () => {

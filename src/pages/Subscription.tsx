@@ -210,7 +210,7 @@ const Subscription = () => {
                 </ul>
               </div>
 
-              <div className="text-center">
+              <div className="text-center space-y-4">
                 <Button 
                   onClick={handleSubscribe} 
                   disabled={isLoading}
@@ -220,7 +220,15 @@ const Subscription = () => {
                 >
                   {isLoading ? "Redirection vers le paiement..." : "S'abonner - 9,99 €/mois"}
                 </Button>
-                <p className="text-xs text-sport-gray mt-2">
+                
+                {/* Alternative : Stripe Buy Button 
+                <div className="p-4 border rounded-lg">
+                  <p className="text-sm text-center mb-3">Ou paiement direct :</p>
+                  <StripeBuyButton />
+                </div>
+                */}
+                
+                <p className="text-xs text-sport-gray">
                   Résiliable à tout moment
                 </p>
               </div>

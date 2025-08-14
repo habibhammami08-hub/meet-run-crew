@@ -188,32 +188,33 @@ const Profile = () => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      // Upload file to Supabase Storage
+      // Upload vers bucket avatars
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
+      // URL publique
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName);
 
-      // Update profile with new avatar URL
+      // Mise à jour profil avec upsert
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
+        .upsert({ 
+          id: user.id, 
+          avatar_url: publicUrl 
+        }, { onConflict: 'id' });
 
       if (updateError) throw updateError;
 
-      // Update local state
       setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
       
       toast({
-        title: "Photo de profil mise à jour",
-        description: "Votre avatar a été mis à jour avec succès.",
+        title: "Avatar mis à jour",
+        description: "Votre photo de profil a été mise à jour.",
       });
     } catch (error: any) {
       toast({

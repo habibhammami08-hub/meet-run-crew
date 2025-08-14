@@ -105,7 +105,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Redirection forcée
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Erreur déconnexion:", error);
+      // Même en cas d'erreur, on redirige
+      window.location.href = "/";
+    }
   };
 
   const value = {
