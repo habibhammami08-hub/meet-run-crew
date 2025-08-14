@@ -94,7 +94,51 @@ serve(async (req) => {
       console.warn('Erreur lors de la suppression du storage:', storageError)
     }
 
-    // 2. Supprimer les données utilisateur de la base (CASCADE fera le reste)
+    // 2. Supprimer les courses organisées par l'utilisateur
+    try {
+      const { data: userCourses, error: coursesQueryError } = await supabaseAdmin
+        .from('courses')
+        .select('id')
+        .eq('organizer_id', user.id)
+
+      if (coursesQueryError) {
+        console.warn('Erreur lors de la récupération des courses:', coursesQueryError)
+      } else if (userCourses && userCourses.length > 0) {
+        const courseIds = userCourses.map(course => course.id)
+        console.log(`[delete-account] ${courseIds.length} course(s) à supprimer`)
+
+        const { error: coursesDeleteError } = await supabaseAdmin
+          .from('courses')
+          .delete()
+          .eq('organizer_id', user.id)
+
+        if (coursesDeleteError) {
+          console.error('Erreur suppression courses:', coursesDeleteError)
+          return new Response(
+            JSON.stringify({ error: 'Erreur lors de la suppression des courses organisées' }),
+            { 
+              status: 500, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
+        }
+
+        console.log('[delete-account] Courses organisées supprimées')
+      } else {
+        console.log('[delete-account] Aucune course organisée à supprimer')
+      }
+    } catch (coursesError) {
+      console.error('Erreur lors de la suppression des courses:', coursesError)
+      return new Response(
+        JSON.stringify({ error: 'Erreur lors de la suppression des courses' }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // 3. Supprimer les données utilisateur de la base (CASCADE fera le reste)
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .delete()
@@ -113,7 +157,7 @@ serve(async (req) => {
 
     console.log('[delete-account] Profil et données associées supprimés')
 
-    // 3. Supprimer l'utilisateur de auth.users
+    // 4. Supprimer l'utilisateur de auth.users
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     if (authError) {
