@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
-import { Filter, MapPin, Users, Clock } from "lucide-react";
+import { Filter, MapPin, Users, Clock, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,8 +11,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 const Map = () => {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [filteredSessions, setFilteredSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const { user, hasActiveSubscription } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -80,6 +82,11 @@ const Map = () => {
       }
     };
   }, [selectedSession?.id]);
+
+  // Appliquer les filtres quand les sessions ou filtres changent
+  useEffect(() => {
+    applyFilters();
+  }, [sessions, activeFilters]);
 
   const fetchSessions = async () => {
     try {
@@ -157,6 +164,52 @@ const Map = () => {
     }
   };
 
+  const applyFilters = () => {
+    if (activeFilters.length === 0) {
+      setFilteredSessions(sessions);
+      return;
+    }
+
+    const filtered = sessions.filter(session => {
+      return activeFilters.every(filter => {
+        switch (filter) {
+          case '5km':
+            return session.distance_km === 5;
+          case '10km':
+            return session.distance_km === 10;
+          case '15km':
+            return session.distance_km === 15;
+          case 'mixte':
+            return session.type === 'mixed';
+          case 'faible':
+            return session.intensity === 'low';
+          case 'moyenne':
+            return session.intensity === 'medium';
+          case 'elevee':
+            return session.intensity === 'high';
+          default:
+            return true;
+        }
+      });
+    });
+
+    setFilteredSessions(filtered);
+  };
+
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => {
+      if (prev.includes(filter)) {
+        return prev.filter(f => f !== filter);
+      } else {
+        return [...prev, filter];
+      }
+    });
+  };
+
+  const clearAllFilters = () => {
+    setActiveFilters([]);
+  };
+
   // Vérifier si l'utilisateur est inscrit à une session
   const isUserEnrolled = (session: any) => {
     if (!user || !session.enrollments) return false;
@@ -191,9 +244,31 @@ const Map = () => {
     });
   };
 
+  // Obtenir le nombre de sessions par filtre
+  const getFilterCount = (filter: string) => {
+    switch (filter) {
+      case '5km':
+        return sessions.filter(s => s.distance_km === 5).length;
+      case '10km':
+        return sessions.filter(s => s.distance_km === 10).length;
+      case '15km':
+        return sessions.filter(s => s.distance_km === 15).length;
+      case 'mixte':
+        return sessions.filter(s => s.type === 'mixed').length;
+      case 'faible':
+        return sessions.filter(s => s.intensity === 'low').length;
+      case 'moyenne':
+        return sessions.filter(s => s.intensity === 'medium').length;
+      case 'elevee':
+        return sessions.filter(s => s.intensity === 'high').length;
+      default:
+        return 0;
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col">
         <Header title="Carte des sessions" />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -207,7 +282,7 @@ const Map = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col">
         <Header title="Carte des sessions" />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="shadow-card max-w-md">
@@ -225,20 +300,33 @@ const Map = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col">
       <Header 
-        title={`Carte des sessions (${sessions.length})`}
+        title={`Carte (${filteredSessions.length})`}
         actions={
-          <Button variant="ghost" size="icon">
-            <Filter size={20} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {activeFilters.length > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={clearAllFilters}
+                className="text-xs"
+              >
+                <X size={14} className="mr-1" />
+                Effacer
+              </Button>
+            )}
+            <Button variant="ghost" size="icon">
+              <Filter size={20} />
+            </Button>
+          </div>
         }
       />
       
-      {/* Interactive Map */}
-      <div className="flex-1">
+      {/* Interactive Map - Prend toute la hauteur disponible */}
+      <div className="flex-1 relative">
         <LeafletMeetRunMap 
-          sessions={sessions.map(session => ({
+          sessions={filteredSessions.map(session => ({
             id: session.id,
             title: session.title,
             date: session.date,
@@ -267,134 +355,207 @@ const Map = () => {
           }}
           className="h-full"
         />
-      </div>
 
-      {/* Filter bar */}
-      {sessions.length > 0 && (
-        <div className="p-4 bg-white border-t border-border">
-          <div className="flex gap-2 overflow-x-auto">
-            <Button variant="sport" size="sm">Toutes ({sessions.length})</Button>
-            <Button variant="sportSecondary" size="sm">
-              5km ({sessions.filter(s => s.distance_km === 5).length})
-            </Button>
-            <Button variant="sportSecondary" size="sm">
-              10km ({sessions.filter(s => s.distance_km === 10).length})
-            </Button>
-            <Button variant="sportSecondary" size="sm">
-              Mixte ({sessions.filter(s => s.type === 'mixed').length})
-            </Button>
-            <Button variant="sportSecondary" size="sm">
-              Faible ({sessions.filter(s => s.intensity === 'low').length})
-            </Button>
-            <Button variant="sportSecondary" size="sm">
-              Moyenne ({sessions.filter(s => s.intensity === 'medium').length})
-            </Button>
-            <Button variant="sportSecondary" size="sm">
-              Élevée ({sessions.filter(s => s.intensity === 'high').length})
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Selected session details */}
-      {selectedSession && (
-        <div className="p-4 bg-white border-t border-border">
-          <Card className="shadow-card">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h4 className="font-semibold text-sport-black">{selectedSession.title}</h4>
-                  <p className="text-sm text-sport-gray flex items-center gap-1">
-                    <MapPin size={14} />
-                    {isUserEnrolled(selectedSession) || isUserHost(selectedSession) || hasActiveSubscription
-                      ? selectedSession.area_hint || "Lieu exact disponible"
-                      : `Zone approx. ${Math.round((selectedSession.blur_radius_m || 1000)/1000)}km`
-                    }
-                  </p>
-                </div>
+        {/* Floating Filter Bar */}
+        {sessions.length > 0 && (
+          <div className="absolute bottom-4 left-4 right-4 z-[1000]">
+            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 p-3">
+              <div className="flex gap-2 overflow-x-auto pb-2">
                 <Button 
-                  variant="ghost" 
+                  variant={activeFilters.length === 0 ? "sport" : "sportSecondary"} 
                   size="sm"
-                  onClick={() => setSelectedSession(null)}
+                  onClick={clearAllFilters}
+                  className="whitespace-nowrap"
                 >
-                  ✕
+                  Toutes ({sessions.length})
                 </Button>
-              </div>
-              
-              <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
-                <span className="flex items-center gap-1">
-                  <Clock size={14} />
-                  {formatDate(selectedSession.date)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Users size={14} />
-                  {getParticipantCount(selectedSession) + 1}/{selectedSession.max_participants} coureurs
-                </span>
-                <span className={`px-2 py-1 rounded-full text-xs ${
-                  selectedSession.intensity === 'low' ? 'bg-green-100 text-green-800' :
-                  selectedSession.intensity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {selectedSession.intensity === 'low' ? 'Faible' :
-                   selectedSession.intensity === 'medium' ? 'Moyenne' : 'Élevée'}
-                </span>
-              </div>
-              
-              <div className="flex gap-3">
+                
+                {/* Filtres de distance */}
                 <Button 
-                  variant="sportOutline" 
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => navigate(`/session/${selectedSession.id}`)}
+                  variant={activeFilters.includes('5km') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('5km')}
+                  className="whitespace-nowrap"
                 >
-                  Voir détails
+                  5km ({getFilterCount('5km')})
                 </Button>
-                {!isUserEnrolled(selectedSession) && 
-                 !isUserHost(selectedSession) && 
-                 getParticipantCount(selectedSession) < selectedSession.max_participants - 1 && (
+                <Button 
+                  variant={activeFilters.includes('10km') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('10km')}
+                  className="whitespace-nowrap"
+                >
+                  10km ({getFilterCount('10km')})
+                </Button>
+                <Button 
+                  variant={activeFilters.includes('15km') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('15km')}
+                  className="whitespace-nowrap"
+                >
+                  15km ({getFilterCount('15km')})
+                </Button>
+                
+                {/* Filtre de type */}
+                <Button 
+                  variant={activeFilters.includes('mixte') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('mixte')}
+                  className="whitespace-nowrap"
+                >
+                  Mixte ({getFilterCount('mixte')})
+                </Button>
+                
+                {/* Filtres d'intensité */}
+                <Button 
+                  variant={activeFilters.includes('faible') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('faible')}
+                  className="whitespace-nowrap"
+                >
+                  Faible ({getFilterCount('faible')})
+                </Button>
+                <Button 
+                  variant={activeFilters.includes('moyenne') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('moyenne')}
+                  className="whitespace-nowrap"
+                >
+                  Moyenne ({getFilterCount('moyenne')})
+                </Button>
+                <Button 
+                  variant={activeFilters.includes('elevee') ? "sport" : "sportSecondary"} 
+                  size="sm"
+                  onClick={() => toggleFilter('elevee')}
+                  className="whitespace-nowrap"
+                >
+                  Élevée ({getFilterCount('elevee')})
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Selected session details - Floating card */}
+        {selectedSession && (
+          <div className="absolute top-4 left-4 right-4 z-[1000]">
+            <Card className="shadow-lg bg-white/95 backdrop-blur-sm border-gray-200/50">
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-sport-black">{selectedSession.title}</h4>
+                    <p className="text-sm text-sport-gray flex items-center gap-1">
+                      <MapPin size={14} />
+                      {isUserEnrolled(selectedSession) || isUserHost(selectedSession) || hasActiveSubscription
+                        ? selectedSession.area_hint || "Lieu exact disponible"
+                        : `Zone approx. ${Math.round((selectedSession.blur_radius_m || 1000)/1000)}km`
+                      }
+                    </p>
+                  </div>
                   <Button 
-                    variant="sport" 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setSelectedSession(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={16} />
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
+                  <span className="flex items-center gap-1">
+                    <Clock size={14} />
+                    {formatDate(selectedSession.date)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Users size={14} />
+                    {getParticipantCount(selectedSession) + 1}/{selectedSession.max_participants} coureurs
+                  </span>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    selectedSession.intensity === 'low' ? 'bg-green-100 text-green-800' :
+                    selectedSession.intensity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {selectedSession.intensity === 'low' ? 'Faible' :
+                     selectedSession.intensity === 'medium' ? 'Moyenne' : 'Élevée'}
+                  </span>
+                </div>
+                
+                <div className="flex gap-3">
+                  <Button 
+                    variant="sportOutline" 
                     size="sm" 
                     className="flex-1"
                     onClick={() => navigate(`/session/${selectedSession.id}`)}
                   >
-                    {hasActiveSubscription ? "Rejoindre" : "S'abonner"}
+                    Voir détails
                   </Button>
-                )}
-                {isUserEnrolled(selectedSession) && (
-                  <Button variant="secondary" size="sm" className="flex-1" disabled>
-                    ✓ Inscrit
-                  </Button>
-                )}
-                {isUserHost(selectedSession) && (
-                  <Button variant="secondary" size="sm" className="flex-1" disabled>
-                    ✓ Organisateur
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {sessions.length === 0 && !loading && (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            <MapPin size={48} className="mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">Aucune session disponible</h3>
-            <p className="text-muted-foreground mb-4">
-              Soyez le premier à créer une session de running !
-            </p>
-            <Button 
-              variant="sport" 
-              onClick={() => navigate('/create')}
-            >
-              Créer une session
-            </Button>
+                  {!isUserEnrolled(selectedSession) && 
+                   !isUserHost(selectedSession) && 
+                   getParticipantCount(selectedSession) < selectedSession.max_participants - 1 && (
+                    <Button 
+                      variant="sport" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => navigate(`/session/${selectedSession.id}`)}
+                    >
+                      {hasActiveSubscription ? "Rejoindre" : "S'abonner"}
+                    </Button>
+                  )}
+                  {isUserEnrolled(selectedSession) && (
+                    <Button variant="secondary" size="sm" className="flex-1" disabled>
+                      ✓ Inscrit
+                    </Button>
+                  )}
+                  {isUserHost(selectedSession) && (
+                    <Button variant="secondary" size="sm" className="flex-1" disabled>
+                      ✓ Organisateur
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Empty state */}
+        {filteredSessions.length === 0 && !loading && sessions.length > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center p-8 bg-white/80 backdrop-blur-sm">
+            <div className="text-center">
+              <Filter size={48} className="mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">Aucune session trouvée</h3>
+              <p className="text-muted-foreground mb-4">
+                Aucune session ne correspond aux filtres sélectionnés.
+              </p>
+              <Button 
+                variant="sport" 
+                onClick={clearAllFilters}
+              >
+                Voir toutes les sessions
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state - no sessions at all */}
+        {sessions.length === 0 && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center p-8">
+            <div className="text-center">
+              <MapPin size={48} className="mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">Aucune session disponible</h3>
+              <p className="text-muted-foreground mb-4">
+                Soyez le premier à créer une session de running !
+              </p>
+              <Button 
+                variant="sport" 
+                onClick={() => navigate('/create')}
+              >
+                Créer une session
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
