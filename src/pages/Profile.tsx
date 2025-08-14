@@ -195,6 +195,7 @@ const Profile = () => {
   };
 
   async function saveProfile(formValues: any) {
+    console.log("[saveProfile] Function called with:", formValues);
     if (!user?.id) {
       toast({
         title: "Erreur",
@@ -420,18 +421,21 @@ const Profile = () => {
             {isEditing ? (
               <form onSubmit={(e) => {
                 e.preventDefault();
+                console.log("[form] Submit event triggered");
                 const formData = new FormData(e.currentTarget);
-                const firstName = (formData.get('first_name') as string)?.trim() || '';
-                const lastName = (formData.get('last_name') as string)?.trim() || '';
+                const firstName = (formData.get('first_name') as string) || '';
+                const lastName = (formData.get('last_name') as string) || '';
                 const formValues = {
                   full_name: `${firstName} ${lastName}`.trim(),
-                  age: formData.get('age'),
-                  gender: formData.get('gender'),
-                  phone: formData.get('phone'),
+                  age: formData.get('age') as string,
+                  gender: formData.get('gender') as string,
+                  phone: formData.get('phone') as string,
                   avatar_url: profile?.avatar_url
                 };
-                console.log("[profile] FormValues collected:", formValues);
+                console.log("[form] FormValues collected:", formValues);
+                console.log("[form] About to call saveProfile");
                 saveProfile(formValues);
+                console.log("[form] saveProfile called");
               }}>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
