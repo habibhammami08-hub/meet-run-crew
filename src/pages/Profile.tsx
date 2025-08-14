@@ -220,22 +220,36 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      console.log("[profile] Testing connection first...");
-      // Test connection first
-      const { data: testData, error: testError } = await supabase
+      // Check session first
+      console.log("[profile] Checking session...");
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log("[profile] Session check:", { sessionData, sessionError });
+      
+      if (!sessionData?.session) {
+        throw new Error("No valid session found");
+      }
+
+      console.log("[profile] Session valid, testing simple query...");
+      // Test with a timeout
+      const queryPromise = supabase
         .from("profiles")
         .select("id")
         .eq("id", user.id)
         .single();
       
-      console.log("[profile] Connection test result:", { testData, testError });
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Query timeout")), 10000)
+      );
+      
+      const { data: testData, error: testError } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      console.log("[profile] Query result:", { testData, testError });
       
       if (testError && testError.code !== 'PGRST116') {
-        throw new Error(`Connection failed: ${testError.message}`);
+        throw new Error(`Query failed: ${testError.message}`);
       }
 
-      console.log("[profile] Connection OK, attempting update instead of upsert...");
-      // Try update first, then insert if not exists
+      console.log("[profile] Query successful, proceeding with update...");
+      // Now proceed with update
       const { data, error } = await supabase
         .from("profiles")
         .update(payload)
@@ -243,9 +257,9 @@ const Profile = () => {
         .select()
         .single();
 
-      console.log("[profile] update result:", { data, error });
+      console.log("[profile] Update result:", { data, error });
       if (error) {
-        console.error("[profile] upsert error:", error);
+        console.error("[profile] update error:", error);
         toast({
           title: "Erreur",
           description: `Impossible d'enregistrer le profil (${error.code ?? "err"}) - ${error.message}`,
@@ -254,7 +268,7 @@ const Profile = () => {
         return;
       }
 
-      console.log("[profile] upsert success, updating local state");
+      console.log("[profile] update success, updating local state");
       setProfile(data);
       setIsEditing(false);
       toast({
