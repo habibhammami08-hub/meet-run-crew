@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
 
   // Fonction pour récupérer le statut d'abonnement
-  const fetchSubscriptionStatus = async (userId: string) => {
+  const fetchSubscriptionStatus = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -51,11 +51,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) {
         console.error('Erreur récupération abonnement:', error);
+        setHasActiveSubscription(false);
+        setSubscriptionStatus(null);
+        setSubscriptionEnd(null);
         return;
       }
 
       if (!data) {
         console.warn('Aucun profil trouvé pour l\'utilisateur:', userId);
+        setHasActiveSubscription(false);
+        setSubscriptionStatus(null);
+        setSubscriptionEnd(null);
         return;
       }
 
@@ -67,15 +73,50 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionEnd(data.sub_current_period_end);
     } catch (error) {
       console.error('Erreur dans fetchSubscriptionStatus:', error);
+      setHasActiveSubscription(false);
+      setSubscriptionStatus(null);
+      setSubscriptionEnd(null);
     }
-  };
+  }, []);
+
+  // Fonction pour s'assurer qu'un profil existe
+  const ensureProfile = useCallback(async (user: User) => {
+    try {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        // Créer le profil s'il n'existe pas
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            email: user.email || '',
+            full_name: user.user_metadata?.full_name || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+
+        if (error) {
+          console.error("Erreur création profil:", error);
+        } else {
+          console.log("[auth] Profil créé pour l'utilisateur");
+        }
+      }
+    } catch (error) {
+      console.error("Erreur vérification profil:", error);
+    }
+  }, []);
 
   // Fonction pour rafraîchir l'abonnement
-  const refreshSubscription = async () => {
+  const refreshSubscription = useCallback(async () => {
     if (user) {
       await fetchSubscriptionStatus(user.id);
     }
-  };
+  }, [user, fetchSubscriptionStatus]);
 
   // Fonction de déconnexion corrigée
   const signOut = async () => {
@@ -104,55 +145,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
-    // Fonction pour gérer les changements d'état d'auth
-    const handleAuthStateChange = async (event: string, session: Session | null) => {
+    // Fonction pour gérer les changements d'état d'auth (synchrone uniquement pour éviter deadlocks)
+    const handleAuthStateChange = (event: string, session: Session | null) => {
       if (!mounted) return;
 
       console.log("[auth] État changé:", event, session?.user?.id);
       
+      // Mise à jour synchrone de l'état
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Assurer qu'un profil existe pour cet utilisateur
-        await ensureProfile(session.user);
-        await fetchSubscriptionStatus(session.user.id);
+        // Différer les appels Supabase pour éviter les deadlocks
+        setTimeout(() => {
+          if (mounted) {
+            ensureProfile(session.user)
+              .then(() => fetchSubscriptionStatus(session.user.id))
+              .catch((error) => {
+                console.error("[auth] Erreur async operations:", error);
+              })
+              .finally(() => {
+                if (mounted) setLoading(false);
+              });
+          }
+        }, 0);
       } else {
+        // Réinitialiser l'état si pas d'utilisateur
         setHasActiveSubscription(false);
         setSubscriptionStatus(null);
         setSubscriptionEnd(null);
-      }
-      
-      setLoading(false);
-    };
-
-    // Fonction pour s'assurer qu'un profil existe
-    const ensureProfile = async (user: User) => {
-      try {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (!existingProfile) {
-          // Créer le profil s'il n'existe pas
-          const { error } = await supabase
-            .from('profiles')
-            .upsert({
-              id: user.id,
-              email: user.email || '',
-              full_name: user.user_metadata?.full_name || '',
-            }, { onConflict: 'id' });
-
-          if (error) {
-            console.error("Erreur création profil:", error);
-          } else {
-            console.log("[auth] Profil créé pour l'utilisateur");
-          }
-        }
-      } catch (error) {
-        console.error("Erreur vérification profil:", error);
+        setLoading(false);
       }
     };
 
@@ -163,7 +185,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        await handleAuthStateChange('INITIAL_SESSION', session);
+        handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {
         console.error("Erreur initialisation auth:", error);
         setLoading(false);
@@ -176,7 +198,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [ensureProfile, fetchSubscriptionStatus]);
 
   const value = {
     user,
