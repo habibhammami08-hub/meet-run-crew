@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      enrollments: {
+        Row: {
+          created_at: string
+          id: string
+          session_id: string
+          status: string
+          stripe_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          session_id: string
+          status?: string
+          stripe_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          session_id?: string
+          status?: string
+          stripe_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           age: number | null
@@ -24,6 +59,8 @@ export type Database = {
           gender: string | null
           id: string
           phone: string | null
+          photo_url: string | null
+          role: string | null
           updated_at: string
         }
         Insert: {
@@ -35,6 +72,8 @@ export type Database = {
           gender?: string | null
           id: string
           phone?: string | null
+          photo_url?: string | null
+          role?: string | null
           updated_at?: string
         }
         Update: {
@@ -46,6 +85,8 @@ export type Database = {
           gender?: string | null
           id?: string
           phone?: string | null
+          photo_url?: string | null
+          role?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -139,6 +180,60 @@ export type Database = {
           title?: string
           type?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          area_hint: string | null
+          blur_radius_m: number
+          created_at: string
+          date: string
+          distance_km: number
+          host_id: string
+          host_payout_cents: number
+          id: string
+          intensity: string
+          location_lat: number
+          location_lng: number
+          max_participants: number
+          price_cents: number
+          title: string
+          type: string
+        }
+        Insert: {
+          area_hint?: string | null
+          blur_radius_m?: number
+          created_at?: string
+          date: string
+          distance_km: number
+          host_id: string
+          host_payout_cents?: number
+          id?: string
+          intensity: string
+          location_lat: number
+          location_lng: number
+          max_participants: number
+          price_cents?: number
+          title: string
+          type: string
+        }
+        Update: {
+          area_hint?: string | null
+          blur_radius_m?: number
+          created_at?: string
+          date?: string
+          distance_km?: number
+          host_id?: string
+          host_payout_cents?: number
+          id?: string
+          intensity?: string
+          location_lat?: number
+          location_lng?: number
+          max_participants?: number
+          price_cents?: number
+          title?: string
+          type?: string
         }
         Relationships: []
       }
