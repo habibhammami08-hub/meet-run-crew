@@ -47,8 +47,12 @@ const Profile = () => {
 
   const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      console.error('No user found for profile update');
+      return;
+    }
 
+    console.log('Starting profile update for user:', user.id);
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
@@ -60,6 +64,8 @@ const Profile = () => {
         gender: formData.get('gender') as string,
       };
 
+      console.log('Update data:', updateData);
+
       const { data, error } = await supabase
         .from('profiles')
         .update(updateData)
@@ -67,14 +73,19 @@ const Profile = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      console.log('Supabase response:', { data, error });
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       setProfile(data);
       setIsEditing(false);
       toast.success("Profil mis à jour avec succès !");
     } catch (error: any) {
-      toast.error("Erreur lors de la mise à jour du profil");
       console.error('Error updating profile:', error);
+      toast.error("Erreur lors de la mise à jour du profil: " + (error.message || 'Erreur inconnue'));
     } finally {
       setLoading(false);
     }
@@ -108,20 +119,28 @@ const Profile = () => {
     try {
       console.log('Starting account deletion...');
       
+      // Get current session
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log('Current session:', sessionData);
+      
+      if (sessionError || !sessionData.session) {
+        throw new Error('Pas de session active');
+      }
+      
       // Call the edge function to delete the account
+      console.log('Calling delete-user-account function...');
       const { data, error } = await supabase.functions.invoke('delete-user-account', {
-        body: { confirm: true },
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        }
+        body: { confirm: true }
       });
+
+      console.log('Edge function response:', { data, error });
 
       if (error) {
         console.error('Edge function error:', error);
         throw error;
       }
 
-      console.log('Account deletion response:', data);
+      console.log('Account deletion successful:', data);
       toast.success("Votre compte a été supprimé avec succès");
       
       // Force navigation to home page after deletion
