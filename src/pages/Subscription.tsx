@@ -7,6 +7,7 @@ import { Crown, Check, X, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import SubscribeBuyButton from "@/components/SubscribeBuyButton";
 
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
@@ -14,9 +15,7 @@ const Subscription = () => {
   const [isPortalLoading, setIsPortalLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubscribe = async () => {
-    console.log("handleSubscribe called", { user: !!user });
-    
+  const handleSubscribe = () => {
     if (!user) {
       toast({
         title: "Connexion requise",
@@ -25,57 +24,7 @@ const Subscription = () => {
       });
       return;
     }
-
-    setIsLoading(true);
-    console.log("Starting subscription creation...");
-
-    try {
-      console.log("Invoking create-subscription-session function...");
-      
-      const { data, error } = await supabase.functions.invoke('create-subscription-session', {
-        body: { 
-          user_id: user.id, 
-          email: user.email, 
-          full_name: user.user_metadata?.full_name || ''
-        }
-      });
-      
-      console.log("Function response:", { data, error });
-
-      if (error) {
-        console.error("Function error:", error);
-        toast({
-          title: "Erreur de configuration",
-          description: `Erreur: ${error.message}`,
-          variant: "destructive",
-        });
-        throw new Error(error.message || "Erreur lors de la création de la session");
-      }
-
-      if (data?.url) {
-        console.log("Redirecting to Stripe checkout:", data.url);
-        // Redirection directe vers Stripe
-        window.location.href = data.url;
-      } else {
-        console.error("No URL returned from function:", data);
-        toast({
-          title: "Configuration manquante",
-          description: "Aucune URL de paiement reçue. Vérifiez la configuration Stripe.",
-          variant: "destructive",
-        });
-        throw new Error("Configuration manquante");
-      }
-    } catch (error: any) {
-      console.error("Full error:", error);
-      
-      toast({
-        title: "Erreur",
-        description: `Détails: ${error.message || "Une erreur est survenue"}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // The Stripe Buy Button will handle the subscription process
   };
 
   const handleManageSubscription = async () => {
@@ -226,15 +175,7 @@ const Subscription = () => {
               </div>
 
               <div className="text-center">
-                <Button 
-                  onClick={handleSubscribe} 
-                  disabled={isLoading}
-                  size="lg"
-                  className="w-full"
-                  variant="sport"
-                >
-                  {isLoading ? "Redirection vers le paiement..." : "S'abonner - 9,99 €/mois"}
-                </Button>
+                <SubscribeBuyButton className="w-full" />
                 <p className="text-xs text-sport-gray mt-2">
                   Résiliable à tout moment
                 </p>
