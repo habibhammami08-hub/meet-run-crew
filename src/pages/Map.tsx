@@ -85,6 +85,7 @@ const Map = () => {
   }, [user]); // Dependency sur user seulement
 
   const fetchSessions = async () => {
+    console.log("🔍 Fetching sessions...");
     const { data, error } = await supabase
       .from('sessions')
       .select(`
@@ -94,11 +95,13 @@ const Map = () => {
       `)
       .gte('date', new Date().toISOString());
 
+    console.log("📊 Sessions query result:", { data, error, count: data?.length });
+
     if (!error && data) {
-      console.log('Sessions fetched:', data);
+      console.log('✅ Sessions fetched successfully:', data.length, "sessions");
       setSessions(data);
     } else if (error) {
-      console.error('Error fetching sessions:', error);
+      console.error('❌ Error fetching sessions:', error);
     }
   };
 
