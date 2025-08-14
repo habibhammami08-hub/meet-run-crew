@@ -195,104 +195,107 @@ const Profile = () => {
   };
 
   const updateProfile = async (formData: FormData) => {
-    if (!user) {
-      console.error('No user found for profile update');
+    if (!user?.id) {
+      console.error('No user ID found for profile update');
+      toast({
+        title: "Erreur d'authentification",
+        description: "Impossible d'identifier l'utilisateur.",
+        variant: "destructive",
+      });
       return;
     }
     
     setLoading(true);
     console.log('Starting profile update for user:', user.id);
     
-    // Check authentication status
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    console.log('Current session:', session);
-    console.log('Session error:', sessionError);
-    
-    if (!session) {
-      console.error('No active session found');
-      toast({
-        title: "Erreur d'authentification",
-        description: "Vous devez être connecté pour modifier votre profil.",
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
-    
     try {
-      const firstName = formData.get('first_name') as string;
-      const lastName = formData.get('last_name') as string;
+      const firstName = (formData.get('first_name') as string)?.trim() || '';
+      const lastName = (formData.get('last_name') as string)?.trim() || '';
       const ageValue = formData.get('age') as string;
+      const genderValue = formData.get('gender') as string;
+      const phoneValue = formData.get('phone') as string;
       
-      console.log('Form data:', {
+      console.log('Form data extracted:', {
         firstName,
         lastName,
         age: ageValue,
-        gender: formData.get('gender'),
-        phone: formData.get('phone')
+        gender: genderValue,
+        phone: phoneValue
       });
       
-      const updatedProfile = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+      const payload = {
+        id: user.id,
+        email: user.email || '',
+        first_name: firstName,
+        last_name: lastName,
         full_name: `${firstName} ${lastName}`.trim(),
         age: ageValue ? parseInt(ageValue) : null,
-        gender: (formData.get('gender') as string) || null,
-        phone: (formData.get('phone') as string) || null,
+        gender: genderValue || null,
+        phone: phoneValue || null,
       };
 
-      console.log('Prepared profile data:', updatedProfile);
-      console.log('User ID for update:', user.id);
-      
-      // Try a simpler upsert approach first
-      console.log('Using upsert approach...');
+      console.log('Payload prepared:', payload);
+      console.log('Calling Supabase upsert...');
+
       const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email || '',
-          ...updatedProfile
-        }, {
-          onConflict: 'id'
-        })
+        .upsert(payload, { onConflict: 'id' })
         .select()
         .single();
 
-      console.log('Upsert completed');
-      console.log('Upsert result:', { data, error });
+      console.log('Supabase upsert response:', { data, error });
 
       if (error) {
-        console.error('Upsert error:', error);
-        throw error;
+        console.error('Supabase upsert error:', error);
+        let errorMessage = 'Erreur lors de la sauvegarde du profil';
+        
+        if (error.message.includes('permission denied')) {
+          errorMessage = 'Permission refusée - vérifiez vos droits d\'accès';
+        } else if (error.message.includes('violates row-level security')) {
+          errorMessage = 'Violation de sécurité - impossible de modifier ce profil';
+        } else if (error.message.includes('duplicate key')) {
+          errorMessage = 'Ce profil existe déjà';
+        }
+        
+        toast({
+          title: "Erreur de sauvegarde",
+          description: `${errorMessage}: ${error.message}`,
+          variant: "destructive",
+        });
+        return;
       }
 
-      if (data) {
-        console.log('Profile upsert successful:', data);
-        setProfile({ ...profile, ...data });
-        setIsEditing(false);
+      if (!data) {
+        console.error('No data returned from upsert');
         toast({
-          title: "Profil mis à jour",
-          description: "Vos informations ont été sauvegardées avec succès.",
+          title: "Erreur",
+          description: "Aucune donnée retournée par la base de données",
+          variant: "destructive",
         });
-        
-        // Refresh profile data to ensure consistency
-        console.log('Refreshing profile data...');
-        await fetchProfile();
-        console.log('Profile refresh completed');
-      } else {
-        console.warn('No data returned from upsert');
-        throw new Error('Aucune donnée retournée de la base de données');
+        return;
       }
-    } catch (error: any) {
-      console.error('Profile update error:', error);
+
+      console.log('Profile upsert successful:', data);
+      setProfile(data);
+      setIsEditing(false);
+      
       toast({
-        title: "Erreur de sauvegarde",
-        description: `Impossible de sauvegarder le profil: ${error.message}`,
+        title: "Profil mis à jour",
+        description: "Vos informations ont été sauvegardées avec succès.",
+      });
+      
+      console.log('Profile update completed successfully');
+      
+    } catch (error: any) {
+      console.error('Unexpected error during profile update:', error);
+      toast({
+        title: "Erreur inattendue",
+        description: `Une erreur est survenue: ${error.message}`,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
-      console.log('Profile update process completed');
+      console.log('Profile update process finished');
     }
   };
 

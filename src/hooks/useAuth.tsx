@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
+import { User, Session, RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { hasActiveSub } from "@/utils/subscription";
 
@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  const realtimeSubRef = useRef<RealtimeChannel | null>(null);
 
   const fetchSubscriptionStatus = async (userId: string) => {
     try {
@@ -71,6 +72,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Stable Realtime subscription for profile updates
+  useEffect(() => {
+    if (!user?.id || realtimeSubRef.current) {
+      console.log('Skipping realtime setup - user:', !!user?.id, 'existing sub:', !!realtimeSubRef.current);
+      return;
+    }
+
+    console.log('Setting up Realtime subscription for profile updates');
+    realtimeSubRef.current = supabase
+      .channel(`profile:${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${user.id}`
+      }, (payload) => {
+        console.log('Profile updated via Realtime:', payload.new);
+        const updatedProfile = payload.new as any;
+        const isActive = hasActiveSub(updatedProfile);
+        setHasActiveSubscription(isActive);
+        setSubscriptionStatus(updatedProfile.sub_status);
+        setSubscriptionEnd(updatedProfile.sub_current_period_end);
+      })
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up Realtime subscription');
+      if (realtimeSubRef.current) {
+        realtimeSubRef.current.unsubscribe();
+        realtimeSubRef.current = null;
+      }
+    };
+  }, [user?.id]); // Only depend on user.id, not other state
+
+  // Auth state management (separate from profile subscription)
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -107,6 +145,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     try {
+      // Clean up Realtime subscription first
+      if (realtimeSubRef.current) {
+        console.log('Cleaning up Realtime subscription during signout');
+        realtimeSubRef.current.unsubscribe();
+        realtimeSubRef.current = null;
+      }
+      
       // Clear local state first
       setUser(null);
       setSession(null);
