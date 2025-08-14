@@ -100,7 +100,7 @@ const Map = () => {
       
       if (testError) {
         console.error('❌ Basic query failed:', testError);
-        throw new Error(`Basic query failed: ${testError.message}`);
+        // Try to continue anyway
       }
 
       // Second query: Full query with joins and filters
@@ -109,7 +109,7 @@ const Map = () => {
         .from('sessions')
         .select(`
           *,
-          host_profile:profiles!host_id (id, full_name, age, avatar_url),
+          host_profile:profiles!sessions_host_id_fkey (id, full_name, age, avatar_url),
           enrollments (id, user_id, status)
         `)
         .gte('date', new Date().toISOString())
@@ -124,7 +124,26 @@ const Map = () => {
 
       if (error) {
         console.error('❌ Full query error:', error);
-        throw new Error(`Query failed: ${error.message}`);
+        
+        // Fallback: Try simple query without joins
+        console.log("🔄 Trying fallback query without joins...");
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('sessions')
+          .select('*')
+          .gte('date', new Date().toISOString())
+          .order('date', { ascending: true });
+          
+        console.log("🔄 Fallback query result:", { data: fallbackData, error: fallbackError });
+        
+        if (fallbackError) {
+          throw new Error(`All queries failed: ${fallbackError.message}`);
+        }
+        
+        if (fallbackData && fallbackData.length > 0) {
+          console.log('✅ Fallback sessions loaded:', fallbackData.length);
+          setSessions(fallbackData);
+          return;
+        }
       }
 
       if (data && data.length > 0) {
