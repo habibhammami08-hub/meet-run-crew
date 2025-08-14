@@ -27,9 +27,19 @@ interface Session {
   distance_km: number;
   intensity: string;
   host_id: string;
+  host_profile?: {
+    full_name?: string;
+    avatar_url?: string;
+    age?: number;
+  };
   enrollments?: Array<{
     user_id: string;
     status: string;
+    profile?: {
+      full_name?: string;
+      avatar_url?: string;
+      age?: number;
+    };
   }>;
 }
 
@@ -328,20 +338,106 @@ const LeafletMeetRunMap = ({
       (marker as any).__sessionData = session;
 
       // Create popup content
-      const popupContent = `
-        <div class="p-2">
-          <h3 class="font-semibold text-sm">${session.title}</h3>
-          <p class="text-xs text-gray-600 mt-1">${formatDate(session.date)}</p>
-          <p class="text-xs">${session.distance_km} km • ${session.intensity}</p>
-          ${canSeeExact ? 
-            '<p class="text-xs text-green-600 mt-1">Position exacte</p>' : 
-            '<p class="text-xs text-gray-600 mt-1">Zone approximative — Inscrivez-vous pour le lieu exact</p>'
-          }
+      const enrolledCount = session.enrollments?.filter((e: any) => e.status === 'paid')?.length || 0;
+      const hostProfile = session.host_profile || {};
+      const enrolledParticipants = session.enrollments?.filter((e: any) => e.status === 'paid' && e.user_id !== session.host_id) || [];
+      
+      const popupContent = canSeeExact ? `
+        <div style="min-width: 240px; max-width: 320px; padding: 12px;">
+          <h3 style="margin: 0 0 12px 0; font-weight: bold; color: #2d3748; font-size: 14px;">${session.title}</h3>
+          
+          <!-- Exact Location -->
+          <div style="margin: 8px 0; padding: 8px; background: #f0fdf4; border-radius: 6px; border-left: 3px solid #059669;">
+            <p style="margin: 0; font-size: 12px; color: #166534; font-weight: 500;">📍 Lieu exact révélé</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #166534;">${session.area_hint || 'Coordonnées exactes disponibles'}</p>
+          </div>
+          
+          <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">🏃 ${session.distance_km} km • ${session.intensity}</p>
+          <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">📅 ${formatDate(session.date)}</p>
+          
+          <!-- Host Info -->
+          <div style="margin: 8px 0; padding: 8px; background: #fef3c7; border-radius: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              ${hostProfile.avatar_url ? 
+                `<img src="${hostProfile.avatar_url}" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover;" alt="Host">` : 
+                `<div style="width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b; font-size: 11px;">👤</div>`
+              }
+              <div>
+                <div style="font-weight: 600; color: #92400e; font-size: 11px;">
+                  ${hostProfile.full_name || 'Hôte'}
+                  ${hostProfile.age ? `, ${hostProfile.age} ans` : ''}
+                </div>
+                <div style="font-size: 9px; color: #92400e;">Organisateur</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Participants -->
+          ${enrolledParticipants.length > 0 ? `
+            <div style="margin: 8px 0;">
+              <div style="font-weight: 600; color: #2d3748; font-size: 11px; margin-bottom: 4px;">👥 Participants (${enrolledParticipants.length}/${session.max_participants - 1})</div>
+              <div style="max-height: 80px; overflow-y: auto;">
+                ${enrolledParticipants.slice(0, 3).map((enrollment: any) => {
+                  const profile = enrollment.profile || {};
+                  return `
+                    <div style="display: flex; align-items: center; gap: 6px; margin: 2px 0; padding: 2px; background: #f8fafc; border-radius: 3px;">
+                      ${profile.avatar_url ? 
+                        `<img src="${profile.avatar_url}" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover;" alt="Participant">` : 
+                        `<div style="width: 18px; height: 18px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 7px;">👤</div>`
+                      }
+                      <span style="font-size: 10px; color: #4a5568;">
+                        ${profile.full_name || 'Participant'}
+                        ${profile.age ? ` • ${profile.age} ans` : ''}
+                      </span>
+                    </div>
+                  `;
+                }).join('')}
+                ${enrolledParticipants.length > 3 ? `<div style="font-size: 9px; color: #64748b; text-align: center; margin-top: 2px;">+${enrolledParticipants.length - 3} autres</div>` : ''}
+              </div>
+            </div>
+          ` : `<p style="margin: 6px 0; color: #64748b; font-size: 11px;">👥 Aucun autre participant</p>`}
+          
           <button 
-            class="mt-2 px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs"
             onclick="window.selectSession && window.selectSession('${session.id}')"
-          >
-            ${canSeeExact ? 'Voir détails' : `S'inscrire - ${(session.price_cents / 100).toFixed(2)}$`}
+            style="margin-top: 10px; width: 100%; padding: 6px; background: #059669; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 11px;">
+            Voir les détails complets
+          </button>
+        </div>
+      ` : `
+        <div style="min-width: 220px; max-width: 280px; padding: 12px;">
+          <h3 style="margin: 0 0 12px 0; font-weight: bold; color: #2d3748; font-size: 14px;">${session.title}</h3>
+          
+          <!-- Host Info -->
+          <div style="margin: 8px 0; padding: 8px; background: #f8fafc; border-radius: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              ${hostProfile.avatar_url ? 
+                `<img src="${hostProfile.avatar_url}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;" alt="Host">` : 
+                `<div style="width: 30px; height: 30px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b;">👤</div>`
+              }
+              <div>
+                <div style="font-weight: 600; color: #2d3748; font-size: 12px;">
+                  ${hostProfile.full_name || 'Hôte'}
+                  ${hostProfile.age ? `, ${hostProfile.age} ans` : ''}
+                </div>
+                <div style="font-size: 10px; color: #64748b;">Organisateur</div>
+              </div>
+            </div>
+          </div>
+          
+          <p style="margin: 6px 0; color: #4a5568; font-size: 12px;">📍 Zone approximative</p>
+          <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">🏃 ${session.distance_km} km • ${session.intensity}</p>
+          <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">📅 ${formatDate(session.date)}</p>
+          <p style="margin: 6px 0; color: #4a5568; font-size: 12px;">👥 ${enrolledCount}/${session.max_participants} participants</p>
+          
+          <div style="margin-top: 12px; padding: 8px; background: #f0fdf4; border-radius: 4px; border-left: 3px solid #059669;">
+            <p style="margin: 0; font-size: 11px; color: #166534; font-style: italic;">
+              Inscrivez-vous pour voir le lieu exact et les autres participants
+            </p>
+          </div>
+          <button 
+            onclick="window.selectSession && window.selectSession('${session.id}')"
+            style="margin-top: 10px; width: 100%; padding: 6px; background: #059669; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 11px;">
+            S'inscrire - ${(session.price_cents / 100).toFixed(2)}$
           </button>
         </div>
       `;
