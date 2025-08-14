@@ -432,13 +432,16 @@ const Profile = () => {
               <form onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const firstName = (formData.get('first_name') as string)?.trim() || '';
+                const lastName = (formData.get('last_name') as string)?.trim() || '';
                 const formValues = {
-                  full_name: formData.get('full_name'),
+                  full_name: `${firstName} ${lastName}`.trim(),
                   age: formData.get('age'),
                   gender: formData.get('gender'),
                   phone: formData.get('phone'),
                   avatar_url: profile?.avatar_url
                 };
+                console.log("[profile] FormValues collected:", formValues);
                 saveProfile(formValues);
               }}>
                 <div className="space-y-4">
@@ -508,17 +511,6 @@ const Profile = () => {
                     </div>
                   </div>
                   
-                   <div>
-                     <Label htmlFor="full_name">Nom complet *</Label>
-                     <Input
-                       id="full_name"
-                       name="full_name"
-                       defaultValue={profile?.full_name || ''}
-                       required
-                       placeholder="Votre nom complet"
-                     />
-                   </div>
-                   
                    <div>
                      <Label htmlFor="phone">Téléphone</Label>
                      <Input
