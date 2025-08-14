@@ -94,7 +94,7 @@ const LeafletMeetRunMap = ({
   }, []);
 
   // Constants for green styling
-  const GREEN = "#12b886";
+  const GREEN = "#059669"; // Darker green for better visibility
   
   // Create cluster icon
   const createClusterIcon = useCallback((cluster: any) => {
@@ -317,10 +317,10 @@ const LeafletMeetRunMap = ({
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-      // Create green circle markers for all sessions (unified styling)
+      // Create green circle markers with white border for better visibility
       const markerStyle = canSeeExact 
-        ? { radius: 6, color: "#fff", weight: 2, fillColor: GREEN, fillOpacity: 1.0 }
-        : { radius: 5, color: GREEN, weight: 0, fillColor: GREEN, fillOpacity: 0.85 };
+        ? { radius: 6, color: "#ffffff", weight: 3, fillColor: GREEN, fillOpacity: 1.0 }
+        : { radius: 5, color: "#ffffff", weight: 2, fillColor: GREEN, fillOpacity: 0.9 };
       
       const marker = L.circleMarker([lat, lng], markerStyle);
 
