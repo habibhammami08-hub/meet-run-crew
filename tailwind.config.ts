@@ -61,6 +61,14 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				sport: {
+					green: 'hsl(var(--sport-green))',
+					'green-light': 'hsl(var(--sport-green-light))',
+					'green-dark': 'hsl(var(--sport-green-dark))',
+					black: 'hsl(var(--sport-black))',
+					gray: 'hsl(var(--sport-gray))',
+					'gray-light': 'hsl(var(--sport-gray-light))'
 				}
 			},
 			borderRadius: {
@@ -88,7 +96,11 @@ export default {
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-sport': 'pulse-sport 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+			},
+			fontFamily: {
+				sans: ['Inter', 'system-ui', 'sans-serif']
 			}
 		}
 	},
