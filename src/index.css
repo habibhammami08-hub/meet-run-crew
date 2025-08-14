@@ -50,6 +50,7 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(var(--sport-green)), hsl(var(--sport-green-light)));
     --gradient-hero: linear-gradient(135deg, hsl(var(--sport-green)) 0%, hsl(var(--sport-green-light)) 100%);
     --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(210 40% 98%) 100%);
+    --gradient-sport: linear-gradient(135deg, hsl(var(--sport-green)) 0%, hsl(var(--sport-green-light)) 100%);
 
     /* Shadows */
     --shadow-sport: 0 10px 30px -10px hsl(var(--sport-green) / 0.3);
@@ -145,6 +146,10 @@ All colors MUST be HSL.
 
   .gradient-card {
     background: var(--gradient-card);
+  }
+
+  .gradient-sport {
+    background: var(--gradient-sport);
   }
 
   .shadow-sport {

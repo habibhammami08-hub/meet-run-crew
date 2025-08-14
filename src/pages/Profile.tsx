@@ -563,7 +563,23 @@ const Profile = () => {
             variant="ghost" 
             size="lg" 
             className="w-full text-destructive"
-            onClick={signOut}
+            onClick={async () => {
+              try {
+                await signOut();
+                toast({
+                  title: "Déconnecté",
+                  description: "Vous avez été déconnecté avec succès.",
+                });
+                navigate('/');
+              } catch (error: any) {
+                console.error('Logout error:', error);
+                toast({
+                  title: "Erreur de déconnexion",
+                  description: error.message || "Une erreur s'est produite lors de la déconnexion.",
+                  variant: "destructive",
+                });
+              }
+            }}
           >
             Se déconnecter
           </Button>
