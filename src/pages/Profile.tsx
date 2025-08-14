@@ -98,18 +98,27 @@ const Profile = () => {
 
     const doubleConfirm = window.confirm(
       "Dernière confirmation !\n\n" +
-      "Tapez 'SUPPRIMER' pour confirmer la suppression définitive de votre compte."
+      "Cette action supprimera définitivement votre compte.\n" +
+      "Confirmez-vous la suppression ?"
     );
 
     if (!doubleConfirm) return;
 
     setDeletingAccount(true);
     try {
-      // Call the database function to delete everything
-      const { error } = await supabase.rpc('delete_user_completely');
+      console.log('Starting account deletion...');
+      
+      // Call the edge function to delete the account
+      const { data, error } = await supabase.functions.invoke('delete-user-account', {
+        body: { confirm: true }
+      });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
 
+      console.log('Account deletion response:', data);
       toast.success("Votre compte a été supprimé avec succès");
       
       // Force navigation to home page after deletion
@@ -118,7 +127,7 @@ const Profile = () => {
       }, 1000);
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      toast.error("Erreur lors de la suppression du compte");
+      toast.error("Erreur lors de la suppression du compte : " + (error.message || 'Erreur inconnue'));
       setDeletingAccount(false);
     }
   };
