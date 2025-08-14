@@ -171,7 +171,7 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
             {/* Mode selector */}
             <div className="flex gap-2">
               <Button
-                variant={mode === 'start' ? 'sport' : 'outline'}
+                variant={mode === 'start' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setMode('start')}
                 className="flex items-center gap-2"
@@ -180,7 +180,7 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
                 Point de départ {selectedStart && '✓'}
               </Button>
               <Button
-                variant={mode === 'end' ? 'sport' : 'outline'}
+                variant={mode === 'end' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setMode('end')}
                 className="flex items-center gap-2"
@@ -219,7 +219,7 @@ const LocationPicker = ({ onLocationSelect, selectedStart, selectedEnd, onClose 
                 Annuler
               </Button>
               <Button 
-                variant="sport" 
+                variant="default" 
                 onClick={onClose}
                 disabled={!selectedStart}
               >

@@ -23,29 +23,36 @@ const Map = () => {
     
     // Set up real-time subscription for sessions
     const channel = supabase
-      .channel('sessions-changes')
+      .channel('schema-db-changes')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'sessions' },
         (payload) => {
-          console.log('New session:', payload);
-          // Add new session to list
-          setSessions(prev => [...prev, payload.new]);
+          console.log('New session created:', payload.new);
+          // Add new session to list with enrollments structure
+          const newSession = {
+            ...payload.new,
+            profiles: null,
+            enrollments: []
+          };
+          setSessions(prev => [...prev, newSession]);
         }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions' },
         (payload) => {
-          console.log('Updated session:', payload);
+          console.log('Session updated:', payload.new);
           // Update session in list
           setSessions(prev => prev.map(session => 
-            session.id === payload.new.id ? payload.new : session
+            session.id === payload.new.id 
+              ? { ...session, ...payload.new }
+              : session
           ));
         }
       )
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'sessions' },
         (payload) => {
-          console.log('Deleted session:', payload);
+          console.log('Session deleted:', payload.old);
           // Remove session from list
           setSessions(prev => prev.filter(session => session.id !== payload.old.id));
         }
