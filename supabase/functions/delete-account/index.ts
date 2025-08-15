@@ -57,15 +57,14 @@ serve(async (req) => {
     console.log("[delete-account] Début suppression:", { userId: uid, email: userData.user.email });
     
     // Suppression dans l'ordre inverse des FK pour éviter les contraintes
-    const tables = ['audit_log', 'enrollments', 'registrations', 'sessions_owned', 'runs_owned', 'subscribers', 'profiles'];
+    const tables = ['audit_log', 'enrollments', 'registrations', 'sessions', 'runs', 'subscribers', 'profiles'];
     
     for (const table of tables) {
       try {
-        const actualTable = table === 'sessions_owned' ? 'sessions' : table === 'runs_owned' ? 'runs' : table;
-        const column = table === 'sessions_owned' || table === 'runs_owned' ? 'host_id' : 
-                      table === 'profiles' ? 'id' : 'user_id';
+        const column = table === 'profiles' ? 'id' : 
+                      table === 'sessions' || table === 'runs' ? 'host_id' : 'user_id';
         
-        const deleteResult = await admin.from(actualTable)
+        const deleteResult = await admin.from(table)
           .delete()
           .eq(column, uid);
         
@@ -73,7 +72,7 @@ serve(async (req) => {
         console.log(`[delete-account] ${table}: ${count} enregistrement(s) supprimé(s)`);
         
         if (deleteResult.error) {
-          console.error(`[delete-account] Erreur lors de la suppression: ${deleteResult.error.message}`);
+          console.error(`[delete-account] Erreur lors de la suppression de ${table}:`, deleteResult.error.message);
         }
       } catch (e) {
         console.error(`[delete-account] Erreur suppression ${table}:`, e);
