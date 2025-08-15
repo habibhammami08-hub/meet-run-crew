@@ -1,145 +1,311 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@14.21.0'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+import { createSupabaseClient, authenticateUser } from "../_shared/auth.ts";
+import { 
+  AppError, 
+  ErrorCode, 
+  createErrorResponse, 
+  corsHeaders, 
+  logEvent, 
+  generateRequestId 
+} from "../_shared/errors.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+interface CustomerPortalResult {
+  portal_url: string;
+  session_id: string;
+  expires_at: string;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  let userId: string | undefined;
+
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Vérifier que c'est une requête POST
+    // 1. Validate request method
     if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ error: 'Méthode non autorisée' }),
-        { 
-          status: 405, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      throw new AppError(
+        'Only POST method allowed',
+        ErrorCode.INVALID_REQUEST_METHOD,
+        405
+      );
     }
 
-    // Récupérer le token d'autorisation
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Token d\'autorisation manquant' }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
+    // 2. Authenticate user and require profile
+    const user = await authenticateUser(req.headers.get('Authorization'), {
+      requireProfile: true
+    });
+    userId = user.id;
 
-    // Créer le client Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      global: {
-        headers: { Authorization: authHeader },
+    logEvent({
+      level: 'info',
+      function_name: 'create-customer-portal-session',
+      user_id: userId,
+      action: 'portal_requested',
+      success: true,
+      metadata: {
+        has_stripe_customer: !!user.profile?.stripe_customer_id
       },
-    })
+      request_id: requestId
+    });
 
-    // Vérifier l'utilisateur authentifié
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !user) {
-      console.error('Erreur authentification:', userError)
-      return new Response(
-        JSON.stringify({ error: 'Utilisateur non authentifié' }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+    // 3. Validate Stripe customer exists
+    if (!user.profile?.stripe_customer_id) {
+      throw new AppError(
+        'No Stripe customer associated with account',
+        ErrorCode.CUSTOMER_NOT_FOUND,
+        400,
+        'Aucun compte de facturation associé à votre profil. Veuillez d\'abord souscrire à un abonnement.'
+      );
     }
 
-    console.log(`[customer-portal] Demande pour l'utilisateur: ${user.id}`)
+    // 4. Initialize Stripe
+    const stripe = createStripeClient();
 
-    // Récupérer le stripe_customer_id du profil
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('stripe_customer_id')
-      .eq('id', user.id)
-      .single()
+    // 5. Verify customer exists in Stripe
+    await verifyStripeCustomer(stripe, user.profile.stripe_customer_id, userId, requestId);
 
-    if (profileError || !profile) {
-      console.error('Erreur récupération profil:', profileError)
-      return new Response(
-        JSON.stringify({ error: 'Profil utilisateur introuvable' }),
-        { 
-          status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
+    // 6. Create customer portal session
+    const portalSession = await createCustomerPortalSession(
+      stripe,
+      user.profile.stripe_customer_id,
+      req.headers.get('origin') || 'https://meetrun.app',
+      requestId
+    );
 
-    if (!profile.stripe_customer_id) {
-      return new Response(
-        JSON.stringify({ error: 'Aucun customer Stripe associé à ce compte' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
+    const result: CustomerPortalResult = {
+      portal_url: portalSession.url,
+      session_id: portalSession.id,
+      expires_at: new Date(portalSession.expires_at * 1000).toISOString()
+    };
 
-    // Initialiser Stripe
-    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')
-    if (!stripeSecretKey) {
-      console.error('STRIPE_SECRET_KEY manquante')
-      return new Response(
-        JSON.stringify({ error: 'Configuration Stripe manquante' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
+    logEvent({
+      level: 'info',
+      function_name: 'create-customer-portal-session',
+      user_id: userId,
+      action: 'portal_created',
+      success: true,
+      duration_ms: Date.now() - startTime,
+      metadata: {
+        portal_session_id: portalSession.id,
+        customer_id: user.profile.stripe_customer_id
+      },
+      request_id: requestId
+    });
 
-    const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2023-10-16',
-    })
-
-    // Créer la session du portail client
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: profile.stripe_customer_id,
-      return_url: `${req.headers.get('origin') || 'https://meetrun.app'}/subscription`,
-    })
-
-    console.log(`[customer-portal] Session créée: ${portalSession.id}`)
-
-    return new Response(
-      JSON.stringify({ 
-        url: portalSession.url,
-        session_id: portalSession.id
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
-    console.error('[customer-portal] Erreur:', error)
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'Erreur lors de la création de la session portail',
-        details: error.message 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    logEvent({
+      level: 'error',
+      function_name: 'create-customer-portal-session',
+      user_id: userId,
+      action: 'portal_failed',
+      success: false,
+      error_code: error instanceof AppError ? error.code : ErrorCode.INTERNAL_ERROR,
+      error_message: error instanceof Error ? error.message : String(error),
+      duration_ms: Date.now() - startTime,
+      request_id: requestId
+    });
+
+    return createErrorResponse(error, requestId, corsHeaders);
   }
-})
+});
+
+function createStripeClient(): Stripe {
+  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+  if (!stripeKey) {
+    throw new AppError('Stripe configuration missing', ErrorCode.CONFIG_ERROR, 500);
+  }
+
+  return new Stripe(stripeKey, {
+    apiVersion: '2023-10-16',
+    timeout: 10000
+  });
+}
+
+async function verifyStripeCustomer(
+  stripe: Stripe,
+  customerId: string,
+  userId: string,
+  requestId: string
+): Promise<void> {
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    
+    if (!customer || customer.deleted) {
+      throw new AppError(
+        'Stripe customer not found or deleted',
+        ErrorCode.CUSTOMER_NOT_FOUND,
+        404,
+        'Votre compte de facturation n\'existe plus. Veuillez contacter le support.'
+      );
+    }
+
+    logEvent({
+      level: 'info',
+      function_name: 'create-customer-portal-session',
+      user_id: userId,
+      action: 'customer_verified',
+      success: true,
+      metadata: {
+        customer_id: customerId,
+        customer_email: customer.email
+      },
+      request_id: requestId
+    });
+
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    console.error('Failed to verify Stripe customer:', error);
+    
+    if (error instanceof Stripe.errors.StripeError) {
+      if (error.code === 'resource_missing') {
+        throw new AppError(
+          'Customer account not found',
+          ErrorCode.CUSTOMER_NOT_FOUND,
+          404,
+          'Votre compte de facturation est introuvable'
+        );
+      }
+    }
+
+    throw new AppError(
+      'Failed to verify customer account',
+      ErrorCode.STRIPE_ERROR,
+      500,
+      'Erreur lors de la vérification du compte'
+    );
+  }
+}
+
+async function createCustomerPortalSession(
+  stripe: Stripe,
+  customerId: string,
+  origin: string,
+  requestId: string
+): Promise<Stripe.BillingPortal.Session> {
+  try {
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${origin}/subscription/manage`,
+      locale: 'fr', // French locale for better UX
+      configuration: await getPortalConfiguration(stripe, requestId)
+    });
+
+    return portalSession;
+
+  } catch (error) {
+    console.error('Failed to create customer portal session:', error);
+    
+    if (error instanceof Stripe.errors.StripeError) {
+      // Handle specific Stripe errors
+      switch (error.code) {
+        case 'resource_missing':
+          throw new AppError(
+            'Customer not found',
+            ErrorCode.CUSTOMER_NOT_FOUND,
+            404,
+            'Compte client introuvable'
+          );
+        case 'customer_portal_customer_not_found':
+          throw new AppError(
+            'Customer portal access denied',
+            ErrorCode.CUSTOMER_NOT_FOUND,
+            404,
+            'Accès au portail client refusé'
+          );
+        default:
+          throw new AppError(
+            'Failed to create customer portal session',
+            ErrorCode.STRIPE_ERROR,
+            500,
+            'Erreur lors de la création de la session portail'
+          );
+      }
+    }
+
+    throw new AppError(
+      'Failed to create customer portal session',
+      ErrorCode.STRIPE_ERROR,
+      500,
+      'Erreur lors de la création de la session portail'
+    );
+  }
+}
+
+async function getPortalConfiguration(
+  stripe: Stripe,
+  requestId: string
+): Promise<string | undefined> {
+  try {
+    // Try to get existing configuration or create a default one
+    const configurations = await stripe.billingPortal.configurations.list({
+      limit: 1,
+      active: true
+    });
+
+    if (configurations.data.length > 0) {
+      return configurations.data[0].id;
+    }
+
+    // Create a basic configuration if none exists
+    const config = await stripe.billingPortal.configurations.create({
+      business_profile: {
+        headline: 'Gérer votre abonnement MeetRun',
+      },
+      features: {
+        payment_method_update: {
+          enabled: true
+        },
+        subscription_cancel: {
+          enabled: true,
+          mode: 'at_period_end',
+          cancellation_reason: {
+            enabled: true,
+            options: ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other']
+          }
+        },
+        subscription_pause: {
+          enabled: false
+        },
+        subscription_update: {
+          enabled: true,
+          default_allowed_updates: ['price', 'quantity', 'promotion_code'],
+          proration_behavior: 'create_prorations'
+        },
+        invoice_history: {
+          enabled: true
+        }
+      }
+    });
+
+    logEvent({
+      level: 'info',
+      function_name: 'create-customer-portal-session',
+      action: 'portal_config_created',
+      success: true,
+      metadata: {
+        configuration_id: config.id
+      },
+      request_id: requestId
+    });
+
+    return config.id;
+
+  } catch (error) {
+    console.warn('Failed to get/create portal configuration, using default:', error);
+    return undefined; // Use Stripe's default configuration
+  }
+}
