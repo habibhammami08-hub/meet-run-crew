@@ -500,10 +500,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      delete_user_completely: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
       get_basic_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
