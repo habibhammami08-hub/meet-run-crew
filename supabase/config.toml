@@ -14,9 +14,3 @@ verify_jwt = true
 
 [functions.stripe-webhook]
 verify_jwt = false
-
-[functions.delete-account]
-verify_jwt = true
-
-[functions.delete-user-account]
-verify_jwt = true
