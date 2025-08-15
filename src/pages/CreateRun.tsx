@@ -90,8 +90,12 @@ const CreateRun = () => {
     if (!formData.type) errors.push("Le type de course est obligatoire");
     if (!formData.max_participants) errors.push("Le nombre de participants est obligatoire");
     
+    // CORRECTION: Point d'arrivée maintenant OBLIGATOIRE
     if (!selectedLocations.start) {
       errors.push("Le point de départ est obligatoire");
+    }
+    if (!selectedLocations.end) {
+      errors.push("Le point d'arrivée est obligatoire");
     }
 
     // Validation de la date/heure
@@ -153,12 +157,13 @@ const CreateRun = () => {
         max_participants: Number(formData.max_participants),
         location_lat: Number(selectedLocations.start!.lat),
         location_lng: Number(selectedLocations.start!.lng),
-        end_lat: selectedLocations.end ? Number(selectedLocations.end.lat) : null,
-        end_lng: selectedLocations.end ? Number(selectedLocations.end.lng) : null,
+        // CORRECTION: Toujours inclure les coordonnées d'arrivée (maintenant obligatoires)
+        end_lat: Number(selectedLocations.end!.lat),
+        end_lng: Number(selectedLocations.end!.lng),
         area_hint: formData.area_hint.trim(),
         blur_radius_m: 1000, // Rayon de flou par défaut
-        price_cents: 450, // Prix par défaut (pourrait être configurable)
-        host_payout_cents: 200, // Rémunération hôte
+        price_cents: 0, // Maintenant inclus dans l'abonnement
+        host_payout_cents: 0, // Plus de paiement direct
       };
 
       console.log("[sessions] Création avec payload:", payload);
@@ -267,9 +272,9 @@ const CreateRun = () => {
               </Button>
             </div>
 
-            {/* Point d'arrivée */}
+            {/* Point d'arrivée - MAINTENANT OBLIGATOIRE */}
             <div>
-              <Label>Point d'arrivée (optionnel)</Label>
+              <Label>Point d'arrivée *</Label>
               <Button
                 type="button"
                 variant="outline"
@@ -295,7 +300,7 @@ const CreateRun = () => {
                 </div>
               </Button>
               <p className="text-sm text-muted-foreground mt-1">
-                Si aucun point d'arrivée n'est spécifié, la course sera un aller-retour au point de départ.
+                Le point d'arrivée est maintenant obligatoire pour créer des parcours complets.
               </p>
             </div>
             
@@ -448,7 +453,7 @@ const CreateRun = () => {
             variant="sport" 
             size="lg" 
             className="w-full" 
-            disabled={loading || !selectedLocations.start}
+            disabled={loading || !selectedLocations.start || !selectedLocations.end}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {loading ? "Création en cours..." : "Créer la session de running"}
