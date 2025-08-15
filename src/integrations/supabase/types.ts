@@ -483,6 +483,10 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: string
       }
+      get_system_health: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_user_enrollments: {
         Args: { user_id: string }
         Returns: {
