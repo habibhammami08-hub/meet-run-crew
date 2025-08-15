@@ -1,10 +1,10 @@
-// src/pages/Map.tsx - Corrections des problèmes de carte
+// src/pages/Map.tsx - Version corrigée et stabilisée
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
-import { Filter, MapPin, Users, Clock, X } from "lucide-react";
+import { Filter, MapPin, Users, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,16 +22,26 @@ const Map = () => {
   const [searchParams] = useSearchParams();
 
   const realtimeChannelRef = useRef<any>(null);
+  const isMountedRef = useRef(true);
   
   useEffect(() => {
-    fetchSessions();
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isMountedRef.current) {
+      fetchSessions();
+    }
   }, [user]);
 
   useEffect(() => {
     // Vérifier si une session spécifique doit être mise en évidence
     const sessionId = searchParams.get('sessionId');
-    if (sessionId && sessions.length > 0) {
-      const session = sessions.find(s => s.id === sessionId);
+    if (sessionId && sessions.length > 0 && isMountedRef.current) {
+      const session = sessions.find(s => s && s.id === sessionId);
       if (session) {
         setSelectedSession(session);
       }
@@ -39,33 +49,57 @@ const Map = () => {
   }, [searchParams, sessions]);
 
   useEffect(() => {
-    // Nettoyer le channel existant avec amélioration d'erreur
+    // CORRECTION: Nettoyer le channel existant avec gestion d'erreur améliorée
     if (realtimeChannelRef.current) {
-      supabase.removeChannel(realtimeChannelRef.current);
+      try {
+        supabase.removeChannel(realtimeChannelRef.current);
+      } catch (e) {
+        console.warn("Erreur suppression channel:", e);
+      }
       realtimeChannelRef.current = null;
     }
 
+    if (!isMountedRef.current) return;
+
     const channel = supabase
-      .channel(`sessions-${Date.now()}`) // Nom unique
+      .channel(`sessions-map-${Date.now()}`) // Nom unique
       .on("postgres_changes", { 
         event: "*", 
         schema: "public", 
         table: "sessions" 
       }, (payload) => {
+        if (!isMountedRef.current) return;
+        
         console.log("[realtime] Update:", payload);
         const { eventType, new: newData, old: oldData } = payload as any;
         
-        if (eventType === 'INSERT') {
-          setSessions(prev => [newData, ...prev]);
-        } else if (eventType === 'UPDATE') {
-          setSessions(prev => prev.map(s => 
-            s.id === newData.id ? { ...s, ...newData } : s
-          ));
-        } else if (eventType === 'DELETE') {
-          setSessions(prev => prev.filter(s => s.id !== oldData.id));
-          if (selectedSession?.id === oldData.id) {
-            setSelectedSession(null);
+        try {
+          if (eventType === 'INSERT' && newData) {
+            setSessions(prev => {
+              if (!isMountedRef.current) return prev;
+              // CORRECTION: Vérifier si la session n'existe pas déjà
+              const exists = prev.some(s => s && s.id === newData.id);
+              return exists ? prev : [newData, ...prev];
+            });
+          } else if (eventType === 'UPDATE' && newData) {
+            setSessions(prev => {
+              if (!isMountedRef.current) return prev;
+              return prev.map(s => 
+                s && s.id === newData.id ? { ...s, ...newData } : s
+              );
+            });
+          } else if (eventType === 'DELETE' && oldData) {
+            setSessions(prev => {
+              if (!isMountedRef.current) return prev;
+              return prev.filter(s => s && s.id !== oldData.id);
+            });
+            
+            if (selectedSession?.id === oldData.id) {
+              setSelectedSession(null);
+            }
           }
+        } catch (error) {
+          console.error("Erreur traitement realtime:", error);
         }
       })
       .subscribe((status) => {
@@ -74,7 +108,9 @@ const Map = () => {
           console.error("Erreur channel Realtime");
           // Retry automatique après 5s
           setTimeout(() => {
-            fetchSessions();
+            if (isMountedRef.current) {
+              fetchSessions();
+            }
           }, 5000);
         }
       });
@@ -83,7 +119,11 @@ const Map = () => {
 
     return () => {
       if (realtimeChannelRef.current) {
-        realtimeChannelRef.current.unsubscribe();
+        try {
+          realtimeChannelRef.current.unsubscribe();
+        } catch (e) {
+          console.warn("Erreur unsubscribe channel:", e);
+        }
         realtimeChannelRef.current = null;
       }
     };
@@ -91,17 +131,24 @@ const Map = () => {
 
   // Appliquer les filtres quand les sessions ou filtres changent
   useEffect(() => {
-    applyFilters();
+    if (isMountedRef.current) {
+      applyFilters();
+    }
   }, [sessions, activeFilters]);
 
   const fetchSessions = async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       setLoading(true);
       setError(null);
 
       console.log("[sessions] Récupération des sessions...");
 
-      // FIXE: Requête simplifiée avec gestion d'erreurs
+      // CORRECTION: Requête simplifiée avec gestion d'erreurs et timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 secondes timeout
+
       const { data, error } = await supabase
         .from("sessions")
         .select(`
@@ -109,16 +156,26 @@ const Map = () => {
           host_profile:profiles!host_id(id, full_name, avatar_url),
           enrollments(id, user_id, status)
         `)
-        .eq('status', 'published') // FIXE: Filtrer seulement les sessions publiées
-        .gte('scheduled_at', new Date().toISOString()) // FIXE: Utiliser scheduled_at
-        .order('scheduled_at', { ascending: true }); // FIXE: Ordonner par scheduled_at
+        .eq('status', 'published')
+        .gte('scheduled_at', new Date().toISOString())
+        .order('scheduled_at', { ascending: true })
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
+
+      if (!isMountedRef.current) return;
 
       if (error) {
         throw new Error(`Erreur récupération sessions: ${error.message}`);
       }
 
-      // CORRECTION: Validation stricte des coordonnées
+      // CORRECTION: Validation stricte et sécurisée des coordonnées
       const validSessions = (data || []).filter(session => {
+        if (!session || typeof session !== 'object') {
+          console.warn("Session invalide (non-objet):", session);
+          return false;
+        }
+
         const lat = Number(session.start_lat);
         const lng = Number(session.start_lng);
         
@@ -126,7 +183,17 @@ const Map = () => {
         const isValidLng = Number.isFinite(lng) && lng >= -180 && lng <= 180;
         
         if (!isValidLat || !isValidLng) {
-          console.warn(`Session ${session.id} a des coordonnées invalides:`, { lat, lng });
+          console.warn(`Session ${session.id} - coordonnées invalides:`, { 
+            lat, lng, 
+            start_lat: session.start_lat, 
+            start_lng: session.start_lng 
+          });
+          return false;
+        }
+
+        // CORRECTION: Validation des champs obligatoires
+        if (!session.id || !session.title || !session.scheduled_at) {
+          console.warn(`Session ${session.id} - champs obligatoires manquants`);
           return false;
         }
         
@@ -134,42 +201,70 @@ const Map = () => {
       });
 
       console.log(`[sessions] ${validSessions.length} sessions valides récupérées sur ${data?.length || 0}`);
-      setSessions(validSessions);
+      
+      if (isMountedRef.current) {
+        setSessions(validSessions);
+      }
 
     } catch (error: any) {
       console.error("[sessions] Erreur:", error);
-      setError(error.message);
-      setSessions([]);
+      if (isMountedRef.current) {
+        if (error.name === 'AbortError') {
+          setError("Délai de chargement dépassé. Veuillez réessayer.");
+        } else {
+          setError(error.message);
+        }
+        setSessions([]);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const applyFilters = () => {
+    if (!isMountedRef.current) return;
+
     if (activeFilters.length === 0) {
       setFilteredSessions(sessions);
       return;
     }
 
     const filtered = sessions.filter(session => {
+      if (!session) return false;
+      
       return activeFilters.every(filter => {
-        switch (filter) {
-          case '5km':
-            return Number(session.distance_km) === 5;
-          case '10km':
-            return Number(session.distance_km) === 10;
-          case '15km':
-            return Number(session.distance_km) === 15;
-          case 'mixte':
-            return session.type === 'mixed';
-          case 'faible':
-            return session.intensity === 'low';
-          case 'moyenne':
-            return session.intensity === 'medium';
-          case 'elevee':
-            return session.intensity === 'high';
-          default:
-            return true;
+        try {
+          switch (filter) {
+            case '1km':
+              return Number(session.distance_km) === 1;
+            case '3km':
+              return Number(session.distance_km) === 3;
+            case '5km':
+              return Number(session.distance_km) === 5;
+            case '10km':
+              return Number(session.distance_km) === 10;
+            case '15km':
+              return Number(session.distance_km) === 15;
+            case 'mixte':
+              return session.session_type === 'mixed';
+            case 'women_only':
+              return session.session_type === 'women_only';
+            case 'men_only':
+              return session.session_type === 'men_only';
+            case 'faible':
+              return session.intensity === 'low';
+            case 'moyenne':
+              return session.intensity === 'medium';
+            case 'elevee':
+              return session.intensity === 'high';
+            default:
+              return true;
+          }
+        } catch (error) {
+          console.error("Erreur application filtre:", error);
+          return true;
         }
       });
     });
@@ -178,6 +273,8 @@ const Map = () => {
   };
 
   const toggleFilter = (filter: string) => {
+    if (!isMountedRef.current) return;
+    
     setActiveFilters(prev => {
       if (prev.includes(filter)) {
         return prev.filter(f => f !== filter);
@@ -188,62 +285,83 @@ const Map = () => {
   };
 
   const clearAllFilters = () => {
+    if (!isMountedRef.current) return;
     setActiveFilters([]);
   };
 
-  // Vérifier si l'utilisateur est inscrit à une session
+  // CORRECTION: Vérification sécurisée si l'utilisateur est inscrit
   const isUserEnrolled = (session: any) => {
-    if (!user || !session.enrollments) return false;
+    if (!user || !session || !Array.isArray(session.enrollments)) return false;
     return session.enrollments.some((e: any) => 
-      e.user_id === user.id && 
-      (e.status === 'paid' || e.status === 'included_by_subscription')
+      e && e.user_id === user.id && 
+      ['paid', 'included_by_subscription'].includes(e.status)
     );
   };
 
-  // Vérifier si l'utilisateur est l'hôte
+  // CORRECTION: Vérification sécurisée si l'utilisateur est l'hôte
   const isUserHost = (session: any) => {
-    return user && session.host_id === user.id;
+    return user && session && session.host_id === user.id;
   };
 
-  // Obtenir le nombre de participants payés
+  // CORRECTION: Obtenir le nombre de participants de manière sécurisée
   const getParticipantCount = (session: any) => {
-    if (!session.enrollments) return 0;
+    if (!session || !Array.isArray(session.enrollments)) return 0;
     return session.enrollments.filter((e: any) => 
-      e.status === 'paid' || e.status === 'included_by_subscription'
+      e && ['paid', 'included_by_subscription'].includes(e.status)
     ).length;
   };
 
-  // Formater la date
+  // CORRECTION: Formater la date avec gestion d'erreur
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "Date invalide";
+      
+      return date.toLocaleDateString('fr-FR', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error("Erreur formatage date:", error);
+      return "Date invalide";
+    }
   };
 
-  // Obtenir le nombre de sessions par filtre
+  // CORRECTION: Obtenir le nombre de sessions par filtre de manière sécurisée
   const getFilterCount = (filter: string) => {
-    switch (filter) {
-      case '5km':
-        return sessions.filter(s => Number(s.distance_km) === 5).length;
-      case '10km':
-        return sessions.filter(s => Number(s.distance_km) === 10).length;
-      case '15km':
-        return sessions.filter(s => Number(s.distance_km) === 15).length;
-      case 'mixte':
-        return sessions.filter(s => s.type === 'mixed').length;
-      case 'faible':
-        return sessions.filter(s => s.intensity === 'low').length;
-      case 'moyenne':
-        return sessions.filter(s => s.intensity === 'medium').length;
-      case 'elevee':
-        return sessions.filter(s => s.intensity === 'high').length;
-      default:
-        return 0;
+    try {
+      switch (filter) {
+        case '1km':
+          return sessions.filter(s => s && Number(s.distance_km) === 1).length;
+        case '3km':
+          return sessions.filter(s => s && Number(s.distance_km) === 3).length;
+        case '5km':
+          return sessions.filter(s => s && Number(s.distance_km) === 5).length;
+        case '10km':
+          return sessions.filter(s => s && Number(s.distance_km) === 10).length;
+        case '15km':
+          return sessions.filter(s => s && Number(s.distance_km) === 15).length;
+        case 'mixte':
+          return sessions.filter(s => s && s.session_type === 'mixed').length;
+        case 'women_only':
+          return sessions.filter(s => s && s.session_type === 'women_only').length;
+        case 'men_only':
+          return sessions.filter(s => s && s.session_type === 'men_only').length;
+        case 'faible':
+          return sessions.filter(s => s && s.intensity === 'low').length;
+        case 'moyenne':
+          return sessions.filter(s => s && s.intensity === 'medium').length;
+        case 'elevee':
+          return sessions.filter(s => s && s.intensity === 'high').length;
+        default:
+          return 0;
+      }
+    } catch (error) {
+      console.error("Erreur calcul filtre:", error);
+      return 0;
     }
   };
 
@@ -270,8 +388,8 @@ const Map = () => {
             <CardContent className="p-6 text-center">
               <p className="text-destructive mb-4">Erreur de chargement</p>
               <p className="text-sm text-muted-foreground mb-4">{error}</p>
-              <Button onClick={fetchSessions} variant="outline">
-                Réessayer
+              <Button onClick={fetchSessions} variant="outline" disabled={loading}>
+                {loading ? "Chargement..." : "Réessayer"}
               </Button>
             </CardContent>
           </Card>
@@ -304,7 +422,7 @@ const Map = () => {
         }
       />
       
-      {/* CORRECTION: Map container avec padding-bottom pour éviter l'overlap avec la navigation */}
+      {/* CORRECTION: Map container avec gestion d'erreur */}
       <div className="flex-1 relative main-content">
         {sessions.length === 0 && !loading ? (
           // Empty state - no sessions at all
@@ -325,41 +443,52 @@ const Map = () => {
           </div>
         ) : (
           <>
-            {/* CORRECTION: Données correctement formatées pour la carte */}
+            {/* CORRECTION: Carte avec données formatées et validation */}
             <LeafletMeetRunMap 
-              sessions={filteredSessions.map(session => ({
-                id: session.id,
-                title: session.title,
-                date: session.scheduled_at,
-                // FIXE: Utiliser start_lat/start_lng depuis la base de données
-                location_lat: Number(session.start_lat),
-                location_lng: Number(session.start_lng),
-                end_lat: session.end_lat ? Number(session.end_lat) : null,
-                end_lng: session.end_lng ? Number(session.end_lng) : null,
-                blur_radius_m: session.blur_radius_m || 1000,
-                area_hint: session.area_hint,
-                max_participants: session.max_participants,
-                price_cents: session.price_cents || 0,
-                distance_km: Number(session.distance_km),
-                intensity: session.intensity,
-                host_id: session.host_id,
-                enrollments: session.enrollments || [],
-                host_profile: session.host_profile
-              }))}
+              sessions={filteredSessions.map(session => {
+                if (!session) return null;
+                
+                try {
+                  return {
+                    id: session.id,
+                    title: session.title || 'Session sans titre',
+                    date: session.scheduled_at,
+                    location_lat: Number(session.start_lat),
+                    location_lng: Number(session.start_lng),
+                    end_lat: session.end_lat ? Number(session.end_lat) : null,
+                    end_lng: session.end_lng ? Number(session.end_lng) : null,
+                    blur_radius_m: session.blur_radius_m || 1000,
+                    area_hint: session.location_hint || session.area_hint,
+                    max_participants: session.max_participants || 10,
+                    price_cents: session.price_cents || 0,
+                    distance_km: Number(session.distance_km) || 0,
+                    intensity: session.intensity || 'medium',
+                    host_id: session.host_id,
+                    enrollments: session.enrollments || [],
+                    host_profile: session.host_profile
+                  };
+                } catch (error) {
+                  console.error("Erreur formatage session pour carte:", error);
+                  return null;
+                }
+              }).filter(Boolean)}
               onSessionSelect={(sessionId) => {
-                const session = sessions.find(s => s.id === sessionId);
-                if (session) {
-                  setSelectedSession(session);
-                } else {
-                  // Naviguer vers les détails de la session
-                  navigate(`/session/${sessionId}`);
+                try {
+                  const session = sessions.find(s => s && s.id === sessionId);
+                  if (session) {
+                    setSelectedSession(session);
+                  } else {
+                    navigate(`/session/${sessionId}`);
+                  }
+                } catch (error) {
+                  console.error("Erreur sélection session:", error);
                 }
               }}
               className="h-full"
               isLoading={loading}
             />
 
-            {/* Floating Filter Bar - CORRECTION: Ajusté pour éviter l'overlap avec la navigation */}
+            {/* Floating Filter Bar */}
             {sessions.length > 0 && (
               <div className="absolute bottom-20 left-4 right-4 z-[1000]">
                 <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 p-3">
@@ -374,32 +503,19 @@ const Map = () => {
                     </Button>
                     
                     {/* Filtres de distance */}
-                    <Button 
-                      variant={activeFilters.includes('5km') ? "sport" : "sportSecondary"} 
-                      size="sm"
-                      onClick={() => toggleFilter('5km')}
-                      className="whitespace-nowrap"
-                    >
-                      5km ({getFilterCount('5km')})
-                    </Button>
-                    <Button 
-                      variant={activeFilters.includes('10km') ? "sport" : "sportSecondary"} 
-                      size="sm"
-                      onClick={() => toggleFilter('10km')}
-                      className="whitespace-nowrap"
-                    >
-                      10km ({getFilterCount('10km')})
-                    </Button>
-                    <Button 
-                      variant={activeFilters.includes('15km') ? "sport" : "sportSecondary"} 
-                      size="sm"
-                      onClick={() => toggleFilter('15km')}
-                      className="whitespace-nowrap"
-                    >
-                      15km ({getFilterCount('15km')})
-                    </Button>
+                    {['1km', '3km', '5km', '10km', '15km'].map(filter => (
+                      <Button 
+                        key={filter}
+                        variant={activeFilters.includes(filter) ? "sport" : "sportSecondary"} 
+                        size="sm"
+                        onClick={() => toggleFilter(filter)}
+                        className="whitespace-nowrap"
+                      >
+                        {filter} ({getFilterCount(filter)})
+                      </Button>
+                    ))}
                     
-                    {/* Filtre de type */}
+                    {/* Filtres de type */}
                     <Button 
                       variant={activeFilters.includes('mixte') ? "sport" : "sportSecondary"} 
                       size="sm"
@@ -410,30 +526,20 @@ const Map = () => {
                     </Button>
                     
                     {/* Filtres d'intensité */}
-                    <Button 
-                      variant={activeFilters.includes('faible') ? "sport" : "sportSecondary"} 
-                      size="sm"
-                      onClick={() => toggleFilter('faible')}
-                      className="whitespace-nowrap"
-                    >
-                      Faible ({getFilterCount('faible')})
-                    </Button>
-                    <Button 
-                      variant={activeFilters.includes('moyenne') ? "sport" : "sportSecondary"} 
-                      size="sm"
-                      onClick={() => toggleFilter('moyenne')}
-                      className="whitespace-nowrap"
-                    >
-                      Moyenne ({getFilterCount('moyenne')})
-                    </Button>
-                    <Button 
-                      variant={activeFilters.includes('elevee') ? "sport" : "sportSecondary"} 
-                      size="sm"
-                      onClick={() => toggleFilter('elevee')}
-                      className="whitespace-nowrap"
-                    >
-                      Élevée ({getFilterCount('elevee')})
-                    </Button>
+                    {['faible', 'moyenne', 'elevee'].map(filter => {
+                      const labels = { faible: 'Faible', moyenne: 'Moyenne', elevee: 'Élevée' };
+                      return (
+                        <Button 
+                          key={filter}
+                          variant={activeFilters.includes(filter) ? "sport" : "sportSecondary"} 
+                          size="sm"
+                          onClick={() => toggleFilter(filter)}
+                          className="whitespace-nowrap"
+                        >
+                          {labels[filter as keyof typeof labels]} ({getFilterCount(filter)})
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -446,11 +552,11 @@ const Map = () => {
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-sport-black">{selectedSession.title}</h4>
+                        <h4 className="font-semibold text-sport-black">{selectedSession.title || 'Session'}</h4>
                         <p className="text-sm text-sport-gray flex items-center gap-1">
                           <MapPin size={14} />
                           {isUserEnrolled(selectedSession) || isUserHost(selectedSession) || hasActiveSubscription
-                            ? selectedSession.area_hint || "Lieu exact disponible"
+                            ? selectedSession.location_hint || selectedSession.area_hint || "Lieu exact disponible"
                             : `Zone approx. ${Math.round((selectedSession.blur_radius_m || 1000)/1000)}km`
                           }
                         </p>
@@ -467,12 +573,11 @@ const Map = () => {
                     
                     <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
                       <span className="flex items-center gap-1">
-                        <Clock size={14} />
-                        {formatDate(selectedSession.date)}
+                        📅 {formatDate(selectedSession.scheduled_at || selectedSession.date)}
                       </span>
                       <span className="flex items-center gap-1">
                         <Users size={14} />
-                        {getParticipantCount(selectedSession) + 1}/{selectedSession.max_participants} coureurs
+                        {getParticipantCount(selectedSession) + 1}/{selectedSession.max_participants || 0} coureurs
                       </span>
                       <span className={`px-2 py-1 rounded-full text-xs ${
                         selectedSession.intensity === 'low' ? 'bg-green-100 text-green-800' :
@@ -495,7 +600,7 @@ const Map = () => {
                       </Button>
                       {!isUserEnrolled(selectedSession) && 
                        !isUserHost(selectedSession) && 
-                       getParticipantCount(selectedSession) < selectedSession.max_participants - 1 && (
+                       getParticipantCount(selectedSession) < (selectedSession.max_participants || 0) - 1 && (
                         <Button 
                           variant="sport" 
                           size="sm" 
