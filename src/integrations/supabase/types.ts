@@ -406,6 +406,10 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: string
       }
+      get_session_status: {
+        Args: { p_session_id: string }
+        Returns: string
+      }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
