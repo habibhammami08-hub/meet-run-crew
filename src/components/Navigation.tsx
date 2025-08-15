@@ -10,18 +10,18 @@ const Navigation = () => {
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   
   return (
-    <nav className="bg-white border-t border-border px-4 py-2">
-      <div className="flex justify-around items-center max-w-md mx-auto">
+    <nav className="fixed-navigation">
+      <div className="flex justify-around items-center max-w-md mx-auto py-2">
         <Link to="/">
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-              isActive('/') ? 'text-primary' : 'text-muted-foreground'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-sport ${
+              isActive('/') && location.pathname === '/' ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
             }`}
           >
             <Home size={20} />
-            <span className="text-xs">Accueil</span>
+            <span className="text-xs font-medium">Accueil</span>
           </Button>
         </Link>
         
@@ -29,12 +29,12 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-              isActive('/map') ? 'text-primary' : 'text-muted-foreground'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-sport ${
+              isActive('/map') ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
             }`}
           >
             <MapPin size={20} />
-            <span className="text-xs">Carte</span>
+            <span className="text-xs font-medium">Carte</span>
           </Button>
         </Link>
         
@@ -42,14 +42,14 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative ${
-              isActive('/subscription') ? 'text-primary' : 'text-muted-foreground'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative transition-sport ${
+              isActive('/subscription') ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
             }`}
           >
             <Crown size={20} />
-            <span className="text-xs">Abonnement</span>
+            <span className="text-xs font-medium">Abonnement</span>
             {user && hasActiveSubscription && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
             )}
           </Button>
         </Link>
@@ -58,7 +58,7 @@ const Navigation = () => {
           <Button 
             variant="sport" 
             size="sm" 
-            className="rounded-full w-12 h-12 p-0"
+            className="rounded-full w-12 h-12 p-0 shadow-sport hover:shadow-hover transition-sport transform hover:scale-105"
           >
             <Plus size={24} />
           </Button>
@@ -68,12 +68,12 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
-              isActive('/profile') ? 'text-primary' : 'text-muted-foreground'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-sport ${
+              isActive('/profile') ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
             }`}
           >
             <User size={20} />
-            <span className="text-xs">Profil</span>
+            <span className="text-xs font-medium">Profil</span>
           </Button>
         </Link>
       </div>
