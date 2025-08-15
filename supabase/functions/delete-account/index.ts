@@ -117,7 +117,18 @@ serve(async (req) => {
     // 6. Perform account deletion in correct order
     const deletionStats = await performAccountDeletion(supabaseAdmin, userId, requestId);
 
-    // 7. CRITICAL: Delete user from auth.users (this will prevent re-login)
+    // 7. Delete audit logs (foreign key constraint with auth.users)
+    const { error: auditError } = await supabaseAdmin
+      .from('audit_log')
+      .delete()
+      .eq('user_id', userId);
+    
+    if (auditError) {
+      console.warn('Warning: Could not delete audit logs:', auditError);
+      // Continue even if audit logs can't be deleted - not critical
+    }
+
+    // 8. CRITICAL: Delete user from auth.users (this will prevent re-login)
     const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     
     if (deleteUserError) {
