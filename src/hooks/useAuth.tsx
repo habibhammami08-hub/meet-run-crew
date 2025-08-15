@@ -155,6 +155,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
+    // Nettoyer l'URL des fragments OAuth AVANT d'écouter les auth events
+    if (window.location.search.includes('access_token') || window.location.hash.includes('access_token')) {
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      console.log("[auth] URL OAuth nettoyée");
+    }
+
     // Fonction pour gérer les changements d'état d'auth (synchrone uniquement pour éviter deadlocks)
     const handleAuthStateChange = (event: string, session: Session | null) => {
       if (!mounted) return;
@@ -165,7 +172,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      if (session?.user) {
+      // IMPORTANT: Ne pas recréer de profil si on est en cours de suppression
+      if (session?.user && !localStorage.getItem('deletion_in_progress')) {
         // Différer les appels Supabase pour éviter les deadlocks
         setTimeout(() => {
           if (mounted) {

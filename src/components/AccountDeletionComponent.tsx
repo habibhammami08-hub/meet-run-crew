@@ -37,6 +37,8 @@ const AccountDeletionComponent: React.FC = () => {
 
     try {
       setIsDeleting(true);
+      // Marquer qu'on est en suppression pour éviter la recréation de profil
+      localStorage.setItem('deletion_in_progress', 'true');
       console.log("[account-deletion] Début suppression utilisateur:", user.id);
 
       // === A. ESSAYER L'EDGE FUNCTION EN PREMIER ===
@@ -70,9 +72,13 @@ const AccountDeletionComponent: React.FC = () => {
 
         // Déconnexion puis redirection hard
         await supabase.auth.signOut({ scope: 'global' });
-        // Nettoyer l'état local
+        // Nettoyer TOUT l'état local
         localStorage.clear();
         sessionStorage.clear();
+        // Nettoyer aussi les cookies de session s'il y en a
+        document.cookie.split(";").forEach(c => { 
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;"); 
+        });
         window.location.replace('/goodbye');
         return;
 
