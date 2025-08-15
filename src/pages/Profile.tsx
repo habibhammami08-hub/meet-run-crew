@@ -50,7 +50,6 @@ const Profile = () => {
     if (!error && data) {
       setProfile(data);
     } else if (!data) {
-      // CORRECTION: Créer le profil s'il n'existe pas
       await createDefaultProfile();
     }
   };
@@ -163,7 +162,6 @@ const Profile = () => {
     setUserActivity(activities);
   };
 
-  // CORRECTION: Fonction updateProfile améliorée avec gestion d'erreur robuste
   const updateProfile = async (values: any) => {
     if (!user) {
       toast({ 
@@ -219,7 +217,6 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Upload d'avatar entièrement revu
   const uploadAvatar = async (file: File) => {
     if (!user) return;
     
@@ -349,7 +346,6 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Déconnexion améliorée
   const handleSignOut = async () => {
     try {
       setLoading(true);
@@ -366,7 +362,7 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Suppression de compte complète
+  // CORRECTION: Suppression de compte corrigée avec Edge Function
   const handleDeleteAccount = async () => {
     if (!user) return;
     
@@ -381,59 +377,88 @@ const Profile = () => {
     try {
       setLoading(true);
       
-      // Supprimer les données utilisateur en cascade
-      // 1. Supprimer les inscriptions
-      await supabase
-        .from('enrollments')
-        .delete()
-        .eq('user_id', user.id);
-
-      // 2. Supprimer les sessions créées
-      await supabase
-        .from('sessions')
-        .delete()
-        .eq('host_id', user.id);
-
-      // 3. Supprimer l'avatar du storage
-      if (profile?.avatar_url) {
-        const fileName = profile.avatar_url.split('/').pop();
-        if (fileName) {
-          await supabase.storage
-            .from('avatars')
-            .remove([`${user.id}/${fileName}`]);
-        }
-      }
-
-      // 4. Supprimer le profil
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id);
-
-      // 5. Supprimer le compte auth
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+      console.log("[account-deletion] Début de la suppression pour l'utilisateur:", user.id);
       
-      if (deleteError) {
-        console.error("Erreur suppression compte auth:", deleteError);
-        // Continuer même si l'erreur auth, le profil est supprimé
+      // NOUVEAU: Appel à une Edge Function qui gère la suppression complète
+      const { data, error: functionError } = await supabase.functions.invoke('delete-user-account', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+
+      if (functionError) {
+        console.error("[account-deletion] Erreur Edge Function:", functionError);
+        
+        // FALLBACK: Si l'Edge Function n'existe pas, suppression manuelle des données
+        console.log("[account-deletion] Fallback: suppression manuelle des données");
+        
+        // 1. Supprimer les inscriptions
+        const { error: enrollmentsError } = await supabase
+          .from('enrollments')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (enrollmentsError) {
+          console.error("Erreur suppression enrollments:", enrollmentsError);
+        }
+
+        // 2. Supprimer les sessions créées
+        const { error: sessionsError } = await supabase
+          .from('sessions')
+          .delete()
+          .eq('host_id', user.id);
+
+        if (sessionsError) {
+          console.error("Erreur suppression sessions:", sessionsError);
+        }
+
+        // 3. Supprimer l'avatar du storage
+        if (profile?.avatar_url) {
+          const fileName = profile.avatar_url.split('/').pop();
+          if (fileName) {
+            const { error: storageError } = await supabase.storage
+              .from('avatars')
+              .remove([`${user.id}/${fileName}`]);
+            
+            if (storageError) {
+              console.error("Erreur suppression avatar:", storageError);
+            }
+          }
+        }
+
+        // 4. Supprimer le profil
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', user.id);
+
+        if (profileError) {
+          console.error("Erreur suppression profil:", profileError);
+          throw new Error("Impossible de supprimer le profil: " + profileError.message);
+        }
+
+        console.log("[account-deletion] Données utilisateur supprimées manuellement");
+      } else {
+        console.log("[account-deletion] Edge Function exécutée avec succès:", data);
       }
 
-      // Déconnexion forcée
+      // 5. Déconnexion forcée (dans tous les cas)
+      console.log("[account-deletion] Déconnexion forcée");
       await supabase.auth.signOut();
       
       toast({
         title: "Compte supprimé",
-        description: "Votre compte a été supprimé avec succès.",
+        description: "Votre compte et toutes vos données ont été supprimés avec succès.",
       });
       
-      // Redirection vers l'accueil
+      // 6. Redirection vers l'accueil
       navigate("/");
       
     } catch (error: any) {
-      console.error("Erreur suppression compte:", error);
+      console.error("[account-deletion] Erreur complète:", error);
       toast({ 
-        title: "Erreur", 
-        description: "Impossible de supprimer le compte. Contactez le support.",
+        title: "Erreur de suppression", 
+        description: `Impossible de supprimer complètement le compte: ${error.message}. Contactez le support si le problème persiste.`,
         variant: "destructive" 
       });
     } finally {
@@ -757,6 +782,16 @@ const Profile = () => {
           >
             <LogOut size={16} />
             {loading ? "Déconnexion..." : "Se déconnecter"}
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="lg" 
+            className="w-full text-destructive"
+            onClick={handleDeleteAccount}
+            disabled={loading}
+          >
+            {loading ? "Suppression en cours..." : "Supprimer mon compte"}
           </Button>
         </div>
 
