@@ -193,7 +193,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-base sm:text-sm shadow-lg">
+                <div className="w-12 h-12 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
                   1
                 </div>
                 <div>
@@ -207,7 +207,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-base sm:text-sm shadow-lg">
+                <div className="w-12 h-12 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
                   2
                 </div>
                 <div>
@@ -221,7 +221,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-base sm:text-sm shadow-lg">
+                <div className="w-12 h-12 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
                   3
                 </div>
                 <div>
