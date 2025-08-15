@@ -53,30 +53,6 @@ export type Database = {
         }
         Relationships: []
       }
-      deletion_blocklist: {
-        Row: {
-          blocked_until: string
-          created_at: string
-          email_hash: string
-          id: string
-          original_user_id: string
-        }
-        Insert: {
-          blocked_until: string
-          created_at?: string
-          email_hash: string
-          id?: string
-          original_user_id: string
-        }
-        Update: {
-          blocked_until?: string
-          created_at?: string
-          email_hash?: string
-          id?: string
-          original_user_id?: string
-        }
-        Relationships: []
-      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
@@ -573,17 +549,9 @@ export type Database = {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
       }
-      hash_email: {
-        Args: { email: string }
-        Returns: string
-      }
       is_session_open: {
         Args: { session_id: string }
         Returns: boolean
-      }
-      simple_hash_email: {
-        Args: { email: string }
-        Returns: string
       }
       test_delete_account: {
         Args: Record<PropertyKey, never>
