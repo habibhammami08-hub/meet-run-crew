@@ -9,15 +9,6 @@ const corsHeaders = {
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { headers: { ...corsHeaders, "content-type": "application/json" }, status });
 
-// Fonction pour hasher un email avec MD5 (compatible avec la base)
-async function hashEmailMD5(email: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(email.toLowerCase());
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -122,8 +113,7 @@ serve(async (req) => {
         const blockUntil = new Date();
         blockUntil.setDate(blockUntil.getDate() + 7); // Bloquer 7 jours
         
-        const emailHash = await hashEmailMD5(userEmail);
-        console.log("[delete-account] Hash généré:", emailHash);
+        console.log("[delete-account] Ajout à la blocklist - email:", userEmail);
         
         const { data: insertData, error: insertError } = await admin.from("deletion_blocklist").upsert({
           email_hash: userEmail, // Utiliser l'email en clair temporairement pour debug
