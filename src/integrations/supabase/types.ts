@@ -232,14 +232,17 @@ export type Database = {
         Row: {
           blur_radius_m: number
           created_at: string
+          current_enrollments: number | null
           date: string
           description: string | null
           distance_km: number
           duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
+          host_avatar: string | null
           host_fee_cents: number | null
           host_id: string
+          host_name: string | null
           id: string
           intensity: string
           location_hint: string | null
@@ -257,14 +260,17 @@ export type Database = {
         Insert: {
           blur_radius_m?: number
           created_at?: string
+          current_enrollments?: number | null
           date: string
           description?: string | null
           distance_km: number
           duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
+          host_avatar?: string | null
           host_fee_cents?: number | null
           host_id: string
+          host_name?: string | null
           id?: string
           intensity: string
           location_hint?: string | null
@@ -282,14 +288,17 @@ export type Database = {
         Update: {
           blur_radius_m?: number
           created_at?: string
+          current_enrollments?: number | null
           date?: string
           description?: string | null
           distance_km?: number
           duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
+          host_avatar?: string | null
           host_fee_cents?: number | null
           host_id?: string
+          host_name?: string | null
           id?: string
           intensity?: string
           location_hint?: string | null
@@ -401,6 +410,47 @@ export type Database = {
       get_session_status: {
         Args: { p_session_id: string }
         Returns: string
+      }
+      get_user_enrollments: {
+        Args: { user_id: string }
+        Returns: {
+          amount_paid_cents: number
+          enrollment_id: string
+          enrollment_status: string
+          host_name: string
+          paid_at: string
+          session_date: string
+          session_id: string
+          session_title: string
+        }[]
+      }
+      get_user_sessions: {
+        Args: { user_id: string }
+        Returns: {
+          available_spots: number
+          created_at: string
+          current_enrollments: number
+          description: string
+          distance_km: number
+          duration_minutes: number
+          end_lat: number
+          end_lng: number
+          host_avatar: string
+          host_fee_cents: number
+          host_name: string
+          intensity: string
+          location_hint: string
+          max_participants: number
+          min_participants: number
+          price_cents: number
+          scheduled_at: string
+          session_id: string
+          session_type: string
+          start_lat: number
+          start_lng: number
+          status: string
+          title: string
+        }[]
       }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
