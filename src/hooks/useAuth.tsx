@@ -172,8 +172,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // IMPORTANT: Ne pas recréer de profil si on est en cours de suppression
-      if (session?.user && !localStorage.getItem('deletion_in_progress')) {
+      // IMPORTANT: Ne pas recréer de profil si on est en cours de suppression ou déconnexion
+      if (session?.user && !localStorage.getItem('deletion_in_progress') && !localStorage.getItem('logout_in_progress')) {
         // Différer les appels Supabase pour éviter les deadlocks
         setTimeout(() => {
           if (mounted) {
@@ -186,12 +186,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 if (mounted) setLoading(false);
               });
           }
-        }, 0);
-      } else {
-        // Réinitialiser l'état si pas d'utilisateur
-        setHasActiveSubscription(false);
-        setSubscriptionStatus(null);
-        setSubscriptionEnd(null);
+        }, 100);
+      } else if (!session?.user) {
+        // Pas de session = utilisateur déconnecté
         setLoading(false);
       }
     };

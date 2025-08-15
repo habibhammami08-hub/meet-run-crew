@@ -43,21 +43,30 @@ const AccountDeletionComponent: React.FC = () => {
 
       // === A. ESSAYER L'EDGE FUNCTION EN PREMIER ===
       try {
-        console.log("[account-deletion] Tentative Edge Function...");
+        console.log("[account-deletion] Tentative avec Edge Function...");
+        
+        const session = await supabase.auth.getSession();
+        if (!session.data.session?.access_token) {
+          throw new Error("Pas de token d'authentification");
+        }
         
         const { data, error } = await supabase.functions.invoke('delete-account', {
           headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            Authorization: `Bearer ${session.data.session.access_token}`,
           },
         });
 
         // Erreur transport/réseau
         if (error) {
+          console.error("[account-deletion] Transport error:", error);
           throw new Error(`Edge Function transport error: ${error.message}`);
         }
 
+        console.log("[account-deletion] Edge Function response:", data);
+
         // Vérifier la réponse API
         if (!data?.ok) {
+          console.error("[account-deletion] API error:", data);
           throw new Error(`Edge Function API error - Stage: ${data?.stage || 'unknown'} - ${data?.error || 'Unknown error'}`);
         }
 
@@ -70,6 +79,9 @@ const AccountDeletionComponent: React.FC = () => {
           variant: "default",
         });
 
+        // IMPORTANT: Marquer qu'on est en train de se déconnecter pour éviter la reconnexion
+        localStorage.setItem('logout_in_progress', 'true');
+        
         // Déconnexion puis redirection hard
         await supabase.auth.signOut({ scope: 'global' });
         // Nettoyer TOUT l'état local
@@ -79,7 +91,11 @@ const AccountDeletionComponent: React.FC = () => {
         document.cookie.split(";").forEach(c => { 
           document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;"); 
         });
-        window.location.replace('/goodbye');
+        
+        // Attendre un peu avant de rediriger pour s'assurer que la déconnexion est prise en compte
+        setTimeout(() => {
+          window.location.replace('/goodbye');
+        }, 500);
         return;
 
       } catch (edgeFunctionError: any) {
@@ -93,12 +109,15 @@ const AccountDeletionComponent: React.FC = () => {
         });
 
         // === B. FALLBACK RPC SQL ===
-        console.log("[account-deletion] Tentative fallback RPC...");
+        console.log("[account-deletion] Tentative avec fonction SQL...");
         
         try {
+          console.log("[account-deletion] Appel RPC avec p_user_id:", user.id);
           const { data: sqlResult, error: sqlError } = await supabase.rpc('delete_user_completely', { 
             p_user_id: user.id 
           });
+          
+          console.log("[account-deletion] RPC response:", { sqlResult, sqlError });
           
           if (sqlError) {
             throw new Error(`SQL RPC error: ${sqlError.message}`);
