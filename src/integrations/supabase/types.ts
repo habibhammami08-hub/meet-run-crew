@@ -84,6 +84,7 @@ export type Database = {
           status: string
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -95,6 +96,7 @@ export type Database = {
           status?: string
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -106,6 +108,7 @@ export type Database = {
           status?: string
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -120,7 +123,7 @@ export type Database = {
             foreignKeyName: "enrollments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
-            referencedRelation: "sessions_complete"
+            referencedRelation: "sessions_with_details"
             referencedColumns: ["id"]
           },
           {
@@ -470,7 +473,7 @@ export type Database = {
         }
         Relationships: []
       }
-      sessions_complete: {
+      sessions_with_details: {
         Row: {
           available_spots: number | null
           created_at: string | null
