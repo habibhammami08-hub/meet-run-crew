@@ -187,60 +187,63 @@ const Home = () => {
           Comment ça marche ?
         </h2>
         
-        {/* Illustration */}
-        <div className="flex justify-center mb-8">
-          <img 
-            src="/lovable-uploads/f23c1644-b0c6-4ee6-b07e-b1c880babf77.png" 
-            alt="Groupe de runners courant ensemble" 
-            className="w-full max-w-md h-auto rounded-lg shadow-card"
-          />
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          {/* Contenu textuel */}
+          <div className="flex-1 space-y-6">
+            <Card className="shadow-card">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sport-black mb-2">Trouve ta course avec d'autres runners</h3>
+                    <p className="text-sport-gray">Découvre les sessions de running collectif près de chez toi sur la carte interactive.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-card">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sport-black mb-2">Abonne-toi</h3>
+                    <p className="text-sport-gray">Abonne-toi pour 9,99€/mois et accède à toutes les sessions de running collectif en illimité.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-card">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                    3
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sport-black mb-2">Cours et fais des rencontres inoubliables</h3>
+                    <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ton run collectif !</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Illustration - à droite sur desktop, en dessous sur mobile */}
+          <div className="w-full lg:w-auto lg:flex-shrink-0 order-2 lg:order-1">
+            <img 
+              src="/lovable-uploads/f23c1644-b0c6-4ee6-b07e-b1c880babf77.png" 
+              alt="Groupe de runners courant ensemble" 
+              className="w-full lg:w-80 h-auto rounded-lg shadow-card"
+            />
+          </div>
         </div>
-        
-        <div className="space-y-6 mb-8">
-          <Card className="shadow-card">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
-                  1
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Trouve ta course avec d'autres runners</h3>
-                  <p className="text-sport-gray">Découvre les sessions de running collectif près de chez toi sur la carte interactive.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card className="shadow-card">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
-                  2
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Abonne-toi</h3>
-                  <p className="text-sport-gray">Abonne-toi pour 9,99€/mois et accède à toutes les sessions de running collectif en illimité.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-card">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
-                  3
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Cours et fais des rencontres inoubliables</h3>
-                  <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ton run collectif !</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
           <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
             Voir toutes les courses
           </Button>
