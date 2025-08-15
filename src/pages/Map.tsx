@@ -1,3 +1,5 @@
+// src/pages/Map.tsx - Corrections des problèmes de carte
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
@@ -23,7 +25,9 @@ const Map = () => {
   
   useEffect(() => {
     fetchSessions();
-    
+  }, [user]);
+
+  useEffect(() => {
     // Vérifier si une session spécifique doit être mise en évidence
     const sessionId = searchParams.get('sessionId');
     if (sessionId && sessions.length > 0) {
@@ -32,7 +36,7 @@ const Map = () => {
         setSelectedSession(session);
       }
     }
-  }, [user, searchParams, sessions.length]);
+  }, [searchParams, sessions]);
 
   useEffect(() => {
     // Configuration Realtime pour les sessions
@@ -95,8 +99,8 @@ const Map = () => {
 
       console.log("[sessions] Récupération des sessions...");
 
-      // Tentative avec jointure pour récupérer les profils des hôtes
-      let { data, error } = await supabase
+      // CORRECTION: Requête simplifiée et validation des coordonnées
+      const { data, error } = await supabase
         .from("sessions")
         .select(`
           *,
@@ -106,54 +110,28 @@ const Map = () => {
         .gte('date', new Date().toISOString())
         .order('date', { ascending: true });
 
-      // Fallback sans jointure si la première requête échoue
-      if (error || !data) {
-        console.warn("[sessions] Jointure échouée, fallback sans profils:", error);
-        
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("sessions")
-          .select("*")
-          .gte('date', new Date().toISOString())
-          .order('date', { ascending: true });
-        
-        if (fallbackError) {
-          throw new Error(`Erreur récupération sessions: ${fallbackError.message}`);
-        }
-        
-        data = fallbackData?.map(session => ({
-          ...session,
-          host_profile: null,
-          enrollments: []
-        })) || [];
-        
-        // Récupérer les profils séparément si nécessaire
-        if (data.length > 0) {
-          const hostIds = [...new Set(data.map(s => s.host_id))];
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url')
-            .in('id', hostIds);
-
-          const { data: enrollments } = await supabase
-            .from('enrollments')
-            .select('id, session_id, user_id, status')
-            .in('session_id', data.map(s => s.id));
-
-          // Associer les profils et enrollments aux sessions
-          data = data.map(session => ({
-            ...session,
-            host_profile: profiles?.find(p => p.id === session.host_id) || null,
-            enrollments: enrollments?.filter(e => e.session_id === session.id).map(e => ({
-              id: e.id,
-              user_id: e.user_id,
-              status: e.status
-            })) || []
-          }));
-        }
+      if (error) {
+        throw new Error(`Erreur récupération sessions: ${error.message}`);
       }
 
-      console.log(`[sessions] ${data.length} sessions récupérées`);
-      setSessions(data || []);
+      // CORRECTION: Validation stricte des coordonnées
+      const validSessions = (data || []).filter(session => {
+        const lat = Number(session.start_lat);
+        const lng = Number(session.start_lng);
+        
+        const isValidLat = Number.isFinite(lat) && lat >= -90 && lat <= 90;
+        const isValidLng = Number.isFinite(lng) && lng >= -180 && lng <= 180;
+        
+        if (!isValidLat || !isValidLng) {
+          console.warn(`Session ${session.id} a des coordonnées invalides:`, { lat, lng });
+          return false;
+        }
+        
+        return true;
+      });
+
+      console.log(`[sessions] ${validSessions.length} sessions valides récupérées sur ${data?.length || 0}`);
+      setSessions(validSessions);
 
     } catch (error: any) {
       console.error("[sessions] Erreur:", error);
@@ -174,11 +152,11 @@ const Map = () => {
       return activeFilters.every(filter => {
         switch (filter) {
           case '5km':
-            return session.distance_km === 5;
+            return Number(session.distance_km) === 5;
           case '10km':
-            return session.distance_km === 10;
+            return Number(session.distance_km) === 10;
           case '15km':
-            return session.distance_km === 15;
+            return Number(session.distance_km) === 15;
           case 'mixte':
             return session.type === 'mixed';
           case 'faible':
@@ -248,11 +226,11 @@ const Map = () => {
   const getFilterCount = (filter: string) => {
     switch (filter) {
       case '5km':
-        return sessions.filter(s => s.distance_km === 5).length;
+        return sessions.filter(s => Number(s.distance_km) === 5).length;
       case '10km':
-        return sessions.filter(s => s.distance_km === 10).length;
+        return sessions.filter(s => Number(s.distance_km) === 10).length;
       case '15km':
-        return sessions.filter(s => s.distance_km === 15).length;
+        return sessions.filter(s => Number(s.distance_km) === 15).length;
       case 'mixte':
         return sessions.filter(s => s.type === 'mixed').length;
       case 'faible':
@@ -325,220 +303,8 @@ const Map = () => {
       
       {/* Interactive Map - Prend toute la hauteur disponible */}
       <div className="flex-1 relative">
-        <LeafletMeetRunMap 
-          sessions={filteredSessions.map(session => ({
-            id: session.id,
-            title: session.title,
-            date: session.date,
-            location_lat: parseFloat(session.start_lat?.toString() || '0'),
-            location_lng: parseFloat(session.start_lng?.toString() || '0'),
-            end_lat: session.end_lat ? parseFloat(session.end_lat.toString()) : null,
-            end_lng: session.end_lng ? parseFloat(session.end_lng.toString()) : null,
-            blur_radius_m: session.blur_radius_m || 1000,
-            area_hint: session.location_hint,
-            max_participants: session.max_participants,
-            price_cents: session.price_cents || 0,
-            distance_km: parseFloat(session.distance_km.toString()),
-            intensity: session.intensity,
-            host_id: session.host_id,
-            enrollments: session.enrollments || [],
-            host_profile: session.host_profile
-          }))}
-          onSessionSelect={(sessionId) => {
-            const session = sessions.find(s => s.id === sessionId);
-            if (session) {
-              setSelectedSession(session);
-            } else {
-              // Naviguer vers les détails de la session
-              navigate(`/session/${sessionId}`);
-            }
-          }}
-          className="h-full"
-        />
-
-        {/* Floating Filter Bar */}
-        {sessions.length > 0 && (
-          <div className="absolute bottom-4 left-4 right-4 z-[1000]">
-            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 p-3">
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                <Button 
-                  variant={activeFilters.length === 0 ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="whitespace-nowrap"
-                >
-                  Toutes ({sessions.length})
-                </Button>
-                
-                {/* Filtres de distance */}
-                <Button 
-                  variant={activeFilters.includes('5km') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('5km')}
-                  className="whitespace-nowrap"
-                >
-                  5km ({getFilterCount('5km')})
-                </Button>
-                <Button 
-                  variant={activeFilters.includes('10km') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('10km')}
-                  className="whitespace-nowrap"
-                >
-                  10km ({getFilterCount('10km')})
-                </Button>
-                <Button 
-                  variant={activeFilters.includes('15km') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('15km')}
-                  className="whitespace-nowrap"
-                >
-                  15km ({getFilterCount('15km')})
-                </Button>
-                
-                {/* Filtre de type */}
-                <Button 
-                  variant={activeFilters.includes('mixte') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('mixte')}
-                  className="whitespace-nowrap"
-                >
-                  Mixte ({getFilterCount('mixte')})
-                </Button>
-                
-                {/* Filtres d'intensité */}
-                <Button 
-                  variant={activeFilters.includes('faible') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('faible')}
-                  className="whitespace-nowrap"
-                >
-                  Faible ({getFilterCount('faible')})
-                </Button>
-                <Button 
-                  variant={activeFilters.includes('moyenne') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('moyenne')}
-                  className="whitespace-nowrap"
-                >
-                  Moyenne ({getFilterCount('moyenne')})
-                </Button>
-                <Button 
-                  variant={activeFilters.includes('elevee') ? "sport" : "sportSecondary"} 
-                  size="sm"
-                  onClick={() => toggleFilter('elevee')}
-                  className="whitespace-nowrap"
-                >
-                  Élevée ({getFilterCount('elevee')})
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Selected session details - Floating card */}
-        {selectedSession && (
-          <div className="absolute top-4 left-4 right-4 z-[1000]">
-            <Card className="shadow-lg bg-white/95 backdrop-blur-sm border-gray-200/50">
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sport-black">{selectedSession.title}</h4>
-                    <p className="text-sm text-sport-gray flex items-center gap-1">
-                      <MapPin size={14} />
-                      {isUserEnrolled(selectedSession) || isUserHost(selectedSession) || hasActiveSubscription
-                        ? selectedSession.area_hint || "Lieu exact disponible"
-                        : `Zone approx. ${Math.round((selectedSession.blur_radius_m || 1000)/1000)}km`
-                      }
-                    </p>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setSelectedSession(null)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X size={16} />
-                  </Button>
-                </div>
-                
-                <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
-                  <span className="flex items-center gap-1">
-                    <Clock size={14} />
-                    {formatDate(selectedSession.date)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users size={14} />
-                    {getParticipantCount(selectedSession) + 1}/{selectedSession.max_participants} coureurs
-                  </span>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    selectedSession.intensity === 'low' ? 'bg-green-100 text-green-800' :
-                    selectedSession.intensity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {selectedSession.intensity === 'low' ? 'Faible' :
-                     selectedSession.intensity === 'medium' ? 'Moyenne' : 'Élevée'}
-                  </span>
-                </div>
-                
-                <div className="flex gap-3">
-                  <Button 
-                    variant="sportOutline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => navigate(`/session/${selectedSession.id}`)}
-                  >
-                    Voir détails
-                  </Button>
-                  {!isUserEnrolled(selectedSession) && 
-                   !isUserHost(selectedSession) && 
-                   getParticipantCount(selectedSession) < selectedSession.max_participants - 1 && (
-                    <Button 
-                      variant="sport" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => navigate(`/session/${selectedSession.id}`)}
-                    >
-                      {hasActiveSubscription ? "Rejoindre" : "S'abonner"}
-                    </Button>
-                  )}
-                  {isUserEnrolled(selectedSession) && (
-                    <Button variant="secondary" size="sm" className="flex-1" disabled>
-                      ✓ Inscrit
-                    </Button>
-                  )}
-                  {isUserHost(selectedSession) && (
-                    <Button variant="secondary" size="sm" className="flex-1" disabled>
-                      ✓ Organisateur
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {filteredSessions.length === 0 && !loading && sessions.length > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center p-8 bg-white/80 backdrop-blur-sm">
-            <div className="text-center">
-              <Filter size={48} className="mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">Aucune session trouvée</h3>
-              <p className="text-muted-foreground mb-4">
-                Aucune session ne correspond aux filtres sélectionnés.
-              </p>
-              <Button 
-                variant="sport" 
-                onClick={clearAllFilters}
-              >
-                Voir toutes les sessions
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Empty state - no sessions at all */}
-        {sessions.length === 0 && !loading && (
+        {sessions.length === 0 && !loading ? (
+          // Empty state - no sessions at all
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <div className="text-center">
               <MapPin size={48} className="mx-auto mb-4 text-muted-foreground" />
@@ -554,6 +320,223 @@ const Map = () => {
               </Button>
             </div>
           </div>
+        ) : (
+          <>
+            {/* CORRECTION: Données correctement formatées pour la carte */}
+            <LeafletMeetRunMap 
+              sessions={filteredSessions.map(session => ({
+                id: session.id,
+                title: session.title,
+                date: session.date,
+                // CORRECTION: Utiliser start_lat/start_lng depuis la base de données
+                location_lat: Number(session.start_lat),
+                location_lng: Number(session.start_lng),
+                end_lat: session.end_lat ? Number(session.end_lat) : null,
+                end_lng: session.end_lng ? Number(session.end_lng) : null,
+                blur_radius_m: session.blur_radius_m || 1000,
+                area_hint: session.area_hint,
+                max_participants: session.max_participants,
+                price_cents: session.price_cents || 0,
+                distance_km: Number(session.distance_km),
+                intensity: session.intensity,
+                host_id: session.host_id,
+                enrollments: session.enrollments || [],
+                host_profile: session.host_profile
+              }))}
+              onSessionSelect={(sessionId) => {
+                const session = sessions.find(s => s.id === sessionId);
+                if (session) {
+                  setSelectedSession(session);
+                } else {
+                  // Naviguer vers les détails de la session
+                  navigate(`/session/${sessionId}`);
+                }
+              }}
+              className="h-full"
+              isLoading={loading}
+            />
+
+            {/* Floating Filter Bar */}
+            {sessions.length > 0 && (
+              <div className="absolute bottom-4 left-4 right-4 z-[1000]">
+                <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 p-3">
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    <Button 
+                      variant={activeFilters.length === 0 ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="whitespace-nowrap"
+                    >
+                      Toutes ({sessions.length})
+                    </Button>
+                    
+                    {/* Filtres de distance */}
+                    <Button 
+                      variant={activeFilters.includes('5km') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('5km')}
+                      className="whitespace-nowrap"
+                    >
+                      5km ({getFilterCount('5km')})
+                    </Button>
+                    <Button 
+                      variant={activeFilters.includes('10km') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('10km')}
+                      className="whitespace-nowrap"
+                    >
+                      10km ({getFilterCount('10km')})
+                    </Button>
+                    <Button 
+                      variant={activeFilters.includes('15km') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('15km')}
+                      className="whitespace-nowrap"
+                    >
+                      15km ({getFilterCount('15km')})
+                    </Button>
+                    
+                    {/* Filtre de type */}
+                    <Button 
+                      variant={activeFilters.includes('mixte') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('mixte')}
+                      className="whitespace-nowrap"
+                    >
+                      Mixte ({getFilterCount('mixte')})
+                    </Button>
+                    
+                    {/* Filtres d'intensité */}
+                    <Button 
+                      variant={activeFilters.includes('faible') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('faible')}
+                      className="whitespace-nowrap"
+                    >
+                      Faible ({getFilterCount('faible')})
+                    </Button>
+                    <Button 
+                      variant={activeFilters.includes('moyenne') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('moyenne')}
+                      className="whitespace-nowrap"
+                    >
+                      Moyenne ({getFilterCount('moyenne')})
+                    </Button>
+                    <Button 
+                      variant={activeFilters.includes('elevee') ? "sport" : "sportSecondary"} 
+                      size="sm"
+                      onClick={() => toggleFilter('elevee')}
+                      className="whitespace-nowrap"
+                    >
+                      Élevée ({getFilterCount('elevee')})
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Selected session details - Floating card */}
+            {selectedSession && (
+              <div className="absolute top-4 left-4 right-4 z-[1000]">
+                <Card className="shadow-lg bg-white/95 backdrop-blur-sm border-gray-200/50">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sport-black">{selectedSession.title}</h4>
+                        <p className="text-sm text-sport-gray flex items-center gap-1">
+                          <MapPin size={14} />
+                          {isUserEnrolled(selectedSession) || isUserHost(selectedSession) || hasActiveSubscription
+                            ? selectedSession.area_hint || "Lieu exact disponible"
+                            : `Zone approx. ${Math.round((selectedSession.blur_radius_m || 1000)/1000)}km`
+                          }
+                        </p>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setSelectedSession(null)}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
+                      <span className="flex items-center gap-1">
+                        <Clock size={14} />
+                        {formatDate(selectedSession.date)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users size={14} />
+                        {getParticipantCount(selectedSession) + 1}/{selectedSession.max_participants} coureurs
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        selectedSession.intensity === 'low' ? 'bg-green-100 text-green-800' :
+                        selectedSession.intensity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {selectedSession.intensity === 'low' ? 'Faible' :
+                         selectedSession.intensity === 'medium' ? 'Moyenne' : 'Élevée'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Button 
+                        variant="sportOutline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => navigate(`/session/${selectedSession.id}`)}
+                      >
+                        Voir détails
+                      </Button>
+                      {!isUserEnrolled(selectedSession) && 
+                       !isUserHost(selectedSession) && 
+                       getParticipantCount(selectedSession) < selectedSession.max_participants - 1 && (
+                        <Button 
+                          variant="sport" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => navigate(`/session/${selectedSession.id}`)}
+                        >
+                          {hasActiveSubscription ? "Rejoindre" : "S'abonner"}
+                        </Button>
+                      )}
+                      {isUserEnrolled(selectedSession) && (
+                        <Button variant="secondary" size="sm" className="flex-1" disabled>
+                          ✓ Inscrit
+                        </Button>
+                      )}
+                      {isUserHost(selectedSession) && (
+                        <Button variant="secondary" size="sm" className="flex-1" disabled>
+                          ✓ Organisateur
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Empty state pour filtres */}
+            {filteredSessions.length === 0 && sessions.length > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center p-8 bg-white/80 backdrop-blur-sm">
+                <div className="text-center">
+                  <Filter size={48} className="mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">Aucune session trouvée</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Aucune session ne correspond aux filtres sélectionnés.
+                  </p>
+                  <Button 
+                    variant="sport" 
+                    onClick={clearAllFilters}
+                  >
+                    Voir toutes les sessions
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
