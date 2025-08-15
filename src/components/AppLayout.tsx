@@ -11,9 +11,9 @@ const AppLayout = ({ children, hideNavigation = false }: AppLayoutProps) => {
       <main className="flex-1 pb-16 relative">
         {children}
       </main>
-      {/* CORRECTION: Navigation TOUJOURS fixe en bas et visible */}
+      {/* CORRECTION: Navigation TOUJOURS fixe en bas et visible sur toutes les pages */}
       {!hideNavigation && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white border-t border-border shadow-lg">
           <Navigation />
         </div>
       )}
