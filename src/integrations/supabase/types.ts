@@ -185,119 +185,11 @@ export type Database = {
         }
         Relationships: []
       }
-      registrations: {
-        Row: {
-          id: string
-          payment_status: string
-          registered_at: string
-          run_id: string
-          stripe_session_id: string | null
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          payment_status?: string
-          registered_at?: string
-          run_id: string
-          stripe_session_id?: string | null
-          user_id: string
-        }
-        Update: {
-          id?: string
-          payment_status?: string
-          registered_at?: string
-          run_id?: string
-          stripe_session_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "registrations_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "registrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      runs: {
-        Row: {
-          created_at: string
-          date: string
-          description: string | null
-          distance: string
-          host_id: string
-          id: string
-          intensity: string
-          latitude: number
-          location_name: string
-          longitude: number
-          max_participants: number
-          price_cents: number
-          time: string
-          title: string
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          date: string
-          description?: string | null
-          distance: string
-          host_id: string
-          id?: string
-          intensity: string
-          latitude: number
-          location_name: string
-          longitude: number
-          max_participants: number
-          price_cents?: number
-          time: string
-          title: string
-          type: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          date?: string
-          description?: string | null
-          distance?: string
-          host_id?: string
-          id?: string
-          intensity?: string
-          latitude?: number
-          location_name?: string
-          longitude?: number
-          max_participants?: number
-          price_cents?: number
-          time?: string
-          title?: string
-          type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "runs_host_id_fkey"
-            columns: ["host_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sessions: {
         Row: {
           blur_radius_m: number
           created_at: string
           current_enrollments: number | null
-          date: string
           description: string | null
           distance_km: number
           duration_minutes: number | null
@@ -319,13 +211,11 @@ export type Database = {
           start_lng: number
           status: string | null
           title: string
-          type: string
         }
         Insert: {
           blur_radius_m?: number
           created_at?: string
           current_enrollments?: number | null
-          date: string
           description?: string | null
           distance_km: number
           duration_minutes?: number | null
@@ -347,13 +237,11 @@ export type Database = {
           start_lng: number
           status?: string | null
           title: string
-          type: string
         }
         Update: {
           blur_radius_m?: number
           created_at?: string
           current_enrollments?: number | null
-          date?: string
           description?: string | null
           distance_km?: number
           duration_minutes?: number | null
@@ -375,7 +263,6 @@ export type Database = {
           start_lng?: number
           status?: string | null
           title?: string
-          type?: string
         }
         Relationships: [
           {
