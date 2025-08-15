@@ -1,0 +1,70 @@
+import { supabase } from "@/integrations/supabase/client";
+
+/** Supprime le compte (Edge Function) + déconnecte proprement le client */
+export async function deleteAccountAndSignOut(): Promise<boolean> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    if (accessToken) {
+      const { error } = await supabase.functions.invoke("delete-account", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (error) {
+        console.warn("[account-deletion] Function erreur (on continue le nettoyage local):", error);
+      }
+    } else {
+      console.warn("[account-deletion] Pas d'access token; on nettoie localement.");
+    }
+  } catch (e) {
+    console.warn("[account-deletion] Erreur appel function (on continue local):", e);
+  }
+
+  // Nettoyage client (évite "toujours connecté")
+  try {
+    try {
+      // @ts-ignore
+      supabase.realtime.removeAllChannels?.();
+      // @ts-ignore
+      supabase.realtime.disconnect?.();
+    } catch {}
+
+    try { 
+      await supabase.auth.signOut({ scope: "local" }); 
+    } catch {}
+    
+    try { 
+      await supabase.auth.signOut({ scope: "global" }); 
+    } catch (e) { 
+      console.warn("signOut global:", e); 
+    }
+
+    try { 
+      localStorage.clear(); 
+      sessionStorage.clear(); 
+    } catch {}
+
+    try {
+      // @ts-ignore
+      if (indexedDB && typeof indexedDB.databases === "function") {
+        // @ts-ignore
+        const dbs = await indexedDB.databases();
+        for (const db of dbs) { 
+          if (db.name) indexedDB.deleteDatabase(db.name); 
+        }
+      }
+    } catch {}
+
+    try {
+      document.cookie.split(";").forEach(c => { 
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;");
+      });
+    } catch {}
+
+    return true;
+  } catch (e) {
+    console.error("[account-deletion] Erreur nettoyage local:", e);
+    return false;
+  }
+}

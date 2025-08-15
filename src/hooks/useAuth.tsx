@@ -107,36 +107,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, fetchSubscriptionStatus]);
 
-  // Fonction de déconnexion corrigée
   const signOut = async () => {
     try {
       setLoading(true);
       console.log("[auth] Début déconnexion...");
+
+      try {
+        // @ts-ignore
+        supabase.realtime.removeAllChannels?.();
+        // @ts-ignore
+        supabase.realtime.disconnect?.();
+      } catch {}
+
+      try { 
+        await supabase.auth.signOut({ scope: "local" }); 
+      } catch {}
       
-      // Nettoyer d'abord les états locaux
-      setUser(null);
-      setSession(null);
-      setHasActiveSubscription(false);
-      setSubscriptionStatus(null);
-      setSubscriptionEnd(null);
-      
-      // Déconnexion Supabase avec options pour forcer le nettoyage
-      const { error } = await supabase.auth.signOut({ scope: 'global' });
-      if (error) {
-        console.error("Erreur déconnexion Supabase:", error);
+      try { 
+        await supabase.auth.signOut({ scope: "global" }); 
+      } catch (e) { 
+        console.warn("signOut global:", e); 
       }
-      
-      // Nettoyer le localStorage pour forcer la déconnexion
-      localStorage.removeItem('supabase.auth.token');
-      localStorage.removeItem('sb-qnupinrsetomnsdchhfa-auth-token');
-      
-      console.log("[auth] Déconnexion terminée - redirection...");
-      
+
+      try { 
+        localStorage.clear(); 
+        sessionStorage.clear(); 
+      } catch {}
+
+      try {
+        // @ts-ignore
+        if (indexedDB && typeof indexedDB.databases === "function") {
+          // @ts-ignore
+          const dbs = await indexedDB.databases();
+          for (const db of dbs) { 
+            if (db.name) indexedDB.deleteDatabase(db.name); 
+          }
+        }
+      } catch {}
     } catch (error) {
       console.error("Erreur critique déconnexion:", error);
     } finally {
       setLoading(false);
-      // Redirection simple sans window.location
       window.location.pathname = "/";
     }
   };
