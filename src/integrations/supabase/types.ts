@@ -53,6 +53,27 @@ export type Database = {
         }
         Relationships: []
       }
+      deleted_users: {
+        Row: {
+          deleted_at: string
+          deletion_reason: string | null
+          email: string
+          id: string
+        }
+        Insert: {
+          deleted_at?: string
+          deletion_reason?: string | null
+          email: string
+          id: string
+        }
+        Update: {
+          deleted_at?: string
+          deletion_reason?: string | null
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
@@ -416,6 +437,15 @@ export type Database = {
       }
     }
     Views: {
+      deletion_stats: {
+        Row: {
+          deleted_last_24h: number | null
+          deleted_last_30d: number | null
+          deleted_last_7d: number | null
+          total_deleted_users: number | null
+        }
+        Relationships: []
+      }
       payment_metrics: {
         Row: {
           avg_payment_cents: number | null
@@ -500,6 +530,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_old_deleted_users: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_basic_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -559,6 +593,10 @@ export type Database = {
       }
       is_session_open: {
         Args: { session_id: string }
+        Returns: boolean
+      }
+      is_user_deleted: {
+        Args: { check_email: string }
         Returns: boolean
       }
     }
