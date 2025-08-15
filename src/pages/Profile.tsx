@@ -11,6 +11,7 @@ import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera, Lo
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
+import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 
 const Profile = () => {
   const { user, signOut } = useAuth();
@@ -757,17 +758,10 @@ const Profile = () => {
             <LogOut size={16} />
             {loading ? "Déconnexion..." : "Se déconnecter"}
           </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="lg" 
-            className="w-full text-destructive"
-            onClick={handleDeleteAccount}
-            disabled={loading}
-          >
-            Supprimer mon compte
-          </Button>
         </div>
+
+        {/* Account Deletion Section */}
+        <AccountDeletionComponent />
       </div>
     </div>
   );
