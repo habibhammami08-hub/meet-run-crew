@@ -390,21 +390,13 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
-      cleanup_expired_sessions: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
       delete_user_completely: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      get_platform_stats: {
+      get_basic_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
-      }
-      get_session_display_status: {
-        Args: { p_session_id: string }
-        Returns: string
       }
       get_session_status: {
         Args: { p_session_id: string }
@@ -414,8 +406,8 @@ export type Database = {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
       }
-      session_is_available: {
-        Args: { p_session_id: string }
+      is_session_open: {
+        Args: { session_id: string }
         Returns: boolean
       }
     }
