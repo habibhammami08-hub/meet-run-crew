@@ -7,6 +7,7 @@ import { Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteAccountAndSignOut } from "@/utils/deleteAccount";
+import { logger } from "@/utils/logger";
 
 const AccountDeletionComponent: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -34,7 +35,7 @@ const AccountDeletionComponent: React.FC = () => {
       });
       window.location.replace("/goodbye");
     } catch (e: any) {
-      console.error("[account-deletion] Erreur:", e);
+      logger.error("Account deletion error:", e);
       toast({ 
         title: "Erreur", 
         description: e?.message || "Suppression impossible", 

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 
 interface AuthContextType {
   user: User | null;
@@ -50,7 +51,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .maybeSingle();
 
       if (error) {
-        console.error('Erreur récupération abonnement:', error);
+        logger.error('Subscription fetch error:', error);
         setHasActiveSubscription(false);
         setSubscriptionStatus(null);
         setSubscriptionEnd(null);
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (!data) {
-        console.warn('Aucun profil trouvé pour l\'utilisateur:', userId);
+        logger.warn('No profile found for user:', userId);
         setHasActiveSubscription(false);
         setSubscriptionStatus(null);
         setSubscriptionEnd(null);
@@ -72,7 +73,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionStatus(data.sub_status);
       setSubscriptionEnd(data.sub_current_period_end);
     } catch (error) {
-      console.error('Erreur dans fetchSubscriptionStatus:', error);
+      logger.error('Error in fetchSubscriptionStatus:', error);
       setHasActiveSubscription(false);
       setSubscriptionStatus(null);
       setSubscriptionEnd(null);
@@ -91,12 +92,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .maybeSingle();
 
       if (existingProfile) {
-        console.log("[auth] Profil existant trouvé pour:", user.id);
+        logger.debug("Existing profile found for:", user.id);
       } else {
-        console.warn("[auth] Profil manquant pour:", user.id, "- devrait être créé par le trigger DB");
+        logger.warn("Missing profile for:", user.id, "- should be created by DB trigger");
       }
     } catch (error) {
-      console.error("Erreur vérification profil:", error);
+      logger.error("Profile verification error:", error);
     }
   }, []);
 
@@ -110,7 +111,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      console.log("[auth] Début déconnexion...");
+      logger.debug("Starting logout process...");
 
       try {
         // @ts-ignore
@@ -126,7 +127,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try { 
         await supabase.auth.signOut({ scope: "global" }); 
       } catch (e) { 
-        console.warn("signOut global:", e); 
+        logger.warn("Global signOut error:", e); 
       }
 
       try { 
@@ -145,7 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch {}
     } catch (error) {
-      console.error("Erreur critique déconnexion:", error);
+      logger.error("Critical logout error:", error);
     } finally {
       setLoading(false);
       window.location.pathname = "/";
@@ -159,28 +160,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (window.location.search.includes('access_token') || window.location.hash.includes('access_token')) {
       const cleanUrl = window.location.origin + window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
-      console.log("[auth] URL OAuth nettoyée");
+      logger.debug("OAuth URL cleaned");
     }
 
     // Fonction pour gérer les changements d'état d'auth (synchrone uniquement pour éviter deadlocks)
     const handleAuthStateChange = (event: string, session: Session | null) => {
       if (!mounted) return;
 
-      console.log("[auth] État changé:", event, session?.user?.id);
+      logger.debug("Auth state changed:", event, session?.user?.id);
       
-      // Mise à jour synchrone de l'état
+      // Synchronous state update
       setSession(session);
       setUser(session?.user ?? null);
       
-      // IMPORTANT: Ne pas recréer de profil si on est en cours de suppression ou déconnexion
+      // Don't recreate profile if deletion or logout in progress
       if (session?.user && !localStorage.getItem('deletion_in_progress') && !localStorage.getItem('logout_in_progress')) {
-        // Différer les appels Supabase pour éviter les deadlocks
+        // Defer Supabase calls to avoid deadlocks
         setTimeout(() => {
           if (mounted) {
             ensureProfile(session.user)
               .then(() => fetchSubscriptionStatus(session.user.id))
               .catch((error) => {
-                console.error("[auth] Erreur async operations:", error);
+                logger.error("Auth async operations error:", error);
               })
               .finally(() => {
                 if (mounted) setLoading(false);
@@ -188,7 +189,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         }, 100);
       } else if (!session?.user) {
-        // Pas de session = utilisateur déconnecté
         setLoading(false);
       }
     };
@@ -207,7 +207,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const { data: { session } } = await supabase.auth.getSession();
         handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {
-        console.error("Erreur initialisation auth:", error);
+        logger.error("Auth initialization error:", error);
         setLoading(false);
       }
     };
