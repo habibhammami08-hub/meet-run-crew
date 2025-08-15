@@ -301,8 +301,8 @@ const Map = () => {
         }
       />
       
-      {/* Interactive Map - Prend toute la hauteur disponible */}
-      <div className="flex-1 relative">
+      {/* CORRECTION: Map container avec padding-bottom pour éviter l'overlap avec la navigation */}
+      <div className="flex-1 relative pb-20">
         {sessions.length === 0 && !loading ? (
           // Empty state - no sessions at all
           <div className="absolute inset-0 flex items-center justify-center p-8">
@@ -356,9 +356,9 @@ const Map = () => {
               isLoading={loading}
             />
 
-            {/* Floating Filter Bar */}
+            {/* Floating Filter Bar - CORRECTION: Ajusté pour éviter l'overlap avec la navigation */}
             {sessions.length > 0 && (
-              <div className="absolute bottom-4 left-4 right-4 z-[1000]">
+              <div className="absolute bottom-20 left-4 right-4 z-[1000]">
                 <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 p-3">
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     <Button 
