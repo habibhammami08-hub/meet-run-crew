@@ -147,7 +147,7 @@ const Home = () => {
           alt="MeetRun - Running collectif" 
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
           <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
           <p className="text-lg font-bold opacity-95 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
