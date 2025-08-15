@@ -581,6 +581,10 @@ export type Database = {
         Args: { session_id: string }
         Returns: boolean
       }
+      simple_hash_email: {
+        Args: { email: string }
+        Returns: string
+      }
       test_delete_account: {
         Args: Record<PropertyKey, never>
         Returns: Json

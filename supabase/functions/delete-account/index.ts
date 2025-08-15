@@ -9,11 +9,11 @@ const corsHeaders = {
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { headers: { ...corsHeaders, "content-type": "application/json" }, status });
 
-// Fonction pour hasher un email (pour la blocklist)
-async function hashEmail(email: string): Promise<string> {
+// Fonction pour hasher un email avec MD5 (compatible avec la base)
+async function hashEmailMD5(email: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(email.toLowerCase());
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -122,7 +122,7 @@ serve(async (req) => {
         const blockUntil = new Date();
         blockUntil.setDate(blockUntil.getDate() + 7); // Bloquer 7 jours
         
-        const emailHash = await hashEmail(userEmail);
+        const emailHash = await hashEmailMD5(userEmail);
         console.log("[delete-account] Hash généré:", emailHash);
         
         const { data: insertData, error: insertError } = await admin.from("deletion_blocklist").upsert({
