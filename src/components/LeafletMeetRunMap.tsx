@@ -76,24 +76,16 @@ const LeafletMeetRunMap = ({
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // CORRECTION: Debug des sessions reçues
-  useEffect(() => {
-    console.log("[LeafletMap] Sessions reçues:", sessions);
-    console.log("[LeafletMap] Nombre de sessions:", sessions.length);
+  // FIXE: Validation stricte des sessions
+  const validSessions = sessions.filter(session => {
+    const lat = Number(session.location_lat);
+    const lng = Number(session.location_lng);
     
-    // Vérification des coordonnées
-    sessions.forEach((session, index) => {
-      const lat = session.location_lat;
-      const lng = session.location_lng;
-      console.log(`[LeafletMap] Session ${index} (${session.id}):`, {
-        lat: lat,
-        lng: lng,
-        isLatValid: Number.isFinite(lat) && lat >= -90 && lat <= 90,
-        isLngValid: Number.isFinite(lng) && lng >= -180 && lng <= 180,
-        title: session.title
-      });
-    });
-  }, [sessions]);
+    const isValidLat = Number.isFinite(lat) && lat >= -90 && lat <= 90;
+    const isValidLng = Number.isFinite(lng) && lng >= -180 && lng <= 180;
+    
+    return isValidLat && isValidLng;
+  });
 
   // Navigate to session helper
   const navigateToSession = useCallback((sessionId: string) => {
@@ -136,9 +128,9 @@ const LeafletMeetRunMap = ({
   // Check if user is paid for session
   const isUserPaid = useCallback((sessionId: string) => {
     if (!user) return false;
-    const session = sessions.find(s => s.id === sessionId);
+    const session = validSessions.find(s => s.id === sessionId);
     return session?.enrollments?.some(e => e.user_id === user.id && e.status === 'paid') || false;
-  }, [user, sessions]);
+  }, [user, validSessions]);
 
   // Check if user is host
   const isUserHost = useCallback((session: Session) => {
@@ -286,13 +278,7 @@ const LeafletMeetRunMap = ({
       setHasInitialized(true);
       console.log("[LeafletMap] Carte initialisée avec succès");
       
-      // Automatically request geolocation when map is initialized
-      if (enableGeolocation && !hasAskedGeolocation) {
-        setHasAskedGeolocation(true);
-        setTimeout(() => {
-          requestLocation();
-        }, 500);
-      }
+      // FIXE: Initialisation de la carte sans géolocalisation automatique
     } catch (error) {
       console.error("[LeafletMap] Erreur lors de l'initialisation:", error);
       toast({
@@ -378,23 +364,10 @@ const LeafletMeetRunMap = ({
     let validMarkersCount = 0;
     let invalidMarkersCount = 0;
 
-    // Add new markers for each session
-    sessions.forEach((session, index) => {
+    // FIXE: Mise à jour des marqueurs avec validation
+    validSessions.forEach((session, index) => {
       const lat = Number(session.location_lat);
       const lng = Number(session.location_lng);
-      
-      // CORRECTION: Validation stricte des coordonnées
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        console.warn(`[LeafletMap] Session ${session.id} - coordonnées invalides:`, { lat, lng });
-        invalidMarkersCount++;
-        return;
-      }
-
-      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        console.warn(`[LeafletMap] Session ${session.id} - coordonnées hors limites:`, { lat, lng });
-        invalidMarkersCount++;
-        return;
-      }
 
       const isPaid = isUserPaid(session.id);
       const isHost = isUserHost(session);

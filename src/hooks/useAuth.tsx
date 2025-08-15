@@ -111,45 +111,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      logger.debug("Starting logout process...");
+      console.debug("Starting logout process...");
 
+      // FIXE: Nettoyer les channels realtime proprement
       try {
-        // @ts-ignore
-        supabase.realtime.removeAllChannels?.();
-        // @ts-ignore
-        supabase.realtime.disconnect?.();
-      } catch {}
-
-      try { 
-        await supabase.auth.signOut({ scope: "local" }); 
-      } catch {}
-      
-      try { 
-        await supabase.auth.signOut({ scope: "global" }); 
-      } catch (e) { 
-        logger.warn("Global signOut error:", e); 
+        const channels = supabase.getChannels();
+        channels.forEach(channel => {
+          supabase.removeChannel(channel);
+        });
+      } catch (e) {
+        console.warn("Error removing channels:", e);
       }
 
+      // FIXE: Déconnexion propre
+      const { error } = await supabase.auth.signOut({ scope: "global" });
+      if (error) {
+        console.warn("Global signOut error:", error);
+      }
+
+      // Nettoyer le localStorage seulement après déconnexion
       try { 
         localStorage.clear(); 
         sessionStorage.clear(); 
-      } catch {}
+      } catch (e) {
+        console.warn("Storage clear error:", e);
+      }
 
-      try {
-        // @ts-ignore
-        if (indexedDB && typeof indexedDB.databases === "function") {
-          // @ts-ignore
-          const dbs = await indexedDB.databases();
-          for (const db of dbs) { 
-            if (db.name) indexedDB.deleteDatabase(db.name); 
-          }
-        }
-      } catch {}
+      // FIXE: Redirection propre
+      window.location.href = "/";
     } catch (error) {
-      logger.error("Critical logout error:", error);
+      console.error("Critical logout error:", error);
+      // Force logout même en cas d'erreur
+      window.location.href = "/";
     } finally {
       setLoading(false);
-      window.location.pathname = "/";
     }
   };
 

@@ -146,24 +146,34 @@ const CreateRun = () => {
       // Construction sécurisée de la date
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
       
+      // FIXE: Validation que selectedLocations existe
+      if (!selectedLocations.start) {
+        throw new Error("Le point de départ est obligatoire");
+      }
+
       // Construction du payload avec validation
       const payload = {
         host_id: user.id,
         title: formData.title.trim(),
-        date: sessionDateTime.toISOString(),
+        date: sessionDateTime.toISOString(), // Utilise 'date' pour la compatibilité
+        scheduled_at: sessionDateTime.toISOString(), // FIXE: Ajouter scheduled_at aussi
         distance_km: Number(formData.distance_km),
         intensity: formData.intensity,
-        type: formData.type,
+        type: formData.type, // Utilise 'type' pour la compatibilité
+        session_type: formData.type as 'mixed' | 'women_only' | 'men_only',
         max_participants: Number(formData.max_participants),
-        start_lat: Number(selectedLocations.start!.lat),
-        start_lng: Number(selectedLocations.start!.lng),
-        // CORRECTION: Toujours inclure les coordonnées d'arrivée (maintenant obligatoires)
-        end_lat: Number(selectedLocations.end!.lat),
-        end_lng: Number(selectedLocations.end!.lng),
+        min_participants: 2, // FIXE: Valeur par défaut
+        start_lat: Number(selectedLocations.start.lat),
+        start_lng: Number(selectedLocations.start.lng),
+        end_lat: selectedLocations.end ? Number(selectedLocations.end.lat) : null,
+        end_lng: selectedLocations.end ? Number(selectedLocations.end.lng) : null,
         area_hint: formData.area_hint.trim(),
-        blur_radius_m: 1000, // Rayon de flou par défaut
-        price_cents: 0, // Maintenant inclus dans l'abonnement
-        host_payout_cents: 0, // Plus de paiement direct
+        location_hint: formData.area_hint.trim(),
+        blur_radius_m: 1000,
+        price_cents: 0,
+        host_fee_cents: 0,
+        duration_minutes: 60, // FIXE: Valeur par défaut
+        status: 'published' as const
       };
 
       console.log("[sessions] Création avec payload:", payload);

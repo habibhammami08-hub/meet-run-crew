@@ -113,19 +113,10 @@ export const useGeolocation = (): UseGeolocationReturn => {
     );
   }, []);
 
-  // CORRECTION: Demander automatiquement la géolocalisation au premier rendu
+  // FIXE: Supprimer l'auto-request pour éviter les boucles infinites
   useEffect(() => {
     checkPermission();
-    
-    // Demander la géolocalisation automatiquement après un court délai
-    const timer = setTimeout(() => {
-      if (!hasAsked && !position) {
-        requestLocation();
-      }
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [checkPermission, requestLocation, hasAsked, position]);
+  }, [checkPermission]);
 
   return {
     position,

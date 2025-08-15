@@ -101,7 +101,7 @@ const Map = () => {
 
       console.log("[sessions] Récupération des sessions...");
 
-      // CORRECTION: Requête simplifiée et validation des coordonnées
+      // FIXE: Requête simplifiée avec gestion d'erreurs
       const { data, error } = await supabase
         .from("sessions")
         .select(`
@@ -109,8 +109,9 @@ const Map = () => {
           host_profile:profiles!host_id(id, full_name, avatar_url),
           enrollments(id, user_id, status)
         `)
-        .gte('date', new Date().toISOString())
-        .order('date', { ascending: true });
+        .eq('status', 'published') // FIXE: Filtrer seulement les sessions publiées
+        .gte('scheduled_at', new Date().toISOString()) // FIXE: Utiliser scheduled_at
+        .order('scheduled_at', { ascending: true }); // FIXE: Ordonner par scheduled_at
 
       if (error) {
         throw new Error(`Erreur récupération sessions: ${error.message}`);
@@ -329,8 +330,8 @@ const Map = () => {
               sessions={filteredSessions.map(session => ({
                 id: session.id,
                 title: session.title,
-                date: session.date,
-                // CORRECTION: Utiliser start_lat/start_lng depuis la base de données
+                date: session.scheduled_at,
+                // FIXE: Utiliser start_lat/start_lng depuis la base de données
                 location_lat: Number(session.start_lat),
                 location_lng: Number(session.start_lng),
                 end_lat: session.end_lat ? Number(session.end_lat) : null,
