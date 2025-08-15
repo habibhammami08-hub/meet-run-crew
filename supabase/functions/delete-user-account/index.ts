@@ -121,14 +121,44 @@ serve(async (req) => {
       console.log('[delete-user-account] Profil supprimé')
     }
 
-    // 6. Supprimer le compte d'authentification (avec la clé service)
+    // 6. Supprimer d'abord les logs d'audit qui référencent l'utilisateur
+    console.log('[delete-user-account] Suppression des logs d\'audit...')
+    const { error: auditError } = await supabaseAdmin
+      .from('audit_log')
+      .delete()
+      .eq('user_id', user.id)
+
+    if (auditError) {
+      console.error('Erreur suppression audit_log:', auditError)
+    } else {
+      console.log('[delete-user-account] Logs d\'audit supprimés')
+    }
+
+    // 7. Supprimer le compte d'authentification (avec la clé service)
     console.log('[delete-user-account] Suppression du compte auth...')
     const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     if (deleteUserError) {
       console.error('Erreur suppression compte auth:', deleteUserError)
-      // Ne pas lever d'erreur car les données sont déjà supprimées
-      // L'utilisateur sera déconnecté côté client
+      
+      // Tentative de suppression forcée via SQL direct si possible
+      try {
+        console.log('[delete-user-account] Tentative de suppression forcée...')
+        const { error: sqlDeleteError } = await supabaseAdmin
+          .from('auth.users')
+          .delete()
+          .eq('id', user.id)
+        
+        if (sqlDeleteError) {
+          console.error('Erreur suppression SQL forcée:', sqlDeleteError)
+          throw new Error(`Impossible de supprimer le compte auth: ${deleteUserError.message}`)
+        } else {
+          console.log('[delete-user-account] Suppression forcée réussie')
+        }
+      } catch (forcedDeleteError) {
+        console.error('Suppression forcée échouée:', forcedDeleteError)
+        throw new Error(`Suppression auth impossible: ${deleteUserError.message}`)
+      }
     } else {
       console.log('[delete-user-account] Compte auth supprimé')
     }
