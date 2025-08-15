@@ -61,9 +61,13 @@ serve(async (req) => {
     
     for (const table of tables) {
       try {
-        const deleteResult = await admin.from(table === 'sessions_owned' ? 'sessions' : table === 'runs_owned' ? 'runs' : table)
+        const actualTable = table === 'sessions_owned' ? 'sessions' : table === 'runs_owned' ? 'runs' : table;
+        const column = table === 'sessions_owned' || table === 'runs_owned' ? 'host_id' : 
+                      table === 'profiles' ? 'id' : 'user_id';
+        
+        const deleteResult = await admin.from(actualTable)
           .delete()
-          .eq(table === 'sessions_owned' || table === 'runs_owned' ? 'host_id' : 'user_id', uid);
+          .eq(column, uid);
         
         const count = deleteResult.count || 0;
         console.log(`[delete-account] ${table}: ${count} enregistrement(s) supprimé(s)`);
