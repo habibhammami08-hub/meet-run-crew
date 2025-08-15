@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -171,5 +174,61 @@ All colors MUST be HSL.
 
   .animate-pulse-sport {
     animation: pulse-sport 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* CORRECTION: Styles spécifiques pour Leaflet */
+  .leaflet-container {
+    height: 100%;
+    width: 100%;
+    background: #f8f9fa;
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .leaflet-popup-content {
+    margin: 8px 12px;
+    font-family: inherit;
+  }
+
+  .leaflet-control-zoom a {
+    background-color: white;
+    color: #333;
+    border: 1px solid #ccc;
+  }
+
+  .leaflet-control-zoom a:hover {
+    background-color: #f4f4f4;
+  }
+
+  /* Corrections pour les marqueurs personnalisés */
+  .custom-marker,
+  .custom-cluster-icon,
+  .user-location-marker,
+  .session-start-marker,
+  .session-end-marker {
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Styles pour les popups de clusters */
+  .cluster-popup {
+    max-width: 300px;
+  }
+
+  .cluster-popup ul {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .cluster-popup .btn-open-session {
+    transition: all 0.2s ease;
+  }
+
+  .cluster-popup .btn-open-session:hover {
+    background-color: #047857 !important;
+    transform: translateY(-1px);
   }
 }
