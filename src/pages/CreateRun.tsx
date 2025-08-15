@@ -155,8 +155,8 @@ const CreateRun = () => {
         intensity: formData.intensity,
         type: formData.type,
         max_participants: Number(formData.max_participants),
-        location_lat: Number(selectedLocations.start!.lat),
-        location_lng: Number(selectedLocations.start!.lng),
+        start_lat: Number(selectedLocations.start!.lat),
+        start_lng: Number(selectedLocations.start!.lng),
         // CORRECTION: Toujours inclure les coordonnées d'arrivée (maintenant obligatoires)
         end_lat: Number(selectedLocations.end!.lat),
         end_lng: Number(selectedLocations.end!.lng),
