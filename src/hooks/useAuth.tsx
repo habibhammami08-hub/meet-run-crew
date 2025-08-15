@@ -79,8 +79,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Fonction pour s'assurer qu'un profil existe
+  // Fonction pour s'assurer qu'un profil existe (plus nécessaire - trigger DB le fait)
   const ensureProfile = useCallback(async (user: User) => {
+    // Cette fonction est maintenant obsolète car le trigger DB crée automatiquement le profil
+    // Mais on garde la fonction pour éviter les erreurs et on log juste si le profil existe
     try {
       const { data: existingProfile } = await supabase
         .from('profiles')
@@ -88,23 +90,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .eq('id', user.id)
         .maybeSingle();
 
-      if (!existingProfile) {
-        // Créer le profil s'il n'existe pas
-        const { error } = await supabase
-          .from('profiles')
-          .upsert({
-            id: user.id,
-            email: user.email || '',
-            full_name: user.user_metadata?.full_name || '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'id' });
-
-        if (error) {
-          console.error("Erreur création profil:", error);
-        } else {
-          console.log("[auth] Profil créé pour l'utilisateur");
-        }
+      if (existingProfile) {
+        console.log("[auth] Profil existant trouvé pour:", user.id);
+      } else {
+        console.warn("[auth] Profil manquant pour:", user.id, "- devrait être créé par le trigger DB");
       }
     } catch (error) {
       console.error("Erreur vérification profil:", error);
