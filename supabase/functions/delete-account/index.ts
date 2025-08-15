@@ -61,9 +61,12 @@ serve(async (req) => {
     
     for (const table of tables) {
       try {
-        const deleteResult = await admin.from(table === 'sessions_owned' ? 'sessions' : table === 'runs_owned' ? 'runs' : table)
+        const tableName = table === 'sessions_owned' ? 'sessions' : table === 'runs_owned' ? 'runs' : table;
+        const columnName = table === 'sessions_owned' || table === 'runs_owned' ? 'host_id' : (table === 'profiles' ? 'id' : 'user_id');
+        const deleteResult = await admin
+          .from(tableName)
           .delete()
-          .eq(table === 'sessions_owned' || table === 'runs_owned' ? 'host_id' : 'user_id', uid);
+          .eq(columnName, uid);
         
         const count = deleteResult.count || 0;
         console.log(`[delete-account] ${table}: ${count} enregistrement(s) supprimé(s)`);
@@ -93,7 +96,7 @@ serve(async (req) => {
       console.warn("[delete-account] storage cleanup warning:", e);
     }
 
-    // 7) Suppression Auth en dernier
+        // 7) Suppression Auth en dernier
     console.log("[delete-account] Suppression auth user avec admin.deleteUser...");
     try {
       const { error: delErr } = await admin.auth.admin.deleteUser(uid);
@@ -104,6 +107,22 @@ serve(async (req) => {
     } catch (e) {
       console.error("[delete-account] Exception lors de deleteUser:", e);
       return json({ ok: false, error: `Exception during auth deletion: ${e.message}` }, 500);
+    }
+
+    // Option: Ajouter l'email à une blocklist temporaire pour empêcher la reconnexion immédiate
+    try {
+      const userEmail = userData.user.email?.toLowerCase();
+      if (userEmail) {
+        const blockedUntil = new Date(Date.now() + 1000 * 60 * 10).toISOString(); // 10 minutes
+        const { error: blockErr } = await admin
+          .from('deletion_blocklist')
+          .upsert({ email_hash: userEmail, blocked_until: blockedUntil }, { onConflict: 'email_hash' });
+        if (blockErr) {
+          console.warn('[delete-account] Blocklist upsert warning:', blockErr);
+        }
+      }
+    } catch (e) {
+      console.warn('[delete-account] Blocklist upsert exception:', e);
     }
 
     console.log("[delete-account] Successfully deleted user:", uid);
