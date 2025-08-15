@@ -18,6 +18,11 @@ serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
+    console.log("[delete-account] Configuration:", {
+      SUPABASE_URL,
+      hasServiceRole: !!SUPABASE_SERVICE_ROLE_KEY
+    });
+    
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error("[delete-account] Missing env", { 
         hasUrl: !!SUPABASE_URL, 
@@ -48,11 +53,27 @@ serve(async (req) => {
     const uid = userData.user.id;
     console.log("[delete-account] Deleting user:", uid);
 
-    // 5) Suppression données app (on delete cascade recommandé via profiles(id))
-    const { error: profileDeleteError } = await admin.from("profiles").delete().eq("id", uid);
-    if (profileDeleteError) {
-      console.error("[delete-account] Profile deletion error:", profileDeleteError);
-      return json({ ok: false, error: `Failed to delete profile: ${profileDeleteError.message}` }, 500);
+    // 5) Suppression données app manuelle avec logging détaillé
+    console.log("[delete-account] Début suppression:", { userId: uid, email: userData.user.email });
+    
+    // Suppression dans l'ordre inverse des FK pour éviter les contraintes
+    const tables = ['audit_log', 'enrollments', 'registrations', 'sessions_owned', 'runs_owned', 'subscribers', 'profiles'];
+    
+    for (const table of tables) {
+      try {
+        const deleteResult = await admin.from(table === 'sessions_owned' ? 'sessions' : table === 'runs_owned' ? 'runs' : table)
+          .delete()
+          .eq(table === 'sessions_owned' || table === 'runs_owned' ? 'host_id' : 'user_id', uid);
+        
+        const count = deleteResult.count || 0;
+        console.log(`[delete-account] ${table}: ${count} enregistrement(s) supprimé(s)`);
+        
+        if (deleteResult.error) {
+          console.error(`[delete-account] Erreur lors de la suppression: ${deleteResult.error.message}`);
+        }
+      } catch (e) {
+        console.error(`[delete-account] Erreur suppression ${table}:`, e);
+      }
     }
 
     // 6) (Optionnel) Nettoyage Storage
@@ -73,10 +94,16 @@ serve(async (req) => {
     }
 
     // 7) Suppression Auth en dernier
-    const { error: delErr } = await admin.auth.admin.deleteUser(uid);
-    if (delErr) {
-      console.error("[delete-account] Auth deletion error:", delErr);
-      return json({ ok: false, error: `Failed to delete auth user: ${delErr.message}` }, 500);
+    console.log("[delete-account] Suppression auth user avec admin.deleteUser...");
+    try {
+      const { error: delErr } = await admin.auth.admin.deleteUser(uid);
+      if (delErr) {
+        console.error("[delete-account] Erreur suppression auth:", delErr);
+        return json({ ok: false, error: `Failed to delete auth user: ${delErr.message}` }, 500);
+      }
+    } catch (e) {
+      console.error("[delete-account] Exception lors de deleteUser:", e);
+      return json({ ok: false, error: `Exception during auth deletion: ${e.message}` }, 500);
     }
 
     console.log("[delete-account] Successfully deleted user:", uid);

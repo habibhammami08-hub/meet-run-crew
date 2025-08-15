@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/utils/logger";
 
 /** Supprime le compte (Edge Function) + déconnecte proprement le client */
 export async function deleteAccountAndSignOut(): Promise<boolean> {
@@ -7,18 +8,24 @@ export async function deleteAccountAndSignOut(): Promise<boolean> {
     const accessToken = sessionData?.session?.access_token;
 
     if (accessToken) {
-      const { error } = await supabase.functions.invoke("delete-account", {
+      logger.info("[account-deletion] Appel Edge Function delete-account...");
+      const { data, error } = await supabase.functions.invoke("delete-account", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
+      
+      logger.info("[account-deletion] Réponse de la fonction:", { data, error });
+      
       if (error) {
-        console.warn("[account-deletion] Function erreur (on continue le nettoyage local):", error);
+        logger.warn("[account-deletion] Function erreur (on continue le nettoyage local):", error);
+      } else if (data?.ok) {
+        logger.info("[account-deletion] Suppression côté serveur réussie");
       }
     } else {
-      console.warn("[account-deletion] Pas d'access token; on nettoie localement.");
+      logger.warn("[account-deletion] Pas d'access token; on nettoie localement.");
     }
   } catch (e) {
-    console.warn("[account-deletion] Erreur appel function (on continue local):", e);
+    logger.warn("[account-deletion] Erreur appel function (on continue local):", e);
   }
 
   // Nettoyage client (évite "toujours connecté")
