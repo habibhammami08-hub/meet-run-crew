@@ -18,6 +18,7 @@ const Auth = () => {
   const { toast } = useToast();
   
   const returnTo = searchParams.get('returnTo') || '/map';
+  const mode = searchParams.get('mode') || 'signin';
 
   // Redirect authenticated users
   useEffect(() => {
@@ -114,7 +115,7 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         
-        <Tabs defaultValue="signin" className="w-full">
+        <Tabs defaultValue={mode} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mx-6">
             <TabsTrigger value="signin">Connexion</TabsTrigger>
             <TabsTrigger value="signup">Inscription</TabsTrigger>

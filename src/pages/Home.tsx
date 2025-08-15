@@ -136,7 +136,7 @@ const Home = () => {
                 <Button variant="ghost" onClick={() => navigate("/auth")} className="text-primary font-semibold">
                   Se connecter
                 </Button>
-                <Button variant="sport" onClick={() => navigate("/auth")}>
+                <Button variant="sport" onClick={() => navigate("/auth?mode=signup")}>
                   S'inscrire
                 </Button>
               </div>
