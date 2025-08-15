@@ -17,10 +17,11 @@ export interface UseGeolocationReturn {
   hasAsked: boolean;
 }
 
-const WELLINGTON_COORDS = {
-  latitude: -41.28664,
-  longitude: 174.77557,
-  accuracy: 1000
+// CORRECTION: Par défaut sur Marseille au lieu de Wellington
+const DEFAULT_COORDS = {
+  latitude: 43.2965, // Marseille
+  longitude: 5.3698,
+  accuracy: 10000 // Précision faible pour indiquer que c'est une position par défaut
 };
 
 export const useGeolocation = (): UseGeolocationReturn => {
@@ -46,11 +47,11 @@ export const useGeolocation = (): UseGeolocationReturn => {
     }
   }, []);
 
-  // Request geolocation
+  // CORRECTION: Request geolocation automatiquement au démarrage
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
       setError('La géolocalisation n\'est pas supportée par ce navigateur');
-      setPosition(WELLINGTON_COORDS);
+      setPosition(DEFAULT_COORDS);
       setPermission('denied');
       return;
     }
@@ -58,6 +59,12 @@ export const useGeolocation = (): UseGeolocationReturn => {
     setIsLoading(true);
     setError(null);
     setHasAsked(true);
+
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 15000, // Timeout plus long
+      maximumAge: 300000 // Cache 5 minutes
+    };
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -67,6 +74,7 @@ export const useGeolocation = (): UseGeolocationReturn => {
           accuracy: pos.coords.accuracy
         };
         
+        console.log('[geolocation] Position obtenue:', newPosition);
         setPosition(newPosition);
         setPermission('granted');
         setIsLoading(false);
@@ -77,7 +85,7 @@ export const useGeolocation = (): UseGeolocationReturn => {
         
         switch (err.code) {
           case err.PERMISSION_DENIED:
-            errorMessage = 'Géolocalisation refusée';
+            errorMessage = 'Géolocalisation refusée par l\'utilisateur';
             setPermission('denied');
             break;
           case err.POSITION_UNAVAILABLE:
@@ -94,21 +102,30 @@ export const useGeolocation = (): UseGeolocationReturn => {
             break;
         }
         
+        console.log('[geolocation] Erreur:', errorMessage);
         setError(errorMessage);
         setIsLoading(false);
-        // Don't set fallback position here - let the component handle it
+        
+        // CORRECTION: Utiliser la position par défaut en cas d'erreur
+        setPosition(DEFAULT_COORDS);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 60000
-      }
+      options
     );
   }, []);
 
+  // CORRECTION: Demander automatiquement la géolocalisation au premier rendu
   useEffect(() => {
     checkPermission();
-  }, [checkPermission]);
+    
+    // Demander la géolocalisation automatiquement après un court délai
+    const timer = setTimeout(() => {
+      if (!hasAsked && !position) {
+        requestLocation();
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [checkPermission, requestLocation, hasAsked, position]);
 
   return {
     position,
