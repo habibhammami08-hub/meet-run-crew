@@ -116,16 +116,26 @@ serve(async (req) => {
     console.log(`[delete-account] Storage: ${filesDeleted} fichier(s) supprimé(s)`);
 
     // --- Ajouter à la blocklist pour empêcher reconnexion immédiate ---
+    console.log("[delete-account] Tentative d'ajout à la blocklist pour:", userEmail);
     if (userEmail) {
       try {
         const blockUntil = new Date();
         blockUntil.setDate(blockUntil.getDate() + 7); // Bloquer 7 jours
         
-        await admin.from("deletion_blocklist").upsert({
-          email_hash: await hashEmail(userEmail),
+        const emailHash = await hashEmail(userEmail);
+        console.log("[delete-account] Hash généré:", emailHash);
+        
+        const { data: insertData, error: insertError } = await admin.from("deletion_blocklist").upsert({
+          email_hash: emailHash,
           blocked_until: blockUntil.toISOString(),
           original_user_id: userId
         });
+        
+        if (insertError) {
+          console.error("[delete-account] Erreur insertion blocklist:", insertError);
+        } else {
+          console.log("[delete-account] Email ajouté à la blocklist avec succès:", insertData);
+        }
         
         console.log("[delete-account] Email ajouté à la blocklist jusqu'au:", blockUntil.toISOString());
       } catch (e) {
