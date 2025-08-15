@@ -187,6 +187,15 @@ const Home = () => {
           Comment ça marche ?
         </h2>
         
+        {/* Illustration */}
+        <div className="flex justify-center mb-8">
+          <img 
+            src="/lovable-uploads/f23c1644-b0c6-4ee6-b07e-b1c880babf77.png" 
+            alt="Groupe de runners courant ensemble" 
+            className="w-full max-w-md h-auto rounded-lg shadow-card"
+          />
+        </div>
+        
         <div className="space-y-6 mb-8">
           <Card className="shadow-card">
             <CardContent className="p-6">
