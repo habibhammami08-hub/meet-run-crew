@@ -8,8 +8,8 @@ export async function deleteAccountAndSignOut(): Promise<boolean> {
     const accessToken = sessionData?.session?.access_token;
 
     if (accessToken) {
-      logger.info("[account-deletion] Appel Edge Function delete-account...");
-      const { data, error } = await supabase.functions.invoke("delete-account", {
+      logger.info("[account-deletion] Appel Edge Function Delete-Acount2...");
+      const { data, error } = await supabase.functions.invoke("Delete-Acount2", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
