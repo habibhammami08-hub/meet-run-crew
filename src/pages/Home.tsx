@@ -272,41 +272,6 @@ const Home = () => {
         </div>
       )}
 
-      {/* Map Section */}
-      <div className="p-6 pt-0">
-        <Card className="shadow-card">
-          <CardContent className="p-0">
-            <div className="h-[400px] w-full relative rounded-lg overflow-hidden">
-              <iframe
-                src="/map"
-                className="w-full h-full border-0"
-                title="Carte des sessions MeetRun"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-                  <h3 className="font-semibold text-sport-black mb-2">
-                    Découvrez les sessions près de chez vous
-                  </h3>
-                  <p className="text-sm text-sport-gray mb-3">
-                    Explorez toutes les sessions de running disponibles sur la carte interactive
-                  </p>
-                  <Button 
-                    variant="sport" 
-                    size="sm"
-                    onClick={() => navigate("/map")}
-                    className="w-full"
-                  >
-                    Voir la carte complète
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Activity Section */}
       {user && (
         <div className="p-6 pt-0">
