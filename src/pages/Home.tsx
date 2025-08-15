@@ -132,9 +132,14 @@ const Home = () => {
                 </Button>
               </>
             ) : (
-              <Button variant="sport" onClick={() => navigate("/auth")}>
-                Se connecter
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => navigate("/auth")} className="text-primary font-semibold">
+                  Se connecter
+                </Button>
+                <Button variant="sport" onClick={() => navigate("/auth")}>
+                  S'inscrire
+                </Button>
+              </div>
             )}
           </div>
         </div>
