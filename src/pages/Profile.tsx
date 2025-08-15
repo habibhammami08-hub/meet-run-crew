@@ -362,7 +362,7 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Suppression de compte corrigée avec Edge Function
+  // Version finale avec triple fallback pour la suppression de compte
   const handleDeleteAccount = async () => {
     if (!user) return;
     
@@ -379,86 +379,182 @@ const Profile = () => {
       
       console.log("[account-deletion] Début de la suppression pour l'utilisateur:", user.id);
       
-      // NOUVEAU: Appel à une Edge Function qui gère la suppression complète
-      const { data, error: functionError } = await supabase.functions.invoke('delete-user-account', {
-        headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-      });
-
-      if (functionError) {
-        console.error("[account-deletion] Erreur Edge Function:", functionError);
+      // ÉTAPE 1: Vérifier si la suppression est possible
+      try {
+        const { data: canDeleteData } = await supabase.rpc('can_delete_user_account');
         
-        // FALLBACK: Si l'Edge Function n'existe pas, suppression manuelle des données
-        console.log("[account-deletion] Fallback: suppression manuelle des données");
+        if (canDeleteData && !canDeleteData.can_delete) {
+          const warnings = canDeleteData.warnings || [];
+          const warningMessage = warnings.length > 0 ? warnings.join(', ') : 'Suppression non autorisée';
+          
+          toast({
+            title: "Suppression impossible",
+            description: `${warningMessage}. Veuillez d'abord annuler vos sessions futures ou attendre 24h après vos dernières inscriptions.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (checkError) {
+        console.warn("[account-deletion] Impossible de vérifier les prérequis:", checkError);
+        // Continuer quand même si la vérification échoue
+      }
+      
+      // ÉTAPE 2: Essayer l'Edge Function (méthode préférée)
+      try {
+        console.log("[account-deletion] Tentative avec Edge Function...");
         
-        // 1. Supprimer les inscriptions
-        const { error: enrollmentsError } = await supabase
-          .from('enrollments')
-          .delete()
-          .eq('user_id', user.id);
+        const { data, error: functionError } = await supabase.functions.invoke('delete-user-account', {
+          headers: {
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+        });
 
-        if (enrollmentsError) {
-          console.error("Erreur suppression enrollments:", enrollmentsError);
+        if (functionError) {
+          throw functionError;
         }
 
-        // 2. Supprimer les sessions créées
-        const { error: sessionsError } = await supabase
-          .from('sessions')
-          .delete()
-          .eq('host_id', user.id);
+        console.log("[account-deletion] Edge Function réussie:", data);
+        
+        // Déconnexion et redirection
+        await supabase.auth.signOut();
+        
+        toast({
+          title: "Compte supprimé",
+          description: "Votre compte et toutes vos données ont été supprimés avec succès.",
+        });
+        
+        navigate("/");
+        return;
 
-        if (sessionsError) {
-          console.error("Erreur suppression sessions:", sessionsError);
-        }
+      } catch (edgeFunctionError) {
+        console.warn("[account-deletion] Edge Function échouée:", edgeFunctionError);
+        
+        // ÉTAPE 3: Fallback avec fonction SQL
+        try {
+          console.log("[account-deletion] Tentative avec fonction SQL...");
+          
+          const { data: sqlResult, error: sqlError } = await supabase.rpc('delete_user_data');
+          
+          if (sqlError) {
+            throw sqlError;
+          }
 
-        // 3. Supprimer l'avatar du storage
-        if (profile?.avatar_url) {
-          const fileName = profile.avatar_url.split('/').pop();
-          if (fileName) {
-            const { error: storageError } = await supabase.storage
-              .from('avatars')
-              .remove([`${user.id}/${fileName}`]);
+          if (sqlResult && sqlResult.success) {
+            console.log("[account-deletion] Fonction SQL réussie:", sqlResult);
             
-            if (storageError) {
-              console.error("Erreur suppression avatar:", storageError);
+            // Déconnexion forcée
+            await supabase.auth.signOut();
+            
+            toast({
+              title: "Compte supprimé",
+              description: "Vos données ont été supprimées. Le compte d'authentification pourrait nécessiter une suppression manuelle.",
+            });
+            
+            navigate("/");
+            return;
+          } else {
+            throw new Error(sqlResult?.error || "Échec de la fonction SQL");
+          }
+
+        } catch (sqlError) {
+          console.error("[account-deletion] Fonction SQL échouée:", sqlError);
+          
+          // ÉTAPE 4: Fallback manuel (dernier recours)
+          console.log("[account-deletion] Tentative de suppression manuelle...");
+          
+          let manualErrors = [];
+          
+          // Supprimer les inscriptions
+          try {
+            const { error: enrollmentsError } = await supabase
+              .from('enrollments')
+              .delete()
+              .eq('user_id', user.id);
+            
+            if (enrollmentsError) {
+              manualErrors.push(`Enrollments: ${enrollmentsError.message}`);
+            }
+          } catch (err) {
+            manualErrors.push(`Enrollments: ${err.message}`);
+          }
+
+          // Supprimer les sessions créées
+          try {
+            const { error: sessionsError } = await supabase
+              .from('sessions')
+              .delete()
+              .eq('host_id', user.id);
+            
+            if (sessionsError) {
+              manualErrors.push(`Sessions: ${sessionsError.message}`);
+            }
+          } catch (err) {
+            manualErrors.push(`Sessions: ${err.message}`);
+          }
+
+          // Supprimer l'avatar du storage
+          if (profile?.avatar_url) {
+            try {
+              const fileName = profile.avatar_url.split('/').pop();
+              if (fileName) {
+                const { error: storageError } = await supabase.storage
+                  .from('avatars')
+                  .remove([`${user.id}/${fileName}`]);
+                
+                if (storageError) {
+                  manualErrors.push(`Avatar: ${storageError.message}`);
+                }
+              }
+            } catch (err) {
+              manualErrors.push(`Avatar: ${err.message}`);
             }
           }
+
+          // Supprimer le profil
+          try {
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .delete()
+              .eq('id', user.id);
+
+            if (profileError) {
+              manualErrors.push(`Profil: ${profileError.message}`);
+              throw new Error("Impossible de supprimer le profil: " + profileError.message);
+            }
+          } catch (err) {
+            manualErrors.push(`Profil: ${err.message}`);
+            throw err;
+          }
+
+          // Si on arrive ici, la suppression manuelle a réussi (au moins partiellement)
+          console.log("[account-deletion] Suppression manuelle terminée avec erreurs:", manualErrors);
+          
+          // Déconnexion forcée
+          await supabase.auth.signOut();
+          
+          if (manualErrors.length > 0) {
+            toast({
+              title: "Compte partiellement supprimé",
+              description: `Vos données principales ont été supprimées. Erreurs: ${manualErrors.slice(0, 2).join(', ')}. Contactez le support si nécessaire.`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Compte supprimé",
+              description: "Vos données ont été supprimées manuellement. Le compte d'authentification pourrait nécessiter une suppression manuelle.",
+            });
+          }
+          
+          navigate("/");
+          return;
         }
-
-        // 4. Supprimer le profil
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('id', user.id);
-
-        if (profileError) {
-          console.error("Erreur suppression profil:", profileError);
-          throw new Error("Impossible de supprimer le profil: " + profileError.message);
-        }
-
-        console.log("[account-deletion] Données utilisateur supprimées manuellement");
-      } else {
-        console.log("[account-deletion] Edge Function exécutée avec succès:", data);
       }
-
-      // 5. Déconnexion forcée (dans tous les cas)
-      console.log("[account-deletion] Déconnexion forcée");
-      await supabase.auth.signOut();
-      
-      toast({
-        title: "Compte supprimé",
-        description: "Votre compte et toutes vos données ont été supprimés avec succès.",
-      });
-      
-      // 6. Redirection vers l'accueil
-      navigate("/");
-      
+        
     } catch (error: any) {
       console.error("[account-deletion] Erreur complète:", error);
       toast({ 
         title: "Erreur de suppression", 
-        description: `Impossible de supprimer complètement le compte: ${error.message}. Contactez le support si le problème persiste.`,
+        description: `Impossible de supprimer le compte: ${error.message}. Veuillez contacter le support.`,
         variant: "destructive" 
       });
     } finally {
@@ -795,8 +891,6 @@ const Profile = () => {
           </Button>
         </div>
 
-        {/* Account Deletion Section */}
-        <AccountDeletionComponent />
       </div>
     </div>
   );
