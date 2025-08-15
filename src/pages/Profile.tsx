@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
-import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera } from "lucide-react";
+import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
@@ -44,10 +44,37 @@ const Profile = () => {
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (!error && data) {
       setProfile(data);
+    } else if (!data) {
+      // CORRECTION: Créer le profil s'il n'existe pas
+      await createDefaultProfile();
+    }
+  };
+
+  const createDefaultProfile = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error("Erreur création profil par défaut:", error);
     }
   };
 
@@ -60,12 +87,12 @@ const Profile = () => {
       .select('*', { count: 'exact', head: true })
       .eq('host_id', user.id);
 
-    // Sessions rejointes (payées)
+    // Sessions rejointes (payées ou via abonnement)
     const { count: joined } = await supabase
       .from('enrollments')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('status', 'paid');
+      .in('status', ['paid', 'included_by_subscription']);
 
     // Total km (approximatif basé sur les sessions rejointes)
     const { data: sessionsData } = await supabase
@@ -74,7 +101,7 @@ const Profile = () => {
         sessions(distance_km)
       `)
       .eq('user_id', user.id)
-      .eq('status', 'paid');
+      .in('status', ['paid', 'included_by_subscription']);
 
     const totalKm = sessionsData?.reduce((sum, enrollment: any) => {
       return sum + (enrollment.sessions?.distance_km || 0);
@@ -135,88 +162,137 @@ const Profile = () => {
     setUserActivity(activities);
   };
 
+  // CORRECTION: Fonction updateProfile améliorée avec gestion d'erreur robuste
   const updateProfile = async (values: any) => {
-    const { data: auth } = await supabase.auth.getUser();
-    const me = auth?.user;
-    if (!me) { 
+    if (!user) {
       toast({ 
         title: "Erreur", 
-        description: "Connecte-toi pour enregistrer.", 
+        description: "Vous devez être connecté pour modifier votre profil.", 
         variant: "destructive" 
       }); 
       return; 
     }
 
-    const payload = {
-      id: me.id,                              // CRUCIAL pour onConflict:'id'
-      full_name: (values.full_name ?? "").toString().slice(0,120) || null,
-      avatar_url: values.avatar_url ?? null,
-      phone: (values.phone ?? "").trim() || null,
-      age: values.age ? Number(values.age) : null,
-      gender: values.gender ?? null,
-    };
+    setLoading(true);
 
-    console.log("[profile] upsert payload:", payload);
-    const { data, error } = await supabase
-      .from("profiles")
-      .upsert(payload, { onConflict: "id" })
-      .select()
-      .single();
-    console.log("[profile] upsert result:", { data, error });
+    try {
+      const payload = {
+        id: user.id,
+        email: user.email || '',
+        full_name: (values.full_name ?? "").toString().trim() || null,
+        phone: (values.phone ?? "").toString().trim() || null,
+        age: values.age ? Number(values.age) : null,
+        gender: values.gender || null,
+        updated_at: new Date().toISOString()
+      };
 
-    if (error) { 
+      console.log("[profile] Mise à jour avec payload:", payload);
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .upsert(payload, { onConflict: "id" })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[profile] Erreur upsert:", error);
+        throw new Error(error.message);
+      }
+
+      setProfile(data);
+      setIsEditing(false);
+      
+      toast({
+        title: "Profil mis à jour !",
+        description: "Vos informations ont été sauvegardées.",
+      });
+    } catch (error: any) {
+      console.error("[profile] Erreur complète:", error);
       toast({ 
-        title: "Erreur", 
-        description: "Profil non enregistré.", 
+        title: "Erreur de sauvegarde", 
+        description: error.message || "Impossible de sauvegarder le profil",
         variant: "destructive" 
-      }); 
-      return; 
+      });
+    } finally {
+      setLoading(false);
     }
-    setProfile(data);
-    setIsEditing(false);
-    toast({
-      title: "Profil mis à jour !",
-      description: "Vos informations ont été sauvegardées.",
-    });
   };
 
+  // CORRECTION: Upload d'avatar entièrement revu
   const uploadAvatar = async (file: File) => {
     if (!user) return;
     
     setUploadingAvatar(true);
     try {
-      const fileExt = file.name.split('.').pop();
+      // Validation du fichier
+      if (!file.type.startsWith('image/')) {
+        throw new Error("Le fichier doit être une image");
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("La taille maximum est de 5MB");
+      }
+
+      // Nom unique pour éviter les conflits
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      // Upload vers bucket avatars
+      console.log("[avatar] Upload fichier:", fileName);
+
+      // Supprimer l'ancien avatar s'il existe
+      if (profile?.avatar_url) {
+        const oldPath = profile.avatar_url.split('/').pop();
+        if (oldPath) {
+          await supabase.storage
+            .from('avatars')
+            .remove([`${user.id}/${oldPath}`]);
+        }
+      }
+
+      // Upload du nouveau fichier
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, { 
+          cacheControl: '3600',
+          upsert: true 
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("[avatar] Erreur upload:", uploadError);
+        throw new Error(`Erreur upload: ${uploadError.message}`);
+      }
 
-      // URL publique
+      // Récupération de l'URL publique
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName);
 
-      // Mise à jour profil avec upsert
-      const { error: updateError } = await supabase
+      console.log("[avatar] URL publique:", publicUrl);
+
+      // Mise à jour du profil avec la nouvelle URL
+      const { data, error: updateError } = await supabase
         .from('profiles')
         .upsert({ 
           id: user.id, 
-          avatar_url: publicUrl 
-        }, { onConflict: 'id' });
+          avatar_url: publicUrl,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("[avatar] Erreur mise à jour profil:", updateError);
+        throw new Error(`Erreur mise à jour: ${updateError.message}`);
+      }
 
-      setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
+      setProfile(data);
       
       toast({
         title: "Avatar mis à jour",
         description: "Votre photo de profil a été mise à jour.",
       });
     } catch (error: any) {
+      console.error("[avatar] Erreur complète:", error);
       toast({
         title: "Erreur d'upload",
         description: error.message,
@@ -230,28 +306,10 @@ const Profile = () => {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Type de fichier invalide",
-          description: "Veuillez sélectionner une image.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "Fichier trop volumineux",
-          description: "La taille maximum est de 5MB.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
       uploadAvatar(file);
     }
+    // Reset input pour permettre re-sélection du même fichier
+    event.target.value = '';
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -266,7 +324,8 @@ const Profile = () => {
       const { error } = await supabase
         .from('sessions')
         .delete()
-        .eq('id', sessionId);
+        .eq('id', sessionId)
+        .eq('host_id', user.id); // Sécurité supplémentaire
 
       if (error) throw error;
 
@@ -286,6 +345,98 @@ const Profile = () => {
       });
     } finally {
       setDeletingSessionId(null);
+    }
+  };
+
+  // CORRECTION: Déconnexion améliorée
+  const handleSignOut = async () => {
+    try {
+      setLoading(true);
+      await signOut();
+      // La redirection est gérée par le hook useAuth
+    } catch (error: any) {
+      toast({
+        title: "Erreur de déconnexion",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // CORRECTION: Suppression de compte complète
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    const confirmation = prompt(
+      "Cette action est irréversible. Tapez 'SUPPRIMER' pour confirmer la suppression de votre compte :"
+    );
+    
+    if (confirmation !== 'SUPPRIMER') {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Supprimer les données utilisateur en cascade
+      // 1. Supprimer les inscriptions
+      await supabase
+        .from('enrollments')
+        .delete()
+        .eq('user_id', user.id);
+
+      // 2. Supprimer les sessions créées
+      await supabase
+        .from('sessions')
+        .delete()
+        .eq('host_id', user.id);
+
+      // 3. Supprimer l'avatar du storage
+      if (profile?.avatar_url) {
+        const fileName = profile.avatar_url.split('/').pop();
+        if (fileName) {
+          await supabase.storage
+            .from('avatars')
+            .remove([`${user.id}/${fileName}`]);
+        }
+      }
+
+      // 4. Supprimer le profil
+      await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
+
+      // 5. Supprimer le compte auth
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+      
+      if (deleteError) {
+        console.error("Erreur suppression compte auth:", deleteError);
+        // Continuer même si l'erreur auth, le profil est supprimé
+      }
+
+      // Déconnexion forcée
+      await supabase.auth.signOut();
+      
+      toast({
+        title: "Compte supprimé",
+        description: "Votre compte a été supprimé avec succès.",
+      });
+      
+      // Redirection vers l'accueil
+      navigate("/");
+      
+    } catch (error: any) {
+      console.error("Erreur suppression compte:", error);
+      toast({ 
+        title: "Erreur", 
+        description: "Impossible de supprimer le compte. Contactez le support.",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -349,7 +500,7 @@ const Profile = () => {
         }
       />
       
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-6 pb-20">
         {/* User info */}
         <Card className="shadow-card">
           <CardContent className="p-6">
@@ -362,7 +513,6 @@ const Profile = () => {
                   age: formData.get('age') as string,
                   gender: formData.get('gender') as string,
                   phone: formData.get('phone') as string,
-                  avatar_url: profile?.avatar_url,
                 };
                 updateProfile(values);
               }}>
@@ -373,7 +523,9 @@ const Profile = () => {
                       id="full_name"
                       name="full_name"
                       defaultValue={profile?.full_name || ''}
+                      placeholder="Jean Dupont"
                       required
+                      maxLength={100}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -384,6 +536,7 @@ const Profile = () => {
                         name="age"
                         type="number"
                         defaultValue={profile?.age || ''}
+                        placeholder="25"
                         min="16"
                         max="99"
                       />
@@ -410,11 +563,23 @@ const Profile = () => {
                       name="phone"
                       type="tel"
                       defaultValue={profile?.phone || ''}
+                      placeholder="+33 6 12 34 56 78"
                     />
                   </div>
-                  <Button type="submit" variant="sport" disabled={loading}>
-                    {loading ? "Sauvegarde..." : "Sauvegarder"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="submit" variant="sport" disabled={loading} className="flex-1">
+                      <Save size={16} className="mr-2" />
+                      {loading ? "Sauvegarde..." : "Sauvegarder"}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsEditing(false)}
+                      disabled={loading}
+                    >
+                      <X size={16} />
+                    </Button>
+                  </div>
                 </div>
               </form>
             ) : (
@@ -443,7 +608,7 @@ const Profile = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={handleFileSelect}
                       className="hidden"
                     />
@@ -531,7 +696,7 @@ const Profile = () => {
                   <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                     <div className={`w-2 h-2 rounded-full mt-2 ${
                       activity.activity_type === 'created' ? 'bg-primary' : 
-                      activity.enrollment_status === 'paid' ? 'bg-green-500' : 'bg-blue-500'
+                      activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'bg-green-500' : 'bg-blue-500'
                     }`}></div>
                      <div className="flex-1">
                        <div className="flex justify-between items-start mb-1">
@@ -539,10 +704,10 @@ const Profile = () => {
                          <div className="flex items-center gap-2">
                            <Badge variant={
                              activity.activity_type === 'created' ? 'default' :
-                             activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
+                             activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'secondary' : 'outline'
                            } className="text-xs">
                              {activity.activity_type === 'created' ? 'Organisée' : 
-                              activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
+                              activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'Participé' : 'Inscrite'}
                            </Badge>
                            {activity.activity_type === 'created' && (
                              <Button
@@ -555,7 +720,11 @@ const Profile = () => {
                                disabled={deletingSessionId === activity.id}
                                className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                              >
-                               <Trash2 size={12} />
+                               {deletingSessionId === activity.id ? (
+                                 <div className="animate-spin rounded-full h-3 w-3 border-2 border-destructive border-t-transparent" />
+                               ) : (
+                                 <Trash2 size={12} />
+                               )}
                              </Button>
                            )}
                          </div>
@@ -576,41 +745,27 @@ const Profile = () => {
           </Card>
         )}
 
+        {/* Actions */}
         <div className="space-y-3">
+          <Button 
+            variant="sportOutline" 
+            size="lg" 
+            className="w-full flex items-center gap-2"
+            onClick={handleSignOut}
+            disabled={loading}
+          >
+            <LogOut size={16} />
+            {loading ? "Déconnexion..." : "Se déconnecter"}
+          </Button>
+          
           <Button 
             variant="ghost" 
             size="lg" 
             className="w-full text-destructive"
-            onClick={async () => {
-              if (!confirm("Supprimer définitivement votre compte ?")) return;
-              try {
-                const { data: sess } = await supabase.auth.getSession();
-                const token = sess.session?.access_token;
-                const { data, error } = await supabase.functions.invoke("delete-account", {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-                if (error) throw error;
-                await supabase.auth.signOut();
-                window.location.href = "/";
-              } catch (e: any) {
-                console.error(e);
-                toast({ 
-                  title: "Erreur", 
-                  description: e?.message || "Suppression impossible.", 
-                  variant: "destructive" 
-                });
-              }
-            }}
+            onClick={handleDeleteAccount}
+            disabled={loading}
           >
             Supprimer mon compte
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="lg" 
-            className="w-full"
-            onClick={signOut}
-          >
-            Se déconnecter
           </Button>
         </div>
       </div>
