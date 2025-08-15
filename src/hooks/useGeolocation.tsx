@@ -17,10 +17,10 @@ export interface UseGeolocationReturn {
   hasAsked: boolean;
 }
 
-// CORRECTION: Par défaut sur Marseille au lieu de Wellington
+// CORRECTION: Par défaut sur Paris au lieu de Wellington  
 const DEFAULT_COORDS = {
-  latitude: 43.2965, // Marseille
-  longitude: 5.3698,
+  latitude: 48.8566, // Paris
+  longitude: 2.3522,
   accuracy: 10000 // Précision faible pour indiquer que c'est une position par défaut
 };
 

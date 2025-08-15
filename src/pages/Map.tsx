@@ -39,45 +39,47 @@ const Map = () => {
   }, [searchParams, sessions]);
 
   useEffect(() => {
-    // Configuration Realtime pour les sessions
+    // Nettoyer le channel existant avec amélioration d'erreur
     if (realtimeChannelRef.current) {
-      realtimeChannelRef.current.unsubscribe();
+      supabase.removeChannel(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
     }
 
-    realtimeChannelRef.current = supabase
-      .channel("public:sessions")
+    const channel = supabase
+      .channel(`sessions-${Date.now()}`) // Nom unique
       .on("postgres_changes", { 
-        event: "INSERT", 
+        event: "*", 
         schema: "public", 
         table: "sessions" 
       }, (payload) => {
-        console.log("[realtime] Nouvelle session:", payload.new);
-        setSessions(prev => [payload.new as any, ...prev]);
-      })
-      .on("postgres_changes", { 
-        event: "UPDATE", 
-        schema: "public", 
-        table: "sessions" 
-      }, (payload) => {
-        console.log("[realtime] Session mise à jour:", payload.new);
-        setSessions(prev => prev.map(s => 
-          s.id === payload.new.id ? { ...s, ...payload.new } : s
-        ));
-      })
-      .on("postgres_changes", { 
-        event: "DELETE", 
-        schema: "public", 
-        table: "sessions" 
-      }, (payload) => {
-        console.log("[realtime] Session supprimée:", payload.old);
-        setSessions(prev => prev.filter(s => s.id !== payload.old.id));
-        if (selectedSession?.id === payload.old.id) {
-          setSelectedSession(null);
+        console.log("[realtime] Update:", payload);
+        const { eventType, new: newData, old: oldData } = payload as any;
+        
+        if (eventType === 'INSERT') {
+          setSessions(prev => [newData, ...prev]);
+        } else if (eventType === 'UPDATE') {
+          setSessions(prev => prev.map(s => 
+            s.id === newData.id ? { ...s, ...newData } : s
+          ));
+        } else if (eventType === 'DELETE') {
+          setSessions(prev => prev.filter(s => s.id !== oldData.id));
+          if (selectedSession?.id === oldData.id) {
+            setSelectedSession(null);
+          }
         }
       })
       .subscribe((status) => {
         console.log("🛰️ Realtime sessions:", status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error("Erreur channel Realtime");
+          // Retry automatique après 5s
+          setTimeout(() => {
+            fetchSessions();
+          }, 5000);
+        }
       });
+
+    realtimeChannelRef.current = channel;
 
     return () => {
       if (realtimeChannelRef.current) {

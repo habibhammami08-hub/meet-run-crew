@@ -14,7 +14,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "leaflet.markercluster";
 
 // Constants
-const WELLINGTON_COORDS: [number, number] = [-41.28664, 174.77557];
+const PARIS_COORDS: [number, number] = [48.8566, 2.3522];
 const GREEN = "#059669"; // Tailwind green-600
 
 interface Session {
@@ -220,7 +220,7 @@ const LeafletMeetRunMap = ({
 
     try {
       map.current = L.map(mapContainer.current, {
-        center: WELLINGTON_COORDS,
+        center: PARIS_COORDS,
         zoom: 12,
         zoomControl: true
       });

@@ -178,18 +178,7 @@ All colors MUST be HSL.
     animation: pulse-sport 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  /* CORRECTION: Styles spécifiques pour la navigation fixe */
-  .fixed-navigation {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 9999;
-    background: white;
-    border-top: 1px solid hsl(var(--border));
-    box-shadow: 0 -4px 20px -2px hsl(210 40% 8% / 0.1);
-    backdrop-filter: blur(10px);
-  }
+  /* Navigation fixe - styles de base */
 
   /* CORRECTION: Styles spécifiques pour Leaflet */
   .leaflet-container {
@@ -247,9 +236,22 @@ All colors MUST be HSL.
     transform: translateY(-1px);
   }
 
-  /* CORRECTION: Assurer que le contenu ne passe pas sous la navigation fixe */
+  /* CORRECTION: Améliorer le padding pour mobile */
   .main-content {
-    padding-bottom: 80px; /* Espace pour la navigation fixe */
+    padding-bottom: 85px; /* Augmenter pour mobile */
+  }
+
+  /* Navigation plus stable */
+  .fixed-navigation {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid hsl(var(--border));
+    box-shadow: 0 -4px 20px -2px hsl(210 40% 8% / 0.15);
   }
 
   /* Responsive pour mobile */
@@ -259,7 +261,7 @@ All colors MUST be HSL.
     }
     
     .main-content {
-      padding-bottom: 76px; /* Ajustement pour mobile */
+      padding-bottom: 90px; /* Plus d'espace sur mobile */
     }
   }
 
@@ -270,7 +272,26 @@ All colors MUST be HSL.
   }
 
   .floating-filters {
-    bottom: 80px; /* Positionnement au-dessus de la navigation */
+    bottom: 95px; /* Positionnement au-dessus de la navigation améliorée */
+  }
+
+  /* Optimisation images */
+  img {
+    loading: lazy;
+  }
+
+  /* Avatar optimisés */
+  .avatar-img {
+    object-fit: cover;
+    aspect-ratio: 1;
+  }
+
+  /* Focus visible pour navigation clavier */
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
   }
 
   /* Amélioration pour les écrans très petits */
