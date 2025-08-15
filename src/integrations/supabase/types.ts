@@ -461,11 +461,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_deletion_stats: {
+        Row: {
+          deleted_last_24h: number | null
+          deleted_last_7d: number | null
+          deletion_date: string | null
+          users_deleted: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       backfill_missing_profiles: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      can_delete_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       can_enroll_in_session: {
         Args: { p_session_id: string }
@@ -473,7 +486,7 @@ export type Database = {
       }
       delete_user_completely: {
         Args: Record<PropertyKey, never>
-        Returns: undefined
+        Returns: Json
       }
       get_basic_stats: {
         Args: Record<PropertyKey, never>
@@ -535,6 +548,14 @@ export type Database = {
       is_session_open: {
         Args: { session_id: string }
         Returns: boolean
+      }
+      test_delete_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      verify_deletion_system: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
     }
     Enums: {
