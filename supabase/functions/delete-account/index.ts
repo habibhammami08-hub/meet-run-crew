@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS"
 }
 
 interface ValidationResult {
@@ -71,9 +72,29 @@ serve(async (req) => {
 
     console.log("✅ Account eligible for deletion")
 
-    // 5. Execute complete account deletion
+    // 5. CRITIQUE: Enregistrer l'utilisateur dans deleted_users AVANT la suppression
+    console.log("📝 Recording user in deleted_users table...")
+    const { error: deletedUserError } = await supabase
+      .from('deleted_users')
+      .insert({
+        id: userId,
+        email: userEmail,
+        deleted_at: new Date().toISOString(),
+        deletion_reason: 'user_request'
+      })
+
+    if (deletedUserError) {
+      console.error("❌ Failed to record user deletion:", deletedUserError.message)
+      return errorResponse("Failed to initiate account deletion", 500, {
+        error: deletedUserError.message
+      })
+    }
+
+    console.log("✅ User recorded in deleted_users table")
+
+    // 6. Execute complete account deletion
     console.log("🗑️ Starting data deletion process...")
-    const deletionResult = await executeAccountDeletion(supabase, userId)
+    const deletionResult = await executeAccountDeletion(supabase, userId, userEmail)
 
     if (!deletionResult.success) {
       console.error("❌ Deletion failed:", deletionResult.error)
@@ -117,9 +138,9 @@ async function validateDeletionEligibility(supabase: any, userId: string): Promi
     // Check for upcoming sessions where user is host
     const { data: upcomingSessions, error: sessionsError } = await supabase
       .from('sessions')
-      .select('id, title, date')
+      .select('id, title, scheduled_at')
       .eq('host_id', userId)
-      .gte('date', now)
+      .gte('scheduled_at', now)
 
     if (sessionsError) {
       console.error("Error checking sessions:", sessionsError.message)
@@ -194,7 +215,7 @@ async function validateDeletionEligibility(supabase: any, userId: string): Promi
 }
 
 // Execute complete account deletion
-async function executeAccountDeletion(supabase: any, userId: string) {
+async function executeAccountDeletion(supabase: any, userId: string, userEmail: string) {
   const results: any[] = []
   
   try {
