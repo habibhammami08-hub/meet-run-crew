@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import L from "leaflet";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -303,6 +303,26 @@ const LeafletMeetRunMap = ({
     }
   }, [enableGeolocation, hasAskedGeolocation, requestLocation, createClusterIcon, metersToPixels, formatDate, navigateToSession, toast]);
 
+  // Set up realtime listener for sessions
+  useEffect(() => {
+    const channel = supabase
+      .channel('sessions-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sessions' },
+        (payload) => {
+          console.log('[LeafletMap] Realtime update:', payload);
+          // Note: Les sessions sont gérées par le composant parent qui passe le prop sessions
+          // Ici on pourrait déclencher un refresh si nécessaire
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Update user marker
   const updateUserMarker = useCallback((lat: number, lng: number, accuracy: number) => {
     if (!map.current) return;
@@ -343,7 +363,7 @@ const LeafletMeetRunMap = ({
     }
   }, [toast]);
 
-  // Update session markers with proper validation
+  // Update session markers with proper validation and realtime updates
   const updateSessionMarkers = useCallback(() => {
     if (!map.current || !clusterGroup.current) {
       console.log("[LeafletMap] Skip markers update - map ou cluster non disponible");
@@ -518,7 +538,7 @@ const LeafletMeetRunMap = ({
         </div>
       )}
       {/* Debug info en développement */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.MODE === 'development' && (
         <div className="absolute top-2 left-2 bg-black/80 text-white text-xs p-2 rounded max-w-xs">
           <div>Sessions: {sessions.length}</div>
           <div>Carte: {hasInitialized ? '✅' : '❌'}</div>

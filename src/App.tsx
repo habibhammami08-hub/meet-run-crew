@@ -2,12 +2,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import AppLayout from "./components/AppLayout";
 import Home from "./pages/Home";
 import Map from "./pages/Map";
-import RunDetails from "./pages/RunDetails";
 import SessionDetails from "./pages/SessionDetails";
 import CreateRun from "./pages/CreateRun";
 import Profile from "./pages/Profile";
@@ -31,7 +30,7 @@ const App = () => (
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/map" element={<Map />} />
-              <Route path="/run/:id" element={<RunDetails />} />
+              <Route path="/run/:id" element={<Navigate to="/" replace />} />
               <Route path="/session/:id" element={<SessionDetails />} />
               <Route path="/create" element={<CreateRun />} />
               <Route path="/profile" element={<Profile />} />

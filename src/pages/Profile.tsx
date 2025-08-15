@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
 import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 
@@ -271,7 +271,8 @@ const Profile = () => {
       const { data, error: updateError } = await supabase
         .from('profiles')
         .upsert({ 
-          id: user.id, 
+          id: user.id,
+          email: user.email || '',
           avatar_url: publicUrl,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' })
@@ -381,10 +382,10 @@ const Profile = () => {
       
       // ÉTAPE 1: Vérifier si la suppression est possible
       try {
-        const { data: canDeleteData } = await supabase.rpc('can_delete_user_account');
+        const { data: canDeleteData } = await supabase.rpc('can_delete_account');
         
-        if (canDeleteData && !canDeleteData.can_delete) {
-          const warnings = canDeleteData.warnings || [];
+        if (canDeleteData && typeof canDeleteData === 'object' && 'can_delete' in canDeleteData && !canDeleteData.can_delete) {
+          const warnings = ('warnings' in canDeleteData && Array.isArray(canDeleteData.warnings)) ? canDeleteData.warnings : [];
           const warningMessage = warnings.length > 0 ? warnings.join(', ') : 'Suppression non autorisée';
           
           toast({
@@ -433,13 +434,13 @@ const Profile = () => {
         try {
           console.log("[account-deletion] Tentative avec fonction SQL...");
           
-          const { data: sqlResult, error: sqlError } = await supabase.rpc('delete_user_data');
+          const { data: sqlResult, error: sqlError } = await supabase.rpc('delete_user_completely');
           
           if (sqlError) {
             throw sqlError;
           }
 
-          if (sqlResult && sqlResult.success) {
+          if (sqlResult && typeof sqlResult === 'object' && 'success' in sqlResult && sqlResult.success) {
             console.log("[account-deletion] Fonction SQL réussie:", sqlResult);
             
             // Déconnexion forcée
@@ -453,7 +454,8 @@ const Profile = () => {
             navigate("/");
             return;
           } else {
-            throw new Error(sqlResult?.error || "Échec de la fonction SQL");
+            const errorMsg = (typeof sqlResult === 'object' && 'error' in sqlResult) ? String(sqlResult.error) : "Échec de la fonction SQL";
+            throw new Error(errorMsg);
           }
 
         } catch (sqlError) {

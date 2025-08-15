@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -49,14 +49,22 @@ const AccountDeletionComponent: React.FC = () => {
         return;
       }
 
-      setDeletionInfo(data);
-      
-      if (data.can_delete) {
-        setShowConfirmDialog(true);
+      if (data && typeof data === 'object' && 'can_delete' in data) {
+        setDeletionInfo(data as unknown as DeletionInfo);
+        
+        if (data.can_delete) {
+          setShowConfirmDialog(true);
+        } else {
+          toast({
+            title: "Suppression impossible",
+            description: (data as unknown as DeletionInfo).message || "Suppression non autorisée",
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
-          title: "Suppression impossible",
-          description: data.message,
+          title: "Erreur",
+          description: "Réponse inattendue du serveur",
           variant: "destructive",
         });
       }
