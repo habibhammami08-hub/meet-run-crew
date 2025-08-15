@@ -1,75 +1,106 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Header from "@/components/Header";
-import { Crown, Check, X, ExternalLink } from "lucide-react";
+import { Crown, Check, X, ExternalLink, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// Déclaration pour Stripe Buy Button
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'stripe-buy-button': {
+        'buy-button-id': string;
+        'publishable-key': string;
+      };
+    }
+  }
+}
+
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
+  const [stripeBuyButtonLoaded, setStripeBuyButtonLoaded] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const handleSubscribe = async () => {
-    console.log("handleSubscribe called", { user: !!user });
+  // Charger le script Stripe Buy Button
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]');
     
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/buy-button.js';
+      script.async = true;
+      script.onload = () => {
+        console.log("[stripe] Buy Button script chargé");
+        setStripeBuyButtonLoaded(true);
+      };
+      script.onerror = () => {
+        console.error("[stripe] Erreur chargement Buy Button script");
+        toast({
+          title: "Erreur de chargement",
+          description: "Impossible de charger le système de paiement",
+          variant: "destructive",
+        });
+      };
+      document.body.appendChild(script);
+    } else {
+      setStripeBuyButtonLoaded(true);
+    }
+
+    // Écouter les événements Stripe
+    const handleStripeMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://js.stripe.com') return;
+      
+      if (event.data?.type === 'stripe_checkout_session_complete') {
+        console.log("[stripe] Checkout complété:", event.data);
+        toast({
+          title: "Paiement réussi !",
+          description: "Votre abonnement est maintenant actif.",
+        });
+        // Actualiser le statut d'abonnement
+        setTimeout(() => {
+          refreshSubscription();
+        }, 2000);
+      } else if (event.data?.type === 'stripe_checkout_session_cancel') {
+        console.log("[stripe] Checkout annulé:", event.data);
+        toast({
+          title: "Paiement annulé",
+          description: "Vous pouvez réessayer quand vous voulez.",
+        });
+      }
+    };
+
+    window.addEventListener('message', handleStripeMessage);
+
+    return () => {
+      window.removeEventListener('message', handleStripeMessage);
+    };
+  }, [toast, refreshSubscription]);
+
+  const handleManageSubscription = async () => {
     if (!user) {
       toast({
         title: "Connexion requise",
-        description: "Vous devez être connecté pour vous abonner.",
+        description: "Connectez-vous pour gérer votre abonnement.",
         variant: "destructive",
       });
       return;
     }
 
-    setIsLoading(true);
-    console.log("Starting subscription creation...");
+    setIsPortalLoading(true);
 
     try {
-      console.log("Invoking create-subscription-session function...");
-      const { data, error } = await supabase.functions.invoke('create-subscription-session', {
+      const { data, error } = await supabase.functions.invoke('create-customer-portal-session', {
         headers: {
           Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
         },
       });
-      
-      console.log("Function response:", { data, error });
-
-      if (error) {
-        console.error("Function error:", error);
-        throw new Error(error.message || "Erreur lors de la création de la session");
-      }
-
-      if (data?.url) {
-        console.log("Redirecting to Stripe checkout:", data.url);
-        window.open(data.url, '_blank');
-      } else {
-        console.error("No URL returned from function:", data);
-        throw new Error("Aucune URL de paiement reçue");
-      }
-    } catch (error: any) {
-      console.error("Full error:", error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Une erreur est survenue",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleManageSubscription = async () => {
-    if (!user) return;
-
-    setIsPortalLoading(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('create-customer-portal-session');
 
       if (error) throw error;
 
@@ -95,6 +126,125 @@ const Subscription = () => {
     });
   };
 
+  // CORRECTION: Page accessible même sans être connecté
+  const renderUnauthenticatedView = () => (
+    <div className="min-h-screen bg-background">
+      <Header title="Abonnement MeetRun" />
+      
+      <div className="p-4 space-y-6 pb-20 pt-20">
+        {/* Hero pour non connectés */}
+        <Card className="shadow-card border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-primary text-center">
+              <Crown size={24} />
+              MeetRun Unlimited
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-primary mb-2">9,99 €</div>
+              <div className="text-sport-gray">par mois</div>
+            </div>
+
+            <div className="bg-sport-light p-4 rounded-lg">
+              <h3 className="font-semibold mb-3 text-center">Accès illimité à tout MeetRun :</h3>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <Check size={14} className="text-green-600" />
+                  Rejoindre toutes les sessions sans payer à la course
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={14} className="text-green-600" />
+                  Voir les lieux exacts (plus de zones approximatives)
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={14} className="text-green-600" />
+                  Créer des sessions illimitées
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={14} className="text-green-600" />
+                  Support prioritaire
+                </li>
+              </ul>
+            </div>
+
+            {/* CORRECTION: Stripe Buy Button intégré */}
+            <div className="space-y-3">
+              {stripeBuyButtonLoaded ? (
+                <div className="stripe-buy-button-container w-full">
+                  <stripe-buy-button
+                    buy-button-id="buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"
+                    publishable-key="pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc"
+                  />
+                </div>
+              ) : (
+                <div className="w-full p-4 bg-gray-100 rounded-lg text-center">
+                  <div className="animate-pulse">Chargement du paiement...</div>
+                </div>
+              )}
+              
+              <div className="text-center">
+                <p className="text-xs text-sport-gray">
+                  Résiliable à tout moment • Facturation mensuelle
+                </p>
+                <p className="text-xs text-sport-gray mt-1">
+                  Vous devez être connecté pour finaliser l'abonnement
+                </p>
+              </div>
+              
+              <Button 
+                onClick={() => navigate('/auth')}
+                variant="sportOutline"
+                size="lg"
+                className="w-full"
+              >
+                <Users size={16} className="mr-2" />
+                Se connecter / Créer un compte
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Avantages détaillés */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle>Pourquoi MeetRun Unlimited ?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">🎯</div>
+                <h4 className="font-semibold">Lieux exacts</h4>
+                <p className="text-sm text-sport-gray">Fini les zones approximatives ! Voyez exactement où vous rendre.</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">💸</div>
+                <h4 className="font-semibold">Économique</h4>
+                <p className="text-sm text-sport-gray">Une session par mois et c'est rentabilisé !</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">🏃‍♀️</div>
+                <h4 className="font-semibold">Illimité</h4>
+                <p className="text-sm text-sport-gray">Participez à autant de sessions que vous voulez.</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">👥</div>
+                <h4 className="font-semibold">Communauté</h4>
+                <p className="text-sm text-sport-gray">Rencontrez d'autres coureurs passionnés.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
+  // Si pas connecté, afficher la vue publique
+  if (!user) {
+    return renderUnauthenticatedView();
+  }
+
+  // Vue pour utilisateurs connectés
   return (
     <div className="min-h-screen bg-background">
       <Header title="Mon abonnement" />
@@ -211,22 +361,19 @@ const Subscription = () => {
               </div>
 
               <div className="text-center space-y-4">
-                <Button 
-                  onClick={handleSubscribe} 
-                  disabled={isLoading}
-                  size="lg"
-                  className="w-full"
-                  variant="sport"
-                >
-                  {isLoading ? "Redirection vers le paiement..." : "S'abonner - 9,99 €/mois"}
-                </Button>
-                
-                {/* Alternative : Stripe Buy Button 
-                <div className="p-4 border rounded-lg">
-                  <p className="text-sm text-center mb-3">Ou paiement direct :</p>
-                  <StripeBuyButton />
-                </div>
-                */}
+                {/* CORRECTION: Stripe Buy Button pour utilisateurs connectés */}
+                {stripeBuyButtonLoaded ? (
+                  <div className="stripe-buy-button-container w-full">
+                    <stripe-buy-button
+                      buy-button-id="buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"
+                      publishable-key="pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full p-4 bg-gray-100 rounded-lg text-center">
+                    <div className="animate-pulse">Chargement du paiement...</div>
+                  </div>
+                )}
                 
                 <p className="text-xs text-sport-gray">
                   Résiliable à tout moment
@@ -274,6 +421,12 @@ const Subscription = () => {
               <h4 className="font-semibold">Y a-t-il une période d'essai ?</h4>
               <p className="text-sm text-sport-gray">
                 L'abonnement commence immédiatement après le paiement, sans période d'essai gratuite.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold">Comment fonctionne le paiement ?</h4>
+              <p className="text-sm text-sport-gray">
+                Le paiement est sécurisé par Stripe. Votre carte est débitée mensuellement jusqu'à résiliation.
               </p>
             </div>
           </CardContent>
