@@ -365,7 +365,7 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Suppression de compte complète
+  // CORRECTION: Suppression de compte complète via Edge Function
   const handleDeleteAccount = async () => {
     if (!user) return;
     
@@ -380,41 +380,14 @@ const Profile = () => {
     try {
       setLoading(true);
       
-      // Supprimer les données utilisateur en cascade
-      // 1. Supprimer les inscriptions
-      await supabase
-        .from('enrollments')
-        .delete()
-        .eq('user_id', user.id);
+      // Appeler l'Edge Function pour supprimer le compte
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        method: 'POST'
+      });
 
-      // 2. Supprimer les sessions créées
-      await supabase
-        .from('sessions')
-        .delete()
-        .eq('host_id', user.id);
-
-      // 3. Supprimer l'avatar du storage
-      if (profile?.avatar_url) {
-        const fileName = profile.avatar_url.split('/').pop();
-        if (fileName) {
-          await supabase.storage
-            .from('avatars')
-            .remove([`${user.id}/${fileName}`]);
-        }
-      }
-
-      // 4. Supprimer le profil
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id);
-
-      // 5. Supprimer le compte auth
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
-      
-      if (deleteError) {
-        console.error("Erreur suppression compte auth:", deleteError);
-        // Continuer même si l'erreur auth, le profil est supprimé
+      if (error) {
+        console.error("Erreur suppression compte:", error);
+        throw new Error(error.message || "Erreur lors de la suppression du compte");
       }
 
       // Déconnexion forcée
@@ -432,7 +405,7 @@ const Profile = () => {
       console.error("Erreur suppression compte:", error);
       toast({ 
         title: "Erreur", 
-        description: "Impossible de supprimer le compte. Contactez le support.",
+        description: error.message || "Impossible de supprimer le compte. Contactez le support.",
         variant: "destructive" 
       });
     } finally {
