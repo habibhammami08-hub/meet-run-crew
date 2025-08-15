@@ -38,23 +38,21 @@ const Navigation = () => {
           </Button>
         </Link>
         
-{user && (
-          <Link to="/subscription">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative ${
-                isActive('/subscription') ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              <Crown size={20} />
-              <span className="text-xs">Abonnement</span>
-              {hasActiveSubscription && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
-              )}
-            </Button>
-          </Link>
-        )}
+<Link to="/subscription">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative ${
+              isActive('/subscription') ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <Crown size={20} />
+            <span className="text-xs">Abonnement</span>
+            {user && hasActiveSubscription && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+            )}
+          </Button>
+        </Link>
         
         <Link to="/create">
           <Button 
