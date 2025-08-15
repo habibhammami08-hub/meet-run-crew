@@ -1,3 +1,5 @@
+// src/components/LeafletMeetRunMap.tsx - Version corrigée avec debug
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import L from "leaflet";
@@ -58,6 +60,7 @@ const LeafletMeetRunMap = ({
   showGeolocationBanner = true,
   onLocationFound,
   onLocationError,
+  className = "",
 }: LeafletMeetRunMapProps) => {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
@@ -73,8 +76,28 @@ const LeafletMeetRunMap = ({
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // CORRECTION: Debug des sessions reçues
+  useEffect(() => {
+    console.log("[LeafletMap] Sessions reçues:", sessions);
+    console.log("[LeafletMap] Nombre de sessions:", sessions.length);
+    
+    // Vérification des coordonnées
+    sessions.forEach((session, index) => {
+      const lat = session.location_lat;
+      const lng = session.location_lng;
+      console.log(`[LeafletMap] Session ${index} (${session.id}):`, {
+        lat: lat,
+        lng: lng,
+        isLatValid: Number.isFinite(lat) && lat >= -90 && lat <= 90,
+        isLngValid: Number.isFinite(lng) && lng >= -180 && lng <= 180,
+        title: session.title
+      });
+    });
+  }, [sessions]);
+
   // Navigate to session helper
   const navigateToSession = useCallback((sessionId: string) => {
+    console.log("[LeafletMap] Navigation vers session:", sessionId);
     navigate(`/session/${sessionId}`);
   }, [navigate]);
 
@@ -166,6 +189,7 @@ const LeafletMeetRunMap = ({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
+        console.log("[LeafletMap] Géolocalisation réussie:", { latitude, longitude, accuracy });
         setUserLocation({ lat: latitude, lng: longitude });
         onLocationFound?.(latitude, longitude, accuracy);
         
@@ -174,6 +198,7 @@ const LeafletMeetRunMap = ({
         }
       },
       (error) => {
+        console.error("[LeafletMap] Erreur géolocalisation:", error);
         onLocationError?.(error.message);
       },
       {
@@ -186,82 +211,97 @@ const LeafletMeetRunMap = ({
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
-
-    map.current = L.map(mapContainer.current, {
-      center: WELLINGTON_COORDS,
-      zoom: 12,
-      zoomControl: true
-    });
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
-    }).addTo(map.current);
-
-    // Initialize cluster group
-    clusterGroup.current = (L as any).markerClusterGroup({
-      spiderfyOnMaxZoom: false,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: false,
-      iconCreateFunction: createClusterIcon,
-      maxClusterRadius: (zoom: number) => {
-        const lat = map.current?.getCenter().lat || -41.28664;
-        return Math.round(metersToPixels(300, lat, zoom));
-      },
-    });
-    map.current.addLayer(clusterGroup.current);
-
-    // Handle cluster clicks with reliable popup binding
-    clusterGroup.current.on("clusterclick", (e: any) => {
-      const center = e.layer.getLatLng();
-      const children = e.layer.getAllChildMarkers();
-      const sessionsData = children.map((m: any) => m.__sessionData).filter(Boolean);
-
-      const html = `
-        <div class="cluster-popup" style="min-width:240px">
-          <div style="font-weight:700;margin-bottom:6px">${sessionsData.length} sessions à proximité</div>
-          <ul style="margin:0;padding:0;list-style:none;max-height:220px;overflow:auto">
-            ${sessionsData.map((session: any) => `
-              <li style="padding:6px 0;border-bottom:1px solid #eee">
-                <div style="font-weight:600">${session.title || "Session"}</div>
-                <div style="font-size:12px;opacity:.8">${formatDate(session.date)} • ${session.distance_km} km • ${session.intensity}</div>
-                <button data-id="${session.id}" class="btn-open-session" style="margin-top:6px;font-size:12px;padding:4px 8px;background:#059669;color:white;border:none;border-radius:4px;cursor:pointer;">Voir la session</button>
-              </li>`).join("")}
-          </ul>
-        </div>`;
-
-      const popup = L.popup({ maxWidth: 320 }).setLatLng(center).setContent(html);
-      popup.addTo(map.current!);
-    });
-
-    // Handle popup clicks for navigation
-    map.current.on("popupopen", (evt: any) => {
-      const popupElement = evt.popup.getElement();
-      if (!popupElement) return;
-      
-      popupElement.querySelectorAll(".btn-open-session").forEach((btn: Element) => {
-        (btn as HTMLButtonElement).onclick = (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const sessionId = (btn as HTMLElement).getAttribute("data-id");
-          if (sessionId) {
-            navigateToSession(sessionId);
-          }
-        };
-      });
-    });
-
-    setHasInitialized(true);
-    
-    // Automatically request geolocation when map is initialized
-    if (enableGeolocation && !hasAskedGeolocation) {
-      setHasAskedGeolocation(true);
-      setTimeout(() => {
-        requestLocation();
-      }, 500);
+    if (!mapContainer.current || map.current) {
+      console.log("[LeafletMap] Skip init - container:", !!mapContainer.current, "map:", !!map.current);
+      return;
     }
-  }, [enableGeolocation, hasAskedGeolocation, requestLocation, createClusterIcon, metersToPixels, formatDate, navigateToSession]);
+
+    console.log("[LeafletMap] Initialisation de la carte...");
+
+    try {
+      map.current = L.map(mapContainer.current, {
+        center: WELLINGTON_COORDS,
+        zoom: 12,
+        zoomControl: true
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map.current);
+
+      // Initialize cluster group
+      clusterGroup.current = (L as any).markerClusterGroup({
+        spiderfyOnMaxZoom: false,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: false,
+        iconCreateFunction: createClusterIcon,
+        maxClusterRadius: (zoom: number) => {
+          const lat = map.current?.getCenter().lat || -41.28664;
+          return Math.round(metersToPixels(300, lat, zoom));
+        },
+      });
+      map.current.addLayer(clusterGroup.current);
+
+      // Handle cluster clicks with reliable popup binding
+      clusterGroup.current.on("clusterclick", (e: any) => {
+        const center = e.layer.getLatLng();
+        const children = e.layer.getAllChildMarkers();
+        const sessionsData = children.map((m: any) => m.__sessionData).filter(Boolean);
+
+        const html = `
+          <div class="cluster-popup" style="min-width:240px">
+            <div style="font-weight:700;margin-bottom:6px">${sessionsData.length} sessions à proximité</div>
+            <ul style="margin:0;padding:0;list-style:none;max-height:220px;overflow:auto">
+              ${sessionsData.map((session: any) => `
+                <li style="padding:6px 0;border-bottom:1px solid #eee">
+                  <div style="font-weight:600">${session.title || "Session"}</div>
+                  <div style="font-size:12px;opacity:.8">${formatDate(session.date)} • ${session.distance_km} km • ${session.intensity}</div>
+                  <button data-id="${session.id}" class="btn-open-session" style="margin-top:6px;font-size:12px;padding:4px 8px;background:#059669;color:white;border:none;border-radius:4px;cursor:pointer;">Voir la session</button>
+                </li>`).join("")}
+            </ul>
+          </div>`;
+
+        const popup = L.popup({ maxWidth: 320 }).setLatLng(center).setContent(html);
+        popup.addTo(map.current!);
+      });
+
+      // Handle popup clicks for navigation
+      map.current.on("popupopen", (evt: any) => {
+        const popupElement = evt.popup.getElement();
+        if (!popupElement) return;
+        
+        popupElement.querySelectorAll(".btn-open-session").forEach((btn: Element) => {
+          (btn as HTMLButtonElement).onclick = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const sessionId = (btn as HTMLElement).getAttribute("data-id");
+            if (sessionId) {
+              navigateToSession(sessionId);
+            }
+          };
+        });
+      });
+
+      setHasInitialized(true);
+      console.log("[LeafletMap] Carte initialisée avec succès");
+      
+      // Automatically request geolocation when map is initialized
+      if (enableGeolocation && !hasAskedGeolocation) {
+        setHasAskedGeolocation(true);
+        setTimeout(() => {
+          requestLocation();
+        }, 500);
+      }
+    } catch (error) {
+      console.error("[LeafletMap] Erreur lors de l'initialisation:", error);
+      toast({
+        title: "Erreur de carte",
+        description: "Impossible d'initialiser la carte",
+        variant: "destructive",
+      });
+    }
+  }, [enableGeolocation, hasAskedGeolocation, requestLocation, createClusterIcon, metersToPixels, formatDate, navigateToSession, toast]);
 
   // Update user marker
   const updateUserMarker = useCallback((lat: number, lng: number, accuracy: number) => {
@@ -290,6 +330,9 @@ const LeafletMeetRunMap = ({
       fillOpacity: 1
     }).addTo(map.current);
 
+    // Add popup
+    userMarker.current.bindPopup("Votre position");
+
     // Show accuracy warning if precision is low
     if (accuracy > 1000) {
       toast({
@@ -300,29 +343,51 @@ const LeafletMeetRunMap = ({
     }
   }, [toast]);
 
-  // Update session markers
+  // Update session markers with proper validation
   const updateSessionMarkers = useCallback(() => {
-    if (!map.current || !clusterGroup.current) return;
+    if (!map.current || !clusterGroup.current) {
+      console.log("[LeafletMap] Skip markers update - map ou cluster non disponible");
+      return;
+    }
+
+    console.log("[LeafletMap] Mise à jour des marqueurs pour", sessions.length, "sessions");
 
     // Clear existing markers
     clusterGroup.current.clearLayers();
 
+    let validMarkersCount = 0;
+    let invalidMarkersCount = 0;
+
     // Add new markers for each session
-    sessions.forEach(session => {
+    sessions.forEach((session, index) => {
+      const lat = Number(session.location_lat);
+      const lng = Number(session.location_lng);
+      
+      // CORRECTION: Validation stricte des coordonnées
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn(`[LeafletMap] Session ${session.id} - coordonnées invalides:`, { lat, lng });
+        invalidMarkersCount++;
+        return;
+      }
+
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        console.warn(`[LeafletMap] Session ${session.id} - coordonnées hors limites:`, { lat, lng });
+        invalidMarkersCount++;
+        return;
+      }
+
       const isPaid = isUserPaid(session.id);
       const isHost = isUserHost(session);
       const canSeeExact = isPaid || isHost;
       
-      const { lat, lng } = getDisplayLatLng(session, canSeeExact);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const { lat: displayLat, lng: displayLng } = getDisplayLatLng(session, canSeeExact);
 
       // Create green circle markers with white border for better visibility
       const markerStyle = canSeeExact 
-        ? { radius: 6, color: "#ffffff", weight: 3, fillColor: GREEN, fillOpacity: 1.0 }
-        : { radius: 5, color: "#ffffff", weight: 2, fillColor: GREEN, fillOpacity: 0.9 };
+        ? { radius: 8, color: "#ffffff", weight: 3, fillColor: GREEN, fillOpacity: 1.0 }
+        : { radius: 6, color: "#ffffff", weight: 2, fillColor: GREEN, fillOpacity: 0.9 };
       
-      const marker = L.circleMarker([lat, lng], markerStyle);
+      const marker = L.circleMarker([displayLat, displayLng], markerStyle);
 
       // Attach complete session data to marker
       (marker as any).__sessionData = {
@@ -369,31 +434,6 @@ const LeafletMeetRunMap = ({
             </div>
           </div>
           
-          <!-- Participants -->
-          ${enrolledParticipants.length > 0 ? `
-            <div style="margin: 8px 0;">
-              <div style="font-weight: 600; color: #2d3748; font-size: 11px; margin-bottom: 4px;">👥 Participants (${enrolledParticipants.length}/${session.max_participants - 1})</div>
-              <div style="max-height: 80px; overflow-y: auto;">
-                ${enrolledParticipants.slice(0, 3).map((enrollment: any) => {
-                  const profile = enrollment.profile || {};
-                  return `
-                    <div style="display: flex; align-items: center; gap: 6px; margin: 2px 0; padding: 2px; background: #f8fafc; border-radius: 3px;">
-                      ${profile.avatar_url ? 
-                        `<img src="${profile.avatar_url}" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover;" alt="Participant">` : 
-                        `<div style="width: 18px; height: 18px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 7px;">👤</div>`
-                      }
-                      <span style="font-size: 10px; color: #4a5568;">
-                        ${profile.full_name || 'Participant'}
-                        ${profile.age ? ` • ${profile.age} ans` : ''}
-                      </span>
-                    </div>
-                  `;
-                }).join('')}
-                ${enrolledParticipants.length > 3 ? `<div style="font-size: 9px; color: #64748b; margin-top: 4px;">+${enrolledParticipants.length - 3} autres</div>` : ''}
-              </div>
-            </div>
-          ` : ''}
-          
           <div style="margin: 8px 0; padding: 6px; background: #f7fafc; border-radius: 4px; text-align: center;">
             <span style="font-size: 11px; color: #4a5568;">👥 ${enrolledCount + 1}/${session.max_participants} participants</span>
           </div>
@@ -411,22 +451,6 @@ const LeafletMeetRunMap = ({
           <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">🏃 ${session.distance_km} km • ${session.intensity}</p>
           <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">📅 ${formatDate(session.date)}</p>
           <p style="margin: 4px 0; color: #4a5568; font-size: 12px;">💰 ${(session.price_cents / 100).toFixed(2)}€</p>
-          
-          <!-- Host Info -->
-          <div style="margin: 8px 0; padding: 8px; background: #fef3c7; border-radius: 6px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              ${(hostProfile as any)?.avatar_url ? 
-                `<img src="${(hostProfile as any).avatar_url}" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover;" alt="Host">` : 
-                `<div style="width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b; font-size: 11px;">👤</div>`
-              }
-              <div>
-                <div style="font-weight: 600; color: #92400e; font-size: 11px;">
-                  ${(hostProfile as any)?.full_name || 'Organisateur'}${(hostProfile as any)?.age ? `, ${(hostProfile as any).age} ans` : ''}
-                </div>
-                <div style="font-size: 9px; color: #92400e;">Organisateur</div>
-              </div>
-            </div>
-          </div>
           
           <div style="margin: 8px 0; padding: 6px; background: #f7fafc; border-radius: 4px; text-align: center;">
             <span style="font-size: 11px; color: #4a5568;">👥 ${enrolledCount + 1}/${session.max_participants} participants</span>
@@ -446,12 +470,16 @@ const LeafletMeetRunMap = ({
       });
 
       clusterGroup.current.addLayer(marker);
+      validMarkersCount++;
     });
+
+    console.log(`[LeafletMap] Marqueurs ajoutés: ${validMarkersCount} valides, ${invalidMarkersCount} invalides`);
   }, [sessions, isUserPaid, isUserHost, getDisplayLatLng, formatDate, navigateToSession]);
 
   // Update markers when sessions change
   useEffect(() => {
-    if (hasInitialized && sessions.length > 0) {
+    if (hasInitialized && sessions.length >= 0) {
+      console.log("[LeafletMap] Trigger updateSessionMarkers - sessions:", sessions.length, "initialized:", hasInitialized);
       updateSessionMarkers();
     }
   }, [hasInitialized, sessions, updateSessionMarkers]);
@@ -463,18 +491,40 @@ const LeafletMeetRunMap = ({
     }
   }, [userLocation, hasInitialized, updateUserMarker]);
 
+  // CORRECTION: Affichage d'état de debug
+  useEffect(() => {
+    console.log("[LeafletMap] État:", {
+      hasInitialized,
+      sessionsCount: sessions.length,
+      isLoading,
+      mapExists: !!map.current,
+      clusterExists: !!clusterGroup.current
+    });
+  }, [hasInitialized, sessions.length, isLoading]);
+
   return (
-    <div className="w-full h-full relative">
+    <div className={`w-full h-full relative ${className}`}>
       <div
         ref={mapContainer}
         className="w-full h-full rounded-lg overflow-hidden"
-        style={{ minHeight: '400px' }}
+        style={{ minHeight: '400px', backgroundColor: '#f8f9fa' }}
       />
       {isLoading && (
         <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
           <div className="bg-white rounded-lg p-4 shadow-lg">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <div className="text-sm text-center">Chargement de la carte...</div>
           </div>
+        </div>
+      )}
+      {/* Debug info en développement */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="absolute top-2 left-2 bg-black/80 text-white text-xs p-2 rounded max-w-xs">
+          <div>Sessions: {sessions.length}</div>
+          <div>Carte: {hasInitialized ? '✅' : '❌'}</div>
+          <div>Container: {mapContainer.current ? '✅' : '❌'}</div>
+          <div>Map: {map.current ? '✅' : '❌'}</div>
+          <div>Cluster: {clusterGroup.current ? '✅' : '❌'}</div>
         </div>
       )}
     </div>
