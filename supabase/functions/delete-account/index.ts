@@ -13,134 +13,120 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    // Configuration Supabase - doit pointer vers le même projet que le front
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://qnupinrsetomnsdchhfa.supabase.co";
-    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    // === 1. VÉRIFICATION VARIABLES D'ENVIRONNEMENT ===
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    // Logs pour debugging (projet et configuration)
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[delete-account] Variables d'environnement manquantes:", { 
+        hasUrl: !!SUPABASE_URL, 
+        hasServiceRole: !!SUPABASE_SERVICE_ROLE_KEY 
+      });
+      return json({ 
+        ok: false, 
+        stage: 'env', 
+        error: 'missing env variables (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)' 
+      }, 500);
+    }
+
+    // Log en DEV
     console.log("[delete-account] Configuration:", { 
-      url: SUPABASE_URL, 
-      hasServiceRole: !!SERVICE_ROLE,
-      expectedProject: "qnupinrsetomnsdchhfa"
+      SUPABASE_URL, 
+      hasServiceRole: !!SUPABASE_SERVICE_ROLE_KEY 
     });
-    
-    if (!SERVICE_ROLE) {
-      console.error("[delete-account] SERVICE_ROLE manquant");
-      return json({ ok: false, error: "SERVER_MISCONFIGURED", detail: "Missing SUPABASE_SERVICE_ROLE_KEY" }, 500);
-    }
 
-    // Vérifier que nous utilisons le bon projet
-    if (!SUPABASE_URL.includes("qnupinrsetomnsdchhfa")) {
-      console.error("[delete-account] Mauvais projet Supabase:", SUPABASE_URL);
-      return json({ ok: false, error: "WRONG_PROJECT", detail: "URL Supabase incorrecte" }, 500);
-    }
+    // === 2. CRÉATION CLIENT ADMIN ===
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { 
+      auth: { persistSession: false } 
+    });
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
-
+    // === 3. AUTHENTIFICATION ===
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    
     if (!token) {
-      console.error("[delete-account] Token manquant");
-      return json({ ok: false, error: "MISSING_TOKEN" }, 401);
+      return json({ ok: false, stage: 'auth', error: 'missing authorization token' }, 401);
     }
 
-    const { data: userData, error: getUserErr } = await admin.auth.getUser(token);
+    const { data: userData, error: getUserErr } = await supabaseAdmin.auth.getUser(token);
     if (getUserErr || !userData?.user) {
       console.error("[delete-account] Token invalide:", getUserErr);
-      return json({ ok: false, error: "TOKEN_INVALID" }, 401);
+      return json({ ok: false, stage: 'auth', error: 'invalid token' }, 401);
     }
 
     const userId = userData.user.id;
     const userEmail = userData.user.email;
     
+    // Log userId en DEV
     console.log("[delete-account] Début suppression:", { userId, email: userEmail });
 
-    // --- Suppressions explicites (ordre FK) ---
-    const steps: Array<[string, PromiseLike<unknown>]> = [
-      ["enrollments", admin.from("enrollments").delete().eq("user_id", userId)],
-      ["registrations", admin.from("registrations").delete().eq("user_id", userId)],
-      ["sessions_owned", admin.from("sessions").delete().eq("host_id", userId)],
-      ["runs_owned", admin.from("runs").delete().eq("host_id", userId)],
-      ["subscribers", admin.from("subscribers").delete().eq("user_id", userId)],
-      ["profile", admin.from("profiles").delete().eq("id", userId)],
-    ];
-
+    // === 4. SUPPRESSIONS EN CASCADE ===
     const deletionStats: Record<string, number> = {};
     
-    for (const [name, op] of steps) {
+    // Ordre FK correct
+    const steps: Array<[string, () => Promise<any>]> = [
+      ["enrollments", () => supabaseAdmin.from("enrollments").delete().eq("user_id", userId)],
+      ["registrations", () => supabaseAdmin.from("registrations").delete().eq("user_id", userId)],
+      ["sessions_owned", () => supabaseAdmin.from("sessions").delete().eq("host_id", userId)],
+      ["runs_owned", () => supabaseAdmin.from("runs").delete().eq("host_id", userId)],
+      ["subscribers", () => supabaseAdmin.from("subscribers").delete().eq("user_id", userId)],
+      ["profile", () => supabaseAdmin.from("profiles").delete().eq("id", userId)],
+    ];
+
+    for (const [name, operation] of steps) {
       try {
-        const res: any = await op;
-        const count = res?.count || 0;
+        const result = await operation();
+        const count = result?.count || 0;
         deletionStats[name] = count;
         console.log(`[delete-account] ${name}: ${count} enregistrement(s) supprimé(s)`);
       } catch (error: any) {
         console.error(`[delete-account] Erreur ${name}:`, error);
         return json({ 
           ok: false, 
-          error: "DELETE_STEP_FAILED", 
-          step: name, 
-          detail: String(error?.message ?? error) 
+          stage: 'database', 
+          error: `Failed to delete ${name}: ${error?.message || error}` 
         }, 500);
       }
     }
 
-    // --- Storage (best-effort) ---
+    // === 5. NETTOYAGE STORAGE (best-effort) ===
     const buckets = [
       { bucket: "avatars", prefix: userId },
       { bucket: "sessions", prefix: userId },
       { bucket: "runs", prefix: userId },
     ];
+    
     let filesDeleted = 0;
     for (const b of buckets) {
       try {
-        const { data: files, error: listErr } = await admin.storage.from(b.bucket).list(b.prefix, { limit: 1000 });
+        const { data: files, error: listErr } = await supabaseAdmin.storage
+          .from(b.bucket)
+          .list(b.prefix, { limit: 1000 });
+          
         if (!listErr && files?.length) {
           const paths = files.map((f: any) => `${b.prefix}/${f.name}`);
-          const { error: delErr } = await admin.storage.from(b.bucket).remove(paths);
+          const { error: delErr } = await supabaseAdmin.storage
+            .from(b.bucket)
+            .remove(paths);
           if (!delErr) filesDeleted += paths.length;
         }
       } catch (e) {
-        console.warn("[delete-account] Storage cleanup warning:", b.bucket, String(e));
-      }
-    }
-    
-    console.log(`[delete-account] Storage: ${filesDeleted} fichier(s) supprimé(s)`);
-
-    // --- Ajouter à la blocklist pour empêcher reconnexion immédiate ---
-    console.log("[delete-account] Tentative d'ajout à la blocklist pour:", userEmail);
-    if (userEmail) {
-      try {
-        const blockUntil = new Date();
-        blockUntil.setDate(blockUntil.getDate() + 7); // Bloquer 7 jours
-        
-        console.log("[delete-account] Ajout à la blocklist - email:", userEmail);
-        
-        const { data: insertData, error: insertError } = await admin.from("deletion_blocklist").upsert({
-          email_hash: userEmail, // Utiliser l'email en clair temporairement pour debug
-          blocked_until: blockUntil.toISOString(),
-          original_user_id: userId
-        });
-        
-        if (insertError) {
-          console.error("[delete-account] Erreur insertion blocklist:", insertError);
-        } else {
-          console.log("[delete-account] Email ajouté à la blocklist avec succès:", insertData);
-        }
-        
-        console.log("[delete-account] Email ajouté à la blocklist jusqu'au:", blockUntil.toISOString());
-      } catch (e) {
-        console.warn("[delete-account] Erreur blocklist (non critique):", String(e));
+        console.warn(`[delete-account] Storage cleanup warning (${b.bucket}):`, String(e));
       }
     }
 
-    // --- Auth user en dernier ---
-    console.log("[delete-account] Suppression auth user...");
-    const { error: delAuthErr } = await admin.auth.admin.deleteUser(userId);
+    // === 6. SUPPRESSION AUTH USER ===
+    const { error: delAuthErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (delAuthErr) {
       console.error("[delete-account] Erreur suppression auth:", delAuthErr);
-      return json({ ok: false, error: "AUTH_DELETE_FAILED", detail: String(delAuthErr.message ?? delAuthErr) }, 500);
+      return json({ 
+        ok: false, 
+        stage: 'auth_delete', 
+        error: `Failed to delete auth user: ${delAuthErr.message}` 
+      }, 500);
     }
 
+    // === 7. SUCCÈS ===
     console.log("[delete-account] Suppression terminée avec succès:", {
       userId,
       email: userEmail,
@@ -150,14 +136,21 @@ serve(async (req) => {
 
     return json({ 
       ok: true, 
+      stage: 'completed',
       deleted: { 
         ...deletionStats,
         files: filesDeleted,
         user_id: userId 
       } 
     }, 200);
-  } catch (e: any) {
-    console.error("DELETE_ACCOUNT_FATAL", e?.message ?? e);
-    return json({ ok: false, error: "FATAL", detail: String(e?.message ?? e) }, 500);
+
+  } catch (error: any) {
+    // === TRY/CATCH GLOBAL ===
+    console.error("[delete-account] ERREUR FATALE:", error);
+    return json({ 
+      ok: false, 
+      stage: 'fatal', 
+      error: `Unexpected error: ${error?.message || error}` 
+    }, 500);
   }
 });
