@@ -168,39 +168,32 @@ const Subscription = () => {
               </ul>
             </div>
 
-            {/* CORRECTION: Stripe Buy Button intégré */}
-            <div className="space-y-3">
-              {stripeBuyButtonLoaded ? (
-                <div className="stripe-buy-button-container w-full">
-                  <stripe-buy-button
-                    buy-button-id="buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"
-                    publishable-key="pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc"
-                  />
-                </div>
-              ) : (
-                <div className="w-full p-4 bg-gray-100 rounded-lg text-center">
-                  <div className="animate-pulse">Chargement du paiement...</div>
-                </div>
-              )}
-              
-              <div className="text-center">
-                <p className="text-xs text-sport-gray">
-                  Résiliable à tout moment • Facturation mensuelle
+            {/* Call-to-action pour non connectés */}
+            <div className="space-y-3 text-center">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-800 font-medium">
+                  🔒 Connexion requise pour s'abonner
                 </p>
-                <p className="text-xs text-sport-gray mt-1">
-                  Vous devez être connecté pour finaliser l'abonnement
+                <p className="text-xs text-yellow-700 mt-1">
+                  Créez un compte pour sécuriser votre abonnement
                 </p>
               </div>
               
               <Button 
                 onClick={() => navigate('/auth')}
-                variant="sportOutline"
+                variant="default"
                 size="lg"
                 className="w-full"
               >
                 <Users size={16} className="mr-2" />
                 Se connecter / Créer un compte
               </Button>
+              
+              <div className="text-center">
+                <p className="text-xs text-sport-gray">
+                  Résiliable à tout moment • Facturation mensuelle
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
