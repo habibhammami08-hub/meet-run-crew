@@ -135,6 +135,8 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground font-sans;
+    /* CORRECTION: Éviter le défilement horizontal sur mobile */
+    overflow-x: hidden;
   }
 
   /* Custom sport utilities */
@@ -174,6 +176,19 @@ All colors MUST be HSL.
 
   .animate-pulse-sport {
     animation: pulse-sport 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* CORRECTION: Styles spécifiques pour la navigation fixe */
+  .fixed-navigation {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: white;
+    border-top: 1px solid hsl(var(--border));
+    box-shadow: 0 -4px 20px -2px hsl(210 40% 8% / 0.1);
+    backdrop-filter: blur(10px);
   }
 
   /* CORRECTION: Styles spécifiques pour Leaflet */
@@ -230,5 +245,42 @@ All colors MUST be HSL.
   .cluster-popup .btn-open-session:hover {
     background-color: #047857 !important;
     transform: translateY(-1px);
+  }
+
+  /* CORRECTION: Assurer que le contenu ne passe pas sous la navigation fixe */
+  .main-content {
+    padding-bottom: 80px; /* Espace pour la navigation fixe */
+  }
+
+  /* Responsive pour mobile */
+  @media (max-width: 768px) {
+    .fixed-navigation {
+      padding: 8px 16px;
+    }
+    
+    .main-content {
+      padding-bottom: 76px; /* Ajustement pour mobile */
+    }
+  }
+
+  /* CORRECTION: S'assurer que les cartes flottantes ne passent pas sous la navigation */
+  .floating-card {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+
+  .floating-filters {
+    bottom: 80px; /* Positionnement au-dessus de la navigation */
+  }
+
+  /* Amélioration pour les écrans très petits */
+  @media (max-height: 600px) {
+    .floating-card {
+      max-height: calc(100vh - 140px);
+    }
+    
+    .floating-filters {
+      bottom: 70px;
+    }
   }
 }
