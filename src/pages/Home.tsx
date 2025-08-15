@@ -176,36 +176,6 @@ const Home = () => {
         </div>
       </div>
 
-      {/* CORRECTION: CTA Abonnement visible pour TOUS les utilisateurs */}
-      {!hasActiveSubscription && (
-        <div className="p-6">
-          <Card className="shadow-card border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Crown size={20} className="text-primary" />
-                    <h3 className="font-bold text-lg">MeetRun Unlimited</h3>
-                  </div>
-                  <p className="text-sport-gray mb-3">
-                    Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
-                  </p>
-                  <div className="text-2xl font-bold text-primary">9,99 €/mois</div>
-                </div>
-                <Button 
-                  variant="sport" 
-                  size="lg"
-                  onClick={() => navigate("/subscription")}
-                  className="ml-4"
-                >
-                  {user ? "S'abonner" : "Découvrir"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* How it works section */}
       <div className="p-6">
         <h2 className="text-2xl font-bold text-center mb-8 text-sport-black">
@@ -266,6 +236,36 @@ const Home = () => {
           </Button>
         </div>
       </div>
+
+      {/* CTA Abonnement visible pour TOUS les utilisateurs */}
+      {!hasActiveSubscription && (
+        <div className="p-6">
+          <Card className="shadow-card border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Crown size={20} className="text-primary" />
+                    <h3 className="font-bold text-lg">MeetRun Unlimited</h3>
+                  </div>
+                  <p className="text-sport-gray mb-3">
+                    Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
+                  </p>
+                  <div className="text-2xl font-bold text-primary">9,99 €/mois</div>
+                </div>
+                <Button 
+                  variant="sport" 
+                  size="lg"
+                  onClick={() => navigate("/subscription")}
+                  className="ml-4"
+                >
+                  {user ? "S'abonner" : "Découvrir"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Activity Section */}
       {user && (
