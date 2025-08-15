@@ -53,6 +53,30 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_blocklist: {
+        Row: {
+          blocked_until: string
+          created_at: string
+          email_hash: string
+          id: string
+          original_user_id: string
+        }
+        Insert: {
+          blocked_until: string
+          created_at?: string
+          email_hash: string
+          id?: string
+          original_user_id: string
+        }
+        Update: {
+          blocked_until?: string
+          created_at?: string
+          email_hash?: string
+          id?: string
+          original_user_id?: string
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
@@ -484,6 +508,10 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
+      cleanup_expired_blocklist: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       delete_user_completely: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -544,6 +572,10 @@ export type Database = {
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
+      }
+      hash_email: {
+        Args: { email: string }
+        Returns: string
       }
       is_session_open: {
         Args: { session_id: string }
