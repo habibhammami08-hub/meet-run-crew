@@ -500,7 +500,7 @@ const Profile = () => {
         }
       />
       
-      <div className="p-4 space-y-6 pb-20">
+      <div className="p-4 space-y-6 main-content">
         {/* User info */}
         <Card className="shadow-card">
           <CardContent className="p-6">

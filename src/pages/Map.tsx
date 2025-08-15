@@ -302,7 +302,7 @@ const Map = () => {
       />
       
       {/* CORRECTION: Map container avec padding-bottom pour éviter l'overlap avec la navigation */}
-      <div className="flex-1 relative pb-20">
+      <div className="flex-1 relative main-content">
         {sessions.length === 0 && !loading ? (
           // Empty state - no sessions at all
           <div className="absolute inset-0 flex items-center justify-center p-8">

@@ -166,7 +166,7 @@ const SessionDetails = () => {
         }
       />
       
-      <div className="p-4 space-y-6 pb-20">
+      <div className="p-4 space-y-6 main-content">
         {/* Main session info */}
         <Card className="shadow-card">
           <CardContent className="p-6">

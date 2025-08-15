@@ -209,7 +209,7 @@ const CreateRun = () => {
     <div className="min-h-screen bg-background">
       <Header title="Créer une session" />
       
-      <form onSubmit={handleSubmit} className="p-4 space-y-6 pb-20">
+      <form onSubmit={handleSubmit} className="p-4 space-y-6 main-content">
         {/* Basic Info */}
         <Card className="shadow-card">
           <CardHeader>

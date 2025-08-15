@@ -145,8 +145,10 @@ const Home = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="relative h-[50vh] overflow-hidden">
+      {/* Main content avec padding pour la navigation fixe */}
+      <div className="main-content">
+        {/* Hero Section */}
+        <div className="relative h-[50vh] overflow-hidden">
         <img 
           src={heroImage} 
           alt="MeetRun - Running collectif" 
@@ -364,7 +366,8 @@ const Home = () => {
             </CardContent>
           </Card>
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
