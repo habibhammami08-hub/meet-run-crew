@@ -28,50 +28,42 @@ const AccountDeletionComponent: React.FC = () => {
   // Handler de confirmation de suppression
   const handleConfirmDelete = async () => {
     if (confirmationText !== 'SUPPRIMER') {
-      toast({
-        title: "Confirmation requise",
-        description: "Veuillez taper 'SUPPRIMER' pour confirmer",
-        variant: "destructive",
-      });
+      toast({ title: "Confirmation requise", description: "Veuillez taper 'SUPPRIMER'", variant: "destructive" });
       return;
     }
 
     try {
       setIsDeleting(true);
-
-      // Appel edge function (Bearer token inclus automatiquement)
       const { data, error } = await supabase.functions.invoke('delete-account', {
         method: 'POST',
-        body: {} // pas de payload nécessaire
+        body: {},
       });
 
+      // Erreur réseau / transport
       if (error) {
-        console.error('delete-account error:', error);
+        console.error('delete-account transport error:', error);
+        toast({ title: 'Suppression impossible', description: error.message ?? 'Erreur réseau', variant: 'destructive' });
+        return;
+      }
+
+      // Réponse API explicite
+      if (!data?.ok) {
+        console.error('delete-account api error:', data);
         toast({
           title: 'Suppression impossible',
-          description: error.message ?? 'Une erreur est survenue.',
+          description: `${data?.error ?? 'Erreur'}${data?.detail ? ` — ${data.detail}` : ''}`,
           variant: 'destructive',
         });
         return;
       }
 
-      // Invalider la session côté client
+      // Succès → invalider session locale
       await supabase.auth.signOut();
-
-      toast({
-        title: 'Compte supprimé',
-        description: 'Votre compte et vos données ont été supprimés.',
-      });
-
-      // Redirection au choix (ex: page d'accueil)
+      toast({ title: 'Compte supprimé', description: 'Votre compte et vos données ont été supprimés.' });
       navigate('/', { replace: true });
     } catch (e: any) {
       console.error('Unexpected delete error:', e);
-      toast({
-        title: 'Erreur',
-        description: e?.message ?? 'Une erreur inattendue est survenue.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erreur', description: e?.message ?? 'Erreur inattendue', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
       setShowConfirmDialog(false);
