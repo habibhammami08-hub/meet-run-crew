@@ -16,8 +16,10 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-sport ${
-              isActive('/') && location.pathname === '/' ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-all duration-200 rounded-lg ${
+              isActive('/') && location.pathname === '/' 
+                ? 'text-primary bg-primary/10 border border-primary/20' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             }`}
           >
             <Home size={20} />
@@ -29,8 +31,10 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-sport ${
-              isActive('/map') ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-all duration-200 rounded-lg ${
+              isActive('/map') 
+                ? 'text-primary bg-primary/10 border border-primary/20' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             }`}
           >
             <MapPin size={20} />
@@ -42,8 +46,10 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative transition-sport ${
-              isActive('/subscription') ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative transition-all duration-200 rounded-lg ${
+              isActive('/subscription') 
+                ? 'text-primary bg-primary/10 border border-primary/20' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             }`}
           >
             <Crown size={20} />
@@ -68,8 +74,10 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-sport ${
-              isActive('/profile') ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-all duration-200 rounded-lg ${
+              isActive('/profile') 
+                ? 'text-primary bg-primary/10 border border-primary/20' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             }`}
           >
             <User size={20} />
