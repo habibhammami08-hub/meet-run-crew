@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createSupabaseClient, authenticateUser } from "../_shared/auth.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { 
   AppError, 
   ErrorCode, 
@@ -40,10 +40,33 @@ serve(async (req) => {
       );
     }
 
-    // 2. Authenticate user
-    const user = await authenticateUser(req.headers.get('Authorization'), {
-      requireProfile: true
-    });
+    // 2. Get Supabase URL and keys
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new AppError('Missing Supabase configuration', ErrorCode.CONFIG_ERROR, 500);
+    }
+
+    // 3. Create clients
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const supabaseClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') || '');
+
+    // 4. Authenticate user using Bearer token
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new AppError('Missing or invalid authorization header', ErrorCode.INVALID_TOKEN, 401);
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Get user from token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) {
+      throw new AppError('Invalid or expired token', ErrorCode.TOKEN_INVALID, 401);
+    }
+
     userId = user.id;
 
     logEvent({
@@ -55,14 +78,56 @@ serve(async (req) => {
       request_id: requestId
     });
 
-    // 3. Check for active sessions in the future
-    await checkActiveHostedSessions(userId, requestId);
+    // 5. Check for active future sessions hosted by this user
+    const { data: futureSessions, error: sessionsError } = await supabaseAdmin
+      .from('sessions')
+      .select('id, title, scheduled_at')
+      .eq('host_id', userId)
+      .eq('status', 'published')
+      .gte('scheduled_at', new Date().toISOString())
+      .limit(5);
 
-    // 4. Create admin Supabase client
-    const supabaseAdmin = await createSupabaseClient(true);
+    if (sessionsError) {
+      console.error('Failed to check active sessions:', sessionsError);
+      throw new AppError('Failed to verify account status', ErrorCode.DATABASE_ERROR, 500);
+    }
 
-    // 5. Perform deletion in order
+    if (futureSessions && futureSessions.length > 0) {
+      logEvent({
+        level: 'warn',
+        function_name: 'delete-account',
+        user_id: userId,
+        action: 'active_sessions_found',
+        success: false,
+        metadata: {
+          session_count: futureSessions.length,
+          sessions: futureSessions
+        },
+        request_id: requestId
+      });
+
+      throw new AppError(
+        'Cannot delete account with active future sessions',
+        ErrorCode.INVALID_FIELD_VALUE,
+        400,
+        `Vous ne pouvez pas supprimer votre compte car vous organisez ${futureSessions.length} session(s) à venir. Veuillez d'abord annuler ou transférer ces sessions.`
+      );
+    }
+
+    // 6. Perform account deletion in correct order
     const deletionStats = await performAccountDeletion(supabaseAdmin, userId, requestId);
+
+    // 7. CRITICAL: Delete user from auth.users (this will prevent re-login)
+    const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    
+    if (deleteUserError) {
+      console.error('Failed to delete auth user:', deleteUserError);
+      throw new AppError(
+        'Failed to complete account deletion',
+        ErrorCode.DATABASE_ERROR,
+        500
+      );
+    }
 
     const result: DeletionResult = {
       success: true,
@@ -103,65 +168,6 @@ serve(async (req) => {
     return createErrorResponse(error, requestId, corsHeaders);
   }
 });
-
-async function checkActiveHostedSessions(userId: string, requestId: string): Promise<void> {
-  const supabase = await createSupabaseClient(true);
-
-  try {
-    // Check for future sessions hosted by this user
-    const { data: futureSessions, error } = await supabase
-      .from('sessions')
-      .select('id, title, scheduled_at')
-      .eq('host_id', userId)
-      .eq('status', 'published')
-      .gte('scheduled_at', new Date().toISOString())
-      .limit(5);
-
-    if (error) {
-      console.error('Failed to check active sessions:', error);
-      throw new AppError(
-        'Failed to verify account status',
-        ErrorCode.DATABASE_ERROR,
-        500
-      );
-    }
-
-    if (futureSessions && futureSessions.length > 0) {
-      logEvent({
-        level: 'warn',
-        function_name: 'delete-account',
-        user_id: userId,
-        action: 'active_sessions_found',
-        success: false,
-        metadata: {
-          session_count: futureSessions.length,
-          sessions: futureSessions.map(s => ({
-            id: s.id,
-            title: s.title,
-            date: s.scheduled_at
-          }))
-        },
-        request_id: requestId
-      });
-
-      throw new AppError(
-        'Cannot delete account with active future sessions',
-        ErrorCode.INVALID_FIELD_VALUE,
-        400,
-        `Vous ne pouvez pas supprimer votre compte car vous organisez ${futureSessions.length} session(s) à venir. Veuillez d'abord annuler ou transférer ces sessions.`
-      );
-    }
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
-    }
-    throw new AppError(
-      'Failed to verify account status',
-      ErrorCode.DATABASE_ERROR,
-      500
-    );
-  }
-}
 
 async function performAccountDeletion(
   supabaseAdmin: any,
@@ -208,7 +214,7 @@ async function performAccountDeletion(
       }
     }
 
-    // 3. Delete or archive user's past sessions
+    // 3. Archive user's past sessions (don't delete to maintain data integrity)
     const { data: pastSessions, error: sessionsSelectError } = await supabaseAdmin
       .from('sessions')
       .select('id')
@@ -241,7 +247,7 @@ async function performAccountDeletion(
       .delete()
       .eq('user_id', userId);
 
-    // 5. Delete profile (cascades to remaining data)
+    // 5. Delete profile - this will cascade delete related data
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .delete()
@@ -255,28 +261,6 @@ async function performAccountDeletion(
         500
       );
     }
-
-    // 6. Delete from auth.users (complete account removal)
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-
-    if (authError) {
-      console.error('Failed to delete auth user:', authError);
-      throw new AppError(
-        'Failed to delete user account',
-        ErrorCode.DATABASE_ERROR,
-        500
-      );
-    }
-
-    logEvent({
-      level: 'info',
-      function_name: 'delete-account',
-      user_id: userId,
-      action: 'deletion_completed',
-      success: true,
-      metadata: stats,
-      request_id: requestId
-    });
 
     return stats;
 
