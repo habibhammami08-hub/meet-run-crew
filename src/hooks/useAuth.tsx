@@ -122,23 +122,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Erreur déconnexion:", error);
-      }
-    } catch (error) {
-      console.error("Erreur critique déconnexion:", error);
-    } finally {
-      // Redirection forcée même en cas d'erreur
+      console.log("[auth] Début déconnexion...");
+      
+      // Nettoyer d'abord les états locaux
       setUser(null);
       setSession(null);
       setHasActiveSubscription(false);
       setSubscriptionStatus(null);
       setSubscriptionEnd(null);
-      setLoading(false);
       
-      // Redirection vers la page d'accueil
-      window.location.href = "/";
+      // Déconnexion Supabase avec options pour forcer le nettoyage
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      if (error) {
+        console.error("Erreur déconnexion Supabase:", error);
+      }
+      
+      // Nettoyer le localStorage pour forcer la déconnexion
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('sb-qnupinrsetomnsdchhfa-auth-token');
+      
+      console.log("[auth] Déconnexion terminée - redirection...");
+      
+    } catch (error) {
+      console.error("Erreur critique déconnexion:", error);
+    } finally {
+      setLoading(false);
+      // Redirection simple sans window.location
+      window.location.pathname = "/";
     }
   };
 
