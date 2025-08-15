@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AppLayout from "./components/AppLayout";
 
 // Lazy load pages for better performance
@@ -37,35 +38,37 @@ const queryClient = new QueryClient({
 });
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppLayout>
-            <Suspense fallback={<LoadingSpinner />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/map" element={<Map />} />
-                <Route path="/run/:id" element={<Navigate to="/" replace />} />
-                <Route path="/session/:id" element={<SessionDetails />} />
-                <Route path="/create" element={<CreateRun />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/subscription" element={<Subscription />} />
-                <Route path="/subscription/success" element={<SubscriptionSuccess />} />
-                <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
-                <Route path="/goodbye" element={<Goodbye />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </AppLayout>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppLayout>
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/map" element={<Map />} />
+                  <Route path="/run/:id" element={<Navigate to="/" replace />} />
+                  <Route path="/session/:id" element={<SessionDetails />} />
+                  <Route path="/create" element={<CreateRun />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/subscription" element={<Subscription />} />
+                  <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+                  <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
+                  <Route path="/goodbye" element={<Goodbye />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </AppLayout>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

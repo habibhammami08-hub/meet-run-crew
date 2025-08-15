@@ -1,265 +1,199 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createSupabaseClient, authenticateUser } from "../_shared/auth.ts";
-import { 
-  AppError, 
-  ErrorCode, 
-  createErrorResponse, 
-  corsHeaders, 
-  logEvent, 
-  generateRequestId 
-} from "../_shared/errors.ts";
-import { validatePayload, schemas } from "../_shared/validation.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-interface CreatePaymentPayload {
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+
+interface CreatePaymentRequest {
   sessionId: string;
 }
 
-interface SessionData {
-  id: string;
-  title: string;
-  host_id: string;
-  price_cents: number;
-  max_participants: number;
-  date: string;
-  area_hint?: string;
-  current_enrollments: number;
+interface CreatePaymentResponse {
+  checkout_url: string;
+  session_id: string;
 }
+
+interface ErrorResponse {
+  error: string;
+  code?: string;
+}
+
+const logStep = (step: string, details?: any) => {
+  const timestamp = new Date().toISOString();
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[${timestamp}] [CREATE-PAYMENT] ${step}${detailsStr}`);
+};
 
 serve(async (req) => {
-  const requestId = generateRequestId();
-  const startTime = Date.now();
-  let userId: string | undefined;
-
-  // Handle CORS preflight
+  // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    logStep('CORS preflight request');
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // 1. Validate request method
+    logStep('Starting payment creation process');
+
+    // Validate method
     if (req.method !== 'POST') {
-      throw new AppError(
-        'Only POST method allowed',
-        ErrorCode.INVALID_REQUEST_METHOD,
-        405
-      );
+      throw new Error('Method not allowed');
     }
 
-    // 2. Authenticate user
-    const user = await authenticateUser(req.headers.get('Authorization'), {
-      requireProfile: true
-    });
-    userId = user.id;
-
-    // 3. Validate payload
-    const rawPayload = await req.json().catch(() => {
-      throw new AppError('Invalid JSON payload', ErrorCode.INVALID_PAYLOAD, 400);
-    });
-
-    const { sessionId } = validatePayload<CreatePaymentPayload>(
-      rawPayload,
-      schemas.createPayment
-    );
-
-    // 4. Validate session and check enrollment eligibility
-    const session = await validateSessionForEnrollment(sessionId, user.id);
-
-    // 5. Get or create Stripe customer
-    const stripe = createStripeClient();
-    const customerId = await getOrCreateStripeCustomer(stripe, user);
-
-    // 6. Create Stripe checkout session
-    const checkoutSession = await createStripeCheckoutSession(
-      stripe,
-      session,
-      customerId,
-      req.headers.get('origin') || 'https://meetrun.app'
-    );
-
-    // 7. Create pending enrollment record
-    await createPendingEnrollment(sessionId, user.id, checkoutSession.id);
-
-    logEvent({
-      level: 'info',
-      function_name: 'create-payment',
-      user_id: userId,
-      action: 'checkout_created',
-      success: true,
-      duration_ms: Date.now() - startTime,
-      metadata: {
-        session_id: sessionId,
-        stripe_session_id: checkoutSession.id,
-        amount_cents: session.price_cents
-      },
-      request_id: requestId
-    });
-
-    return new Response(JSON.stringify({
-      checkout_url: checkoutSession.url,
-      session_id: checkoutSession.id
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    logEvent({
-      level: 'error',
-      function_name: 'create-payment',
-      user_id: userId,
-      action: 'checkout_failed',
-      success: false,
-      error_code: error instanceof AppError ? error.code : ErrorCode.INTERNAL_ERROR,
-      error_message: error instanceof Error ? error.message : String(error),
-      duration_ms: Date.now() - startTime,
-      request_id: requestId
-    });
-
-    return createErrorResponse(error, requestId, corsHeaders);
-  }
-});
-
-function createStripeClient(): Stripe {
-  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-  if (!stripeKey) {
-    throw new AppError('Stripe configuration missing', ErrorCode.CONFIG_ERROR, 500);
-  }
-
-  return new Stripe(stripeKey, {
-    apiVersion: '2023-10-16',
-    timeout: 10000 // 10 second timeout
-  });
-}
-
-async function validateSessionForEnrollment(
-  sessionId: string,
-  userId: string
-): Promise<SessionData> {
-  const supabase = await createSupabaseClient(true);
-
-  // Get session with enrollment count
-  const { data: session, error: sessionError } = await supabase
-    .from('sessions')
-    .select(`
-      id,
-      title,
-      host_id,
-      price_cents,
-      max_participants,
-      date,
-      area_hint,
-      enrollments!inner(count)
-    `)
-    .eq('id', sessionId)
-    .gte('date', new Date().toISOString())
-    .maybeSingle();
-
-  if (sessionError || !session) {
-    throw new AppError(
-      'Session not found or not available',
-      ErrorCode.SESSION_NOT_FOUND,
-      404,
-      'Cette session n\'existe pas ou n\'est plus disponible'
-    );
-  }
-
-  // Check if user is the host
-  if (session.host_id === userId) {
-    throw new AppError(
-      'Cannot enroll in own session',
-      ErrorCode.INVALID_FIELD_VALUE,
-      400,
-      'Vous ne pouvez pas vous inscrire à votre propre session'
-    );
-  }
-
-  // Check if already enrolled
-  const { data: existingEnrollment } = await supabase
-    .from('enrollments')
-    .select('id')
-    .eq('session_id', sessionId)
-    .eq('user_id', userId)
-    .in('status', ['pending', 'paid', 'confirmed'])
-    .maybeSingle();
-
-  if (existingEnrollment) {
-    throw new AppError(
-      'Already enrolled in this session',
-      ErrorCode.ALREADY_ENROLLED,
-      400,
-      'Vous êtes déjà inscrit à cette session'
-    );
-  }
-
-  // Check if session is full
-  const currentEnrollments = session.enrollments?.[0]?.count || 0;
-  if (currentEnrollments >= session.max_participants) {
-    throw new AppError(
-      'Session is full',
-      ErrorCode.SESSION_FULL,
-      400,
-      'Cette session est complète'
-    );
-  }
-
-  return {
-    ...session,
-    current_enrollments: currentEnrollments
-  };
-}
-
-async function getOrCreateStripeCustomer(
-  stripe: Stripe,
-  user: any
-): Promise<string> {
-  if (user.profile?.stripe_customer_id) {
-    // Verify customer exists in Stripe
-    try {
-      await stripe.customers.retrieve(user.profile.stripe_customer_id);
-      return user.profile.stripe_customer_id;
-    } catch (error) {
-      // Customer doesn't exist in Stripe, create new one
-      console.warn(`Stripe customer ${user.profile.stripe_customer_id} not found, creating new one`);
+    // Authenticate user
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      throw new Error('Authorization required');
     }
-  }
 
-  // Create new customer
-  try {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      name: user.profile?.full_name || undefined,
-      metadata: {
-        user_id: user.id,
-        created_by: 'meetrun_create_payment'
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      logStep('Authentication failed', { authError });
+      throw new Error('Invalid authentication');
+    }
+
+    logStep('User authenticated', { userId: user.id, email: user.email });
+
+    // Parse and validate payload
+    const requestBody = await req.json();
+    const { sessionId }: CreatePaymentRequest = requestBody;
+    
+    if (!sessionId || typeof sessionId !== 'string') {
+      throw new Error('Valid session ID required');
+    }
+
+    logStep('Request validated', { sessionId });
+
+    // Get session details with enrollment check
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        profiles!sessions_host_id_fkey (full_name, email)
+      `)
+      .eq('id', sessionId)
+      .eq('status', 'published')
+      .gte('scheduled_at', new Date().toISOString())
+      .single();
+
+    if (sessionError || !session) {
+      logStep('Session fetch failed', { sessionError, sessionId });
+      throw new Error('Session not found or not available');
+    }
+
+    logStep('Session found', { 
+      sessionId: session.id, 
+      title: session.title,
+      hostId: session.host_id,
+      scheduledAt: session.scheduled_at 
+    });
+
+    // Validate enrollment eligibility
+    if (session.host_id === user.id) {
+      logStep('Enrollment blocked - user is host');
+      throw new Error('Cannot enroll in own session');
+    }
+
+    // Check existing enrollments
+    const { data: existingEnrollments, error: enrollmentError } = await supabase
+      .from('enrollments')
+      .select('id, user_id, status')
+      .eq('session_id', sessionId);
+
+    if (enrollmentError) {
+      logStep('Failed to check enrollments', { enrollmentError });
+      throw new Error('Failed to verify enrollment status');
+    }
+
+    const existingEnrollment = existingEnrollments?.find(
+      (e: any) => e.user_id === user.id && ['pending', 'paid', 'confirmed'].includes(e.status)
+    );
+    
+    if (existingEnrollment) {
+      logStep('Enrollment blocked - already enrolled', { existingStatus: existingEnrollment.status });
+      throw new Error('Already enrolled in this session');
+    }
+
+    const confirmedEnrollments = existingEnrollments?.filter(
+      (e: any) => ['paid', 'confirmed', 'present'].includes(e.status)
+    ).length || 0;
+
+    if (confirmedEnrollments >= session.max_participants) {
+      logStep('Enrollment blocked - session full', { 
+        confirmedEnrollments, 
+        maxParticipants: session.max_participants 
+      });
+      throw new Error('Session is full');
+    }
+
+    logStep('Enrollment validation passed', { 
+      confirmedEnrollments, 
+      maxParticipants: session.max_participants 
+    });
+
+    // Initialize Stripe
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+    if (!stripeKey) {
+      throw new Error('Stripe configuration missing');
+    }
+
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: '2023-10-16',
+    });
+
+    logStep('Stripe initialized');
+
+    // Get or create customer
+    let customerId: string | undefined;
+    
+    // Check if customer exists in user metadata
+    if (user.user_metadata?.stripe_customer_id) {
+      customerId = user.user_metadata.stripe_customer_id;
+      logStep('Using existing customer ID from metadata', { customerId });
+    } else {
+      // Check in profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('stripe_customer_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (profile?.stripe_customer_id) {
+        customerId = profile.stripe_customer_id;
+        logStep('Using existing customer ID from profile', { customerId });
       }
-    });
+    }
+    
+    if (!customerId) {
+      // Create new customer
+      const customer = await stripe.customers.create({
+        email: user.email!,
+        metadata: { user_id: user.id }
+      });
+      customerId = customer.id;
+      
+      logStep('Created new Stripe customer', { customerId });
+      
+      // Update profile with customer ID
+      await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', user.id);
+        
+      logStep('Updated profile with customer ID');
+    }
 
-    // Update profile with Stripe customer ID
-    const supabase = await createSupabaseClient(true);
-    await supabase
-      .from('profiles')
-      .update({ stripe_customer_id: customer.id })
-      .eq('id', user.id);
-
-    return customer.id;
-  } catch (error) {
-    throw new AppError(
-      'Failed to create customer account',
-      ErrorCode.STRIPE_ERROR,
-      500,
-      'Erreur lors de la création du compte client'
-    );
-  }
-}
-
-async function createStripeCheckoutSession(
-  stripe: Stripe,
-  session: SessionData,
-  customerId: string,
-  origin: string
-): Promise<Stripe.Checkout.Session> {
-  try {
+    // Create checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [{
@@ -267,10 +201,10 @@ async function createStripeCheckoutSession(
           currency: 'eur',
           product_data: {
             name: `Session: ${session.title}`,
-            description: `${session.area_hint || 'Session de course'} - ${new Date(session.date).toLocaleDateString('fr-FR')}`,
+            description: `${session.location_hint || 'Session de course'} - ${new Date(session.scheduled_at).toLocaleDateString('fr-FR')}`,
             metadata: {
-              session_id: session.id,
-              type: 'running_session'
+              session_id: sessionId,
+              host_id: session.host_id
             }
           },
           unit_amount: session.price_cents
@@ -278,64 +212,78 @@ async function createStripeCheckoutSession(
         quantity: 1
       }],
       mode: 'payment',
-      success_url: `${origin}/sessions/${session.id}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/sessions/${session.id}/payment/cancel`,
+      success_url: `${req.headers.get('origin')}/sessions/${sessionId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${req.headers.get('origin')}/sessions/${sessionId}`,
       expires_at: Math.floor(Date.now() / 1000) + (30 * 60), // 30 minutes
       metadata: {
-        session_id: session.id,
-        user_id: '',
-        type: 'session_enrollment'
+        session_id: sessionId,
+        user_id: user.id,
+        app_name: 'meetrun'
       },
-      automatic_tax: {
-        enabled: false
-      },
-      billing_address_collection: 'required',
-      customer_update: {
-        name: 'auto',
-        address: 'auto'
+      payment_intent_data: {
+        metadata: {
+          session_id: sessionId,
+          user_id: user.id
+        }
       }
     });
 
-    return checkoutSession;
-  } catch (error) {
-    console.error('Stripe checkout creation failed:', error);
-    throw new AppError(
-      'Failed to create payment session',
-      ErrorCode.STRIPE_ERROR,
-      500,
-      'Erreur lors de la création de la session de paiement'
-    );
-  }
-}
+    logStep('Stripe checkout session created', { 
+      checkoutSessionId: checkoutSession.id,
+      expiresAt: checkoutSession.expires_at 
+    });
 
-async function createPendingEnrollment(
-  sessionId: string,
-  userId: string,
-  stripeSessionId: string
-): Promise<void> {
-  const supabase = await createSupabaseClient(true);
-
-  try {
-    const { error } = await supabase
+    // Create pending enrollment
+    const { error: enrollmentInsertError } = await supabase
       .from('enrollments')
       .insert({
         session_id: sessionId,
-        user_id: userId,
-        stripe_session_id: stripeSessionId,
-        status: 'pending',
-        created_at: new Date().toISOString()
+        user_id: user.id,
+        stripe_session_id: checkoutSession.id,
+        status: 'pending'
       });
 
-    if (error) {
-      throw error;
+    if (enrollmentInsertError) {
+      logStep('Failed to create enrollment record', { enrollmentInsertError });
+      
+      // Cancel the Stripe session if enrollment creation failed
+      try {
+        await stripe.checkout.sessions.expire(checkoutSession.id);
+        logStep('Cancelled Stripe session due to enrollment failure');
+      } catch (cancelError) {
+        logStep('Failed to cancel Stripe session', { cancelError });
+      }
+      
+      throw new Error('Failed to create enrollment record');
     }
+
+    logStep('Enrollment record created successfully');
+
+    const response: CreatePaymentResponse = {
+      checkout_url: checkoutSession.url!,
+      session_id: checkoutSession.id
+    };
+
+    logStep('Payment creation completed successfully', response);
+
+    return new Response(JSON.stringify(response), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
   } catch (error) {
-    console.error('Failed to create enrollment record:', error);
-    throw new AppError(
-      'Failed to create enrollment record',
-      ErrorCode.DATABASE_ERROR,
-      500,
-      'Erreur lors de l\'enregistrement de l\'inscription'
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Payment creation failed';
+    logStep('ERROR in create-payment', { error: errorMessage });
+    
+    const errorResponse: ErrorResponse = {
+      error: errorMessage,
+      code: 'PAYMENT_CREATION_FAILED'
+    };
+
+    return new Response(JSON.stringify(errorResponse), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
-}
+});
+
+// Edge function is now complete and simplified
