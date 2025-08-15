@@ -53,14 +53,14 @@ export type Database = {
             foreignKeyName: "enrollments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
-            referencedRelation: "session_summary"
+            referencedRelation: "sessions"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "enrollments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
-            referencedRelation: "sessions"
+            referencedRelation: "sessions_complete"
             referencedColumns: ["id"]
           },
           {
@@ -352,7 +352,7 @@ export type Database = {
       }
     }
     Views: {
-      session_summary: {
+      sessions_complete: {
         Row: {
           available_spots: number | null
           created_at: string | null
@@ -385,6 +385,10 @@ export type Database = {
       backfill_missing_profiles: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      can_enroll_in_session: {
+        Args: { p_session_id: string }
+        Returns: boolean
       }
       cleanup_expired_sessions: {
         Args: Record<PropertyKey, never>
