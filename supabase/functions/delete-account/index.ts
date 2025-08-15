@@ -29,7 +29,6 @@ serve(async (req) => {
       }, 500);
     }
 
-    // Log en DEV
     console.log("[delete-account] Configuration:", { 
       SUPABASE_URL, 
       hasServiceRole: !!SUPABASE_SERVICE_ROLE_KEY 
@@ -57,7 +56,6 @@ serve(async (req) => {
     const userId = userData.user.id;
     const userEmail = userData.user.email;
     
-    // Log userId en DEV
     console.log("[delete-account] Début suppression:", { userId, email: userEmail });
 
     // === 4. SUPPRESSIONS EN CASCADE ===
@@ -93,8 +91,6 @@ serve(async (req) => {
     // === 5. NETTOYAGE STORAGE (best-effort) ===
     const buckets = [
       { bucket: "avatars", prefix: userId },
-      { bucket: "sessions", prefix: userId },
-      { bucket: "runs", prefix: userId },
     ];
     
     let filesDeleted = 0;
@@ -116,7 +112,8 @@ serve(async (req) => {
       }
     }
 
-    // === 6. SUPPRESSION AUTH USER ===
+    // === 6. SUPPRESSION AUTH USER (LE PLUS IMPORTANT) ===
+    console.log("[delete-account] Suppression auth user avec admin.deleteUser...");
     const { error: delAuthErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (delAuthErr) {
       console.error("[delete-account] Erreur suppression auth:", delAuthErr);
