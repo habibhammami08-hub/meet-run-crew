@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Logo from "@/components/Logo";
 import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -120,8 +119,8 @@ const Home = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-white border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto group">
-          <Logo variant="header" />
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
           <div className="flex items-center gap-2">
             {user ? (
               <>
@@ -150,7 +149,7 @@ const Home = () => {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/20" />
         <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
-          <Logo variant="hero" className="mb-2" />
+          <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
           <p className="text-lg opacity-90 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
