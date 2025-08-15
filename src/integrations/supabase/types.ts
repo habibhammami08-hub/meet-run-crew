@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          id: string
+          ip_address: unknown | null
+          new_data: Json | null
+          old_data: Json | null
+          operation: string
+          record_id: string | null
+          table_name: string
+          timestamp: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          ip_address?: unknown | null
+          new_data?: Json | null
+          old_data?: Json | null
+          operation: string
+          record_id?: string | null
+          table_name: string
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          ip_address?: unknown | null
+          new_data?: Json | null
+          old_data?: Json | null
+          operation?: string
+          record_id?: string | null
+          table_name?: string
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
@@ -361,6 +400,30 @@ export type Database = {
       }
     }
     Views: {
+      payment_metrics: {
+        Row: {
+          avg_payment_cents: number | null
+          failed_payments: number | null
+          payments_24h: number | null
+          successful_payments: number | null
+          total_payments: number | null
+          total_revenue_cents: number | null
+        }
+        Relationships: []
+      }
+      session_performance_metrics: {
+        Row: {
+          avg_enrollments: number | null
+          avg_fill_rate_percent: number | null
+          avg_max_participants: number | null
+          full_sessions: number | null
+          published_sessions: number | null
+          sessions_24h: number | null
+          total_sessions: number | null
+          upcoming_sessions: number | null
+        }
+        Relationships: []
+      }
       sessions_complete: {
         Row: {
           available_spots: number | null
@@ -386,6 +449,15 @@ export type Database = {
           start_lng: number | null
           status: string | null
           title: string | null
+        }
+        Relationships: []
+      }
+      user_activity_metrics: {
+        Row: {
+          active_users_30d: number | null
+          active_users_7d: number | null
+          new_users_24h: number | null
+          total_users: number | null
         }
         Relationships: []
       }
