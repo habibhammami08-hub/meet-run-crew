@@ -63,8 +63,9 @@ serve(async (req) => {
     // === 4. SUPPRESSIONS EN CASCADE ===
     const deletionStats: Record<string, number> = {};
     
-    // Ordre FK correct
+    // Ordre FK correct (audit_log en premier !)
     const steps: Array<[string, () => Promise<any>]> = [
+      ["audit_log", () => supabaseAdmin.from("audit_log").delete().eq("user_id", userId)],
       ["enrollments", () => supabaseAdmin.from("enrollments").delete().eq("user_id", userId)],
       ["registrations", () => supabaseAdmin.from("registrations").delete().eq("user_id", userId)],
       ["sessions_owned", () => supabaseAdmin.from("sessions").delete().eq("host_id", userId)],

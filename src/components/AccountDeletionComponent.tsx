@@ -69,7 +69,10 @@ const AccountDeletionComponent: React.FC = () => {
         });
 
         // Déconnexion puis redirection hard
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'global' });
+        // Nettoyer l'état local
+        localStorage.clear();
+        sessionStorage.clear();
         window.location.replace('/goodbye');
         return;
 
@@ -105,7 +108,10 @@ const AccountDeletionComponent: React.FC = () => {
             });
 
             // Déconnexion puis redirection hard
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({ scope: 'global' });
+            // Nettoyer l'état local
+            localStorage.clear();
+            sessionStorage.clear();
             window.location.replace('/goodbye');
             return;
 
