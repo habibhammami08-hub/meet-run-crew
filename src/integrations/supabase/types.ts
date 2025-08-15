@@ -53,14 +53,14 @@ export type Database = {
             foreignKeyName: "enrollments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
-            referencedRelation: "sessions"
+            referencedRelation: "session_summary"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "enrollments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
-            referencedRelation: "sessions_with_host"
+            referencedRelation: "sessions"
             referencedColumns: ["id"]
           },
           {
@@ -230,7 +230,6 @@ export type Database = {
       }
       sessions: {
         Row: {
-          area_hint: string | null
           blur_radius_m: number
           created_at: string
           date: string
@@ -241,7 +240,6 @@ export type Database = {
           end_lng: number | null
           host_fee_cents: number | null
           host_id: string
-          host_payout_cents: number
           id: string
           intensity: string
           location_hint: string | null
@@ -257,7 +255,6 @@ export type Database = {
           type: string
         }
         Insert: {
-          area_hint?: string | null
           blur_radius_m?: number
           created_at?: string
           date: string
@@ -268,7 +265,6 @@ export type Database = {
           end_lng?: number | null
           host_fee_cents?: number | null
           host_id: string
-          host_payout_cents?: number
           id?: string
           intensity: string
           location_hint?: string | null
@@ -284,7 +280,6 @@ export type Database = {
           type: string
         }
         Update: {
-          area_hint?: string | null
           blur_radius_m?: number
           created_at?: string
           date?: string
@@ -295,7 +290,6 @@ export type Database = {
           end_lng?: number | null
           host_fee_cents?: number | null
           host_id?: string
-          host_payout_cents?: number
           id?: string
           intensity?: string
           location_hint?: string | null
@@ -358,57 +352,11 @@ export type Database = {
       }
     }
     Views: {
-      enrollments_detailed: {
+      session_summary: {
         Row: {
-          amount_paid_cents: number | null
-          created_at: string | null
-          id: string | null
-          paid_at: string | null
-          participant_avatar: string | null
-          participant_email: string | null
-          participant_name: string | null
-          session_date: string | null
-          session_id: string | null
-          session_location: string | null
-          session_price: number | null
-          session_title: string | null
-          status: string | null
-          stripe_payment_intent_id: string | null
-          stripe_session_id: string | null
-          user_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "enrollments_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "enrollments_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions_with_host"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "enrollments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sessions_with_host: {
-        Row: {
-          area_hint: string | null
-          blur_radius_m: number | null
-          computed_status: string | null
+          available_spots: number | null
           created_at: string | null
           current_enrollments: number | null
-          date: string | null
           description: string | null
           distance_km: number | null
           duration_minutes: number | null
@@ -416,9 +364,7 @@ export type Database = {
           end_lng: number | null
           host_avatar: string | null
           host_fee_cents: number | null
-          host_id: string | null
           host_name: string | null
-          host_payout_cents: number | null
           id: string | null
           intensity: string | null
           location_hint: string | null
@@ -431,17 +377,8 @@ export type Database = {
           start_lng: number | null
           status: string | null
           title: string | null
-          type: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "sessions_host_id_fkey"
-            columns: ["host_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
@@ -461,8 +398,16 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_session_display_status: {
+        Args: { p_session_id: string }
+        Returns: string
+      }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
+        Returns: boolean
+      }
+      session_is_available: {
+        Args: { p_session_id: string }
         Returns: boolean
       }
     }
