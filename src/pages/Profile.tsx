@@ -404,7 +404,7 @@ const Profile = () => {
       try {
         console.log("[account-deletion] Tentative avec Edge Function...");
         
-        const { data, error: functionError } = await supabase.functions.invoke('delete-user-account', {
+        const { data, error: functionError } = await supabase.functions.invoke('delete-account', {
           headers: {
             Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
           },
