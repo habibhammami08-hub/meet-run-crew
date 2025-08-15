@@ -24,7 +24,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log("🚀 Starting account deletion process...")
+    console.log("🚀 Starting account deletion process v1.0...")
 
     // 1. Environment validation
     const supabaseUrl = Deno.env.get("SUPABASE_URL")
