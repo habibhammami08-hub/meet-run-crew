@@ -126,7 +126,7 @@ serve(async (req) => {
         console.log("[delete-account] Hash généré:", emailHash);
         
         const { data: insertData, error: insertError } = await admin.from("deletion_blocklist").upsert({
-          email_hash: emailHash,
+          email_hash: userEmail, // Utiliser l'email en clair temporairement pour debug
           blocked_until: blockUntil.toISOString(),
           original_user_id: userId
         });
