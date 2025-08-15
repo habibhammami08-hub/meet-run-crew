@@ -492,10 +492,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      can_delete_account: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
       can_enroll_in_session: {
         Args: { p_session_id: string }
         Returns: boolean
@@ -505,7 +501,7 @@ export type Database = {
         Returns: undefined
       }
       delete_user_completely: {
-        Args: Record<PropertyKey, never> | { p_user_id: string }
+        Args: Record<PropertyKey, never>
         Returns: Json
       }
       get_basic_stats: {
@@ -568,14 +564,6 @@ export type Database = {
       is_session_open: {
         Args: { session_id: string }
         Returns: boolean
-      }
-      test_delete_account: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      verify_deletion_system: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
       }
     }
     Enums: {
