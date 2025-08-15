@@ -194,6 +194,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Vérifier la session existante
     const initAuth = async () => {
       try {
+        // Nettoyer l'URL de fragments OAuth avant d'initialiser l'auth
+        if (window.location.hash && window.location.pathname !== '/goodbye') {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+        
         const { data: { session } } = await supabase.auth.getSession();
         handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {

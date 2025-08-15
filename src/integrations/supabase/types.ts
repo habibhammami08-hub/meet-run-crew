@@ -513,7 +513,7 @@ export type Database = {
         Returns: undefined
       }
       delete_user_completely: {
-        Args: Record<PropertyKey, never>
+        Args: Record<PropertyKey, never> | { p_user_id: string }
         Returns: Json
       }
       get_basic_stats: {
