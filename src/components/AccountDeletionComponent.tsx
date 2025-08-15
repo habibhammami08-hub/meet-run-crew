@@ -17,71 +17,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 
-interface DeletionInfo {
-  can_delete: boolean;
-  reason: string;
-  future_sessions_count?: number;
-  active_enrollments_count?: number;
-  message: string;
-}
 
 const AccountDeletionComponent: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [deletionInfo, setDeletionInfo] = useState<DeletionInfo | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [confirmationText, setConfirmationText] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Vérifier si l'utilisateur peut supprimer son compte
-  const checkDeletionEligibility = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('can_delete_account');
-      
-      if (error) {
-        console.error('Error checking deletion eligibility:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de vérifier l'éligibilité de suppression",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data && typeof data === 'object' && 'can_delete' in data) {
-        setDeletionInfo(data as unknown as DeletionInfo);
-        
-        if (data.can_delete) {
-          setShowConfirmDialog(true);
-        } else {
-          toast({
-            title: "Suppression impossible",
-            description: (data as unknown as DeletionInfo).message || "Suppression non autorisée",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: "Erreur",
-          description: "Réponse inattendue du serveur",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur inattendue s'est produite",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Supprimer définitivement le compte
-  const deleteAccount = async () => {
+  // Handler de confirmation de suppression
+  const handleConfirmDelete = async () => {
     if (confirmationText !== 'SUPPRIMER') {
       toast({
         title: "Confirmation requise",
@@ -91,44 +36,44 @@ const AccountDeletionComponent: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
     try {
-      // Appeler l'Edge Function pour suppression complète
+      setIsDeleting(true);
+
+      // Appel edge function (Bearer token inclus automatiquement)
       const { data, error } = await supabase.functions.invoke('delete-account', {
         method: 'POST',
+        body: {} // pas de payload nécessaire
       });
 
       if (error) {
-        console.error('Error deleting account:', error);
+        console.error('delete-account error:', error);
         toast({
-          title: "Erreur de suppression",
-          description: error.message || "Impossible de supprimer le compte",
-          variant: "destructive",
+          title: 'Suppression impossible',
+          description: error.message ?? 'Une erreur est survenue.',
+          variant: 'destructive',
         });
         return;
       }
 
-      // Succès - déconnecter l'utilisateur et rediriger
+      // Invalider la session côté client
+      await supabase.auth.signOut();
+
       toast({
-        title: "Compte supprimé",
-        description: "Votre compte a été supprimé avec succès",
+        title: 'Compte supprimé',
+        description: 'Votre compte et vos données ont été supprimés.',
       });
 
-      // Déconnexion forcée
-      await supabase.auth.signOut();
-      
-      // Redirection vers la page d'accueil
+      // Redirection au choix (ex: page d'accueil)
       navigate('/', { replace: true });
-
-    } catch (error) {
-      console.error('Unexpected error during deletion:', error);
+    } catch (e: any) {
+      console.error('Unexpected delete error:', e);
       toast({
-        title: "Erreur",
-        description: "Une erreur inattendue s'est produite lors de la suppression",
-        variant: "destructive",
+        title: 'Erreur',
+        description: e?.message ?? 'Une erreur inattendue est survenue.',
+        variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
       setShowConfirmDialog(false);
       setConfirmationText('');
     }
@@ -174,15 +119,15 @@ const AccountDeletionComponent: React.FC = () => {
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogTrigger asChild>
           <Button
-            onClick={checkDeletionEligibility}
-            disabled={isLoading}
+            onClick={() => setShowConfirmDialog(true)}
+            disabled={isDeleting}
             variant="destructive"
             className="w-full transition-sport"
           >
-            {isLoading ? (
+            {isDeleting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Vérification...
+                Suppression...
               </>
             ) : (
               <>
@@ -205,14 +150,11 @@ const AccountDeletionComponent: React.FC = () => {
                 seront définitivement supprimés.
               </p>
               
-              {deletionInfo?.active_enrollments_count && deletionInfo.active_enrollments_count > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3 dark:bg-yellow-900/20 dark:border-yellow-800">
-                  <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                    ⚠️ Vous avez {deletionInfo.active_enrollments_count} inscription(s) active(s) 
-                    qui seront automatiquement annulée(s).
-                  </p>
-                </div>
-              )}
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 dark:bg-yellow-900/20 dark:border-yellow-800">
+                <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                  ⚠️ Toutes vos données seront définitivement supprimées : profil, sessions, inscriptions, fichiers.
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">
@@ -238,11 +180,11 @@ const AccountDeletionComponent: React.FC = () => {
               Annuler
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={deleteAccount}
-              disabled={isLoading || confirmationText !== 'SUPPRIMER'}
+              onClick={handleConfirmDelete}
+              disabled={isDeleting || confirmationText !== 'SUPPRIMER'}
               className="bg-destructive hover:bg-destructive/90 transition-sport"
             >
-              {isLoading ? (
+              {isDeleting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Suppression...
