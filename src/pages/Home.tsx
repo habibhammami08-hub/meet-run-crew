@@ -1,18 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2 } from "lucide-react";
+import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
-import Navigation from "@/components/Navigation";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -177,6 +176,36 @@ const Home = () => {
         </div>
       </div>
 
+      {/* CORRECTION: CTA Abonnement visible pour TOUS les utilisateurs */}
+      {!hasActiveSubscription && (
+        <div className="p-6">
+          <Card className="shadow-card border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Crown size={20} className="text-primary" />
+                    <h3 className="font-bold text-lg">MeetRun Unlimited</h3>
+                  </div>
+                  <p className="text-sport-gray mb-3">
+                    Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
+                  </p>
+                  <div className="text-2xl font-bold text-primary">9,99 €/mois</div>
+                </div>
+                <Button 
+                  variant="sport" 
+                  size="lg"
+                  onClick={() => navigate("/subscription")}
+                  className="ml-4"
+                >
+                  {user ? "S'abonner" : "Découvrir"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* How it works section */}
       <div className="p-6">
         <h2 className="text-2xl font-bold text-center mb-8 text-sport-black">
@@ -205,8 +234,8 @@ const Home = () => {
                   2
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Inscris-toi</h3>
-                  <p className="text-sport-gray">Abonne-toi pour 9,99€ et accède à toutes les sessions de running collectif près de chez toi en illimité.</p>
+                  <h3 className="font-semibold text-sport-black mb-2">Abonne-toi</h3>
+                  <p className="text-sport-gray">Abonne-toi pour 9,99€/mois et accède à toutes les sessions de running collectif en illimité.</p>
                 </div>
               </div>
             </CardContent>
@@ -227,9 +256,15 @@ const Home = () => {
           </Card>
         </div>
 
-        <Button variant="sportSecondary" size="lg" className="w-full font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
-          Voir toutes les courses
-        </Button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
+            Voir toutes les courses
+          </Button>
+          <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
+            <Crown size={16} className="mr-2" />
+            S'abonner maintenant
+          </Button>
+        </div>
       </div>
 
       {/* Activity Section */}
@@ -257,7 +292,7 @@ const Home = () => {
                     <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                       <div className={`w-2 h-2 rounded-full mt-2 ${
                         activity.activity_type === 'created' ? 'bg-primary' : 
-                        activity.enrollment_status === 'paid' ? 'bg-green-500' : 'bg-blue-500'
+                        activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'bg-green-500' : 'bg-blue-500'
                       }`}></div>
                        <div className="flex-1">
                          <div className="flex justify-between items-start mb-1">
@@ -265,10 +300,10 @@ const Home = () => {
                            <div className="flex items-center gap-2">
                              <Badge variant={
                                activity.activity_type === 'created' ? 'default' :
-                               activity.enrollment_status === 'paid' ? 'secondary' : 'outline'
+                               activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'secondary' : 'outline'
                              } className="text-xs">
                                {activity.activity_type === 'created' ? 'Organisée' : 
-                                activity.enrollment_status === 'paid' ? 'Payée' : 'Inscrite'}
+                                activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'Participé' : 'Inscrite'}
                              </Badge>
                              {activity.activity_type === 'created' && (
                                <Button
@@ -325,8 +360,6 @@ const Home = () => {
           </Card>
         </div>
       )}
-
-      
     </div>
   );
 };
