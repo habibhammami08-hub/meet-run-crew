@@ -120,13 +120,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "enrollments_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions_with_details"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "enrollments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -440,34 +433,7 @@ export type Database = {
       }
     }
     Views: {
-      sessions_with_details: {
-        Row: {
-          available_spots: number | null
-          created_at: string | null
-          current_enrollments: number | null
-          description: string | null
-          distance_km: number | null
-          duration_minutes: number | null
-          end_lat: number | null
-          end_lng: number | null
-          host_avatar: string | null
-          host_fee_cents: number | null
-          host_name: string | null
-          id: string | null
-          intensity: string | null
-          location_hint: string | null
-          max_participants: number | null
-          min_participants: number | null
-          price_cents: number | null
-          scheduled_at: string | null
-          session_type: string | null
-          start_lat: number | null
-          start_lng: number | null
-          status: string | null
-          title: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       backfill_missing_profiles: {
