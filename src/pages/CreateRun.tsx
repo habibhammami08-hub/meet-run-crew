@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 import { Calendar, Clock, MapPin, Users, Loader2 } from "lucide-react";
+import { uiToDbIntensity } from "@/lib/sessions/intensity";
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -151,10 +152,9 @@ export default function CreateRun() {
       setIsSaving(true);
 
       // 1) Auth & RLS
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw authErr;
-      const currentUser = authData?.user;
-      if (!currentUser) {
+      if (!user) {
         toast({
           title: "Erreur",
           description: "Vous devez être connecté pour créer une session.",
@@ -182,18 +182,7 @@ export default function CreateRun() {
         return;
       }
 
-      // 3) Extraire distance & polyline depuis Directions
-      const route = dirResult.routes?.[0];
-      const legs = route?.legs ?? [];
-      const meters = legs.reduce((sum, l) => sum + (l.distance?.value ?? 0), 0);
-      const polyline =
-        route?.overview_polyline?.toString?.() ??
-        (route?.overview_polyline as any)?.points ??
-        "";
-      const startAddr = legs[0]?.start_address ?? null;
-      const endAddr = legs[legs.length - 1]?.end_address ?? null;
-
-      // 4) Validation des champs requis
+      // 3) Validation des champs requis
       const title = formData.title?.trim() || "";
       const scheduledAt = formData.scheduled_at;
       const intensity = formData.intensity;
@@ -235,9 +224,20 @@ export default function CreateRun() {
         return;
       }
 
+      // 4) Extraire distance & polyline depuis Directions
+      const route = dirResult.routes?.[0];
+      const legs = route?.legs ?? [];
+      const meters = legs.reduce((sum, l) => sum + (l.distance?.value ?? 0), 0);
+      const polyline =
+        route?.overview_polyline?.toString?.() ??
+        (route?.overview_polyline as any)?.points ??
+        "";
+      const startAddr = legs[0]?.start_address ?? null;
+      const endAddr = legs[legs.length - 1]?.end_address ?? null;
+
       // 5) Construire payload pour respecter le schéma
       const payload = {
-        host_id: currentUser.id,                // RLS: requis
+        host_id: user.id,                // RLS: requis
         title,
         description: formData.description || null,
         scheduled_at: new Date(scheduledAt).toISOString(),
@@ -250,7 +250,7 @@ export default function CreateRun() {
         route_polyline: polyline,
         start_place: startAddr,
         end_place: endAddr,
-        intensity: intensity,
+        intensity: uiToDbIntensity(intensity),
         session_type: sessionType,
         max_participants: formData.max_participants || 10,
         status: "published",
@@ -485,7 +485,7 @@ export default function CreateRun() {
 
               <Button
                 onClick={onSubmit}
-                disabled={isSaving || !start || !end || !dirResult}
+                disabled={isSaving || !start || !end || !dirResult || !formData.title || !formData.scheduled_at || !formData.intensity || !formData.session_type}
                 className="w-full"
                 size="lg"
               >
