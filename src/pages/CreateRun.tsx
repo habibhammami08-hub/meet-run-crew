@@ -134,22 +134,7 @@ export default function CreateRun() {
       }
 
       console.info("[create] insert SUCCESS", data);
-      console.info("[create] profile should be updated automatically via trigger");
       alert("Session créée 🎉 ID: " + data.id);
-      
-      // Attendre un peu puis vérifier le profil mis à jour
-      setTimeout(async () => {
-        try {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("sessions_hosted, total_distance_hosted_km")
-            .eq("id", user.id)
-            .single();
-          console.info("[create] profile after session creation:", profile);
-        } catch (e) {
-          console.error("[create] error fetching updated profile:", e);
-        }
-      }, 1000);
       // Reset + retour carte
       setStart(null); setEnd(null); setWaypoints([]); setDirResult(null);
       setTitle(""); setDateTime(""); setIntensityState("course modérée"); setSessionTypeState("mixed"); setMaxParticipantsState(10); setDescription("");

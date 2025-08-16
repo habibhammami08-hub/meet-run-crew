@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GoogleMap, Polyline, MarkerF, InfoWindow } from "@react-google-maps/api";
+import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
-import SessionEnrollButton from "@/components/SessionEnrollButton";
 
 type LatLng = { lat: number; lng: number; };
 type SessionRow = {
@@ -31,7 +30,6 @@ export default function MapPage() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [hasSub, setHasSub] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
 
   // Geoloc initiale
   useEffect(() => {
@@ -138,33 +136,8 @@ export default function MapPage() {
                     title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
                     onClick={() => {
                       console.log("[map] marker clicked:", s.id, s.title);
-                      setSelectedSession(selectedSession === s.id ? null : s.id);
                     }}
                   />
-                  {selectedSession === s.id && (
-                    <InfoWindow
-                      position={startShown}
-                      onCloseClick={() => setSelectedSession(null)}
-                    >
-                      <div className="p-2 min-w-[200px]">
-                        <h3 className="font-semibold text-sm mb-1">{s.title}</h3>
-                        <p className="text-xs text-gray-600 mb-2">
-                          {dbToUiIntensity(s.intensity || undefined)} • {s.distance_km?.toFixed(1)}km
-                        </p>
-                        <p className="text-xs text-gray-500 mb-3">
-                          {new Date(s.scheduled_at).toLocaleDateString("fr-FR")} à {new Date(s.scheduled_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                        <SessionEnrollButton
-                          sessionId={s.id}
-                          sessionTitle={s.title}
-                          onEnrollmentChange={() => {
-                            // Optionnel : rafraîchir les données
-                            fetchGateAndSessions();
-                          }}
-                        />
-                      </div>
-                    </InfoWindow>
-                  )}
                 {showPolyline && path.length > 1 && (
                   <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />
                 )}

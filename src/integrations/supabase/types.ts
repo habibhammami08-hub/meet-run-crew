@@ -107,12 +107,9 @@ export type Database = {
           id: string
           phone: string | null
           role: string | null
-          sessions_hosted: number | null
-          sessions_joined: number | null
           stripe_customer_id: string | null
           sub_current_period_end: string | null
           sub_status: string | null
-          total_distance_hosted_km: number | null
           total_km: number | null
           updated_at: string | null
         }
@@ -126,12 +123,9 @@ export type Database = {
           id: string
           phone?: string | null
           role?: string | null
-          sessions_hosted?: number | null
-          sessions_joined?: number | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
-          total_distance_hosted_km?: number | null
           total_km?: number | null
           updated_at?: string | null
         }
@@ -145,12 +139,9 @@ export type Database = {
           id?: string
           phone?: string | null
           role?: string | null
-          sessions_hosted?: number | null
-          sessions_joined?: number | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
-          total_distance_hosted_km?: number | null
           total_km?: number | null
           updated_at?: string | null
         }
