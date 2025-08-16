@@ -81,19 +81,22 @@ serve(async (req) => {
       );
     }
 
-    // Appeler la RPC sécurisée pour nettoyer la DB
+    // Appeler la RPC sécurisée pour nettoyer la DB (nouvelle version améliorée)
+    console.log(`Starting database cleanup for user ${userId}`);
     const { data: rpcResult, error: rpcError } = await userSupabase.rpc('app_delete_account');
     
     if (rpcError) {
       console.error('RPC delete account error:', rpcError);
       throw new AppError(
-        'Failed to execute account deletion',
+        'Failed to execute account deletion: ' + rpcError.message,
         ErrorCode.DATABASE_ERROR,
         500
       );
     }
 
-    // Nettoyer le Storage (avatars de l'utilisateur)
+    console.log('Database cleanup completed:', rpcResult);
+
+    // Nettoyer le Storage (avatars de l'utilisateur) - chemin corrigé
     try {
       const { data: files, error: listError } = await supabase.storage
         .from('avatars')
@@ -101,6 +104,8 @@ serve(async (req) => {
 
       if (!listError && files && files.length > 0) {
         const filePaths = files.map(file => `avatars/${userId}/${file.name}`);
+        console.log(`Found ${filePaths.length} files to delete for user ${userId}`);
+        
         const { error: removeError } = await supabase.storage
           .from('avatars')
           .remove(filePaths);
@@ -108,24 +113,31 @@ serve(async (req) => {
         if (removeError) {
           console.error('Storage cleanup error:', removeError);
           // Ne pas faire échouer la suppression pour ça
+        } else {
+          console.log(`Successfully cleaned up ${filePaths.length} storage files`);
         }
+      } else {
+        console.log(`No storage files found for user ${userId}`);
       }
     } catch (storageError) {
       console.error('Storage cleanup failed:', storageError);
       // Ne pas faire échouer la suppression pour ça
     }
 
-    // Supprimer l'utilisateur Auth (admin)
+    // Supprimer l'utilisateur Auth (admin) - dernière étape
+    console.log(`Deleting auth user ${userId}`);
     const { error: deleteUserError } = await supabase.auth.admin.deleteUser(userId);
     
     if (deleteUserError) {
       console.error('Auth user deletion failed:', deleteUserError);
       throw new AppError(
-        'Failed to delete auth user',
+        'Failed to delete auth user: ' + deleteUserError.message,
         ErrorCode.DATABASE_ERROR,
         500
       );
     }
+
+    console.log(`Auth user ${userId} successfully deleted`);
 
     const response: DeleteAccountResponse = {
       success: true,
