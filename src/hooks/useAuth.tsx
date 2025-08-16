@@ -189,8 +189,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logger.warn("Storage clear error:", e);
       }
 
-      // CORRECTION: Redirection sécurisée
-      window.location.href = "/";
+      logger.debug("Logout completed successfully");
     } catch (error) {
       logger.error("Critical logout error:", error);
       // Force logout même en cas d'erreur critique
@@ -199,7 +198,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setHasActiveSubscription(false);
       setSubscriptionStatus(null);
       setSubscriptionEnd(null);
-      window.location.href = "/";
     } finally {
       setLoading(false);
     }
