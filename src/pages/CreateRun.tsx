@@ -33,6 +33,7 @@ const CreateRun = () => {
     intensity: '',
     type: '',
     max_participants: '',
+    description: '', // Add description field
   });
 
   // Redirect to auth if not logged in
@@ -99,14 +100,8 @@ const CreateRun = () => {
     if (!formData.intensity) errors.push("L'intensité est obligatoire");
     if (!formData.type) errors.push("Le type de course est obligatoire");
     if (!formData.max_participants) errors.push("Le nombre de participants est obligatoire");
-    
-    // CORRECTION: Point de départ ET d'arrivée obligatoires
-    if (!selectedLocations.start) {
-      errors.push("Le point de départ est obligatoire");
-    }
-    if (!selectedLocations.end) {
-      errors.push("Le point d'arrivée est obligatoire");
-    }
+    if (!selectedLocations.start) errors.push("Le point de départ est obligatoire");
+    if (!selectedLocations.end) errors.push("Le point d'arrivée est obligatoire");
 
     // Validation de la date/heure
     if (formData.date && formData.time) {
@@ -127,47 +122,48 @@ const CreateRun = () => {
       }
     }
 
-    // Validation des coordonnées
+    // Validation des coordonnées de départ avec les nouvelles limites strictes
     if (selectedLocations.start) {
       const { lat, lng } = selectedLocations.start;
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         errors.push("Coordonnées de départ invalides");
       }
       if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-        errors.push("Coordonnées de départ hors limites");
+        errors.push("Coordonnées de départ hors limites (-90/90 pour lat, -180/180 pour lng)");
       }
     }
 
+    // Validation des coordonnées d'arrivée avec les nouvelles limites strictes  
     if (selectedLocations.end) {
       const { lat, lng } = selectedLocations.end;
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         errors.push("Coordonnées d'arrivée invalides");
       }
       if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-        errors.push("Coordonnées d'arrivée hors limites");
+        errors.push("Coordonnées d'arrivée hors limites (-90/90 pour lat, -180/180 pour lng)");
       }
     }
 
-    // CORRECTION: Validation de la distance
+    // Validation stricte de la distance (range 0.1 à 50 km)
     const distance = Number(formData.distance_km);
-    if (!Number.isFinite(distance) || distance <= 0 || distance > 50) {
+    if (!Number.isFinite(distance) || distance < 0.1 || distance > 50) {
       errors.push("La distance doit être entre 0.1 et 50 km");
     }
 
-    // CORRECTION: Validation du nombre de participants
+    // Validation stricte du nombre de participants (range 2 à 20)
     const maxParticipants = Number(formData.max_participants);
     if (!Number.isInteger(maxParticipants) || maxParticipants < 2 || maxParticipants > 20) {
       errors.push("Le nombre de participants doit être entre 2 et 20");
     }
 
-    // CORRECTION: Validation de l'intensité
+    // Validation stricte de l'intensité
     if (!['walking', 'low', 'medium', 'high'].includes(formData.intensity)) {
       errors.push("L'intensité doit être spécifiée (walking, low, medium, high)");
     }
 
-    // CORRECTION: Validation du type
+    // Validation stricte du type de session
     if (!['mixed', 'women_only', 'men_only'].includes(formData.type)) {
-      errors.push("Le type de session doit être spécifié");
+      errors.push("Le type de session doit être spécifié (mixed, women_only, men_only)");
     }
 
     return errors;
@@ -193,20 +189,18 @@ const CreateRun = () => {
         throw new Error("Date/heure invalide");
       }
       
-      // CORRECTION: Validation finale des locations
+      // Validation finale des locations (point d'arrivée maintenant obligatoire)
       if (!selectedLocations.start || !selectedLocations.end) {
         throw new Error("Les points de départ et d'arrivée sont obligatoires");
       }
 
-      // CORRECTION: Construction du payload avec validation de chaque champ
+      // Construction du payload avec les nouveaux noms de colonnes
       const payload = {
         host_id: user.id,
-        title: formData.title.trim().substring(0, 100), // Limiter la longueur
-        date: sessionDateTime.toISOString(), // Required by database
+        title: formData.title.trim().substring(0, 100),
         scheduled_at: sessionDateTime.toISOString(),
         distance_km: Number(formData.distance_km),
         intensity: formData.intensity as 'walking' | 'low' | 'medium' | 'high',
-        type: formData.type, // Required by database
         session_type: formData.type as 'mixed' | 'women_only' | 'men_only',
         max_participants: Number(formData.max_participants),
         min_participants: 2,
@@ -214,15 +208,21 @@ const CreateRun = () => {
         start_lng: Number(selectedLocations.start.lng),
         end_lat: Number(selectedLocations.end.lat),
         end_lng: Number(selectedLocations.end.lng),
-        location_hint: formData.area_hint.trim().substring(0, 500), // Limiter la longueur
-        blur_radius_m: 1000,
-        price_cents: 0,
-        host_fee_cents: 0,
+        location_hint: formData.area_hint.trim().substring(0, 500),
+        price_cents: 450, // Prix par défaut
+        host_fee_cents: 200, // Commission hôte par défaut
         duration_minutes: 60,
-        status: 'published' as const
+        status: 'published' as const,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
-      // CORRECTION: Validation finale du payload
+      // Description optionnelle
+      if (formData.description?.trim()) {
+        (payload as any).description = formData.description.trim().substring(0, 1000);
+      }
+
+      // Validation finale du payload avec les champs requis par le schéma
       const requiredFields = ['host_id', 'title', 'scheduled_at', 'distance_km', 'intensity', 'session_type', 'max_participants', 'start_lat', 'start_lng'];
       for (const field of requiredFields) {
         if (payload[field as keyof typeof payload] === undefined || payload[field as keyof typeof payload] === null) {
@@ -480,8 +480,8 @@ const CreateRun = () => {
                 </SelectTrigger>
                 <SelectContent className="bg-background border z-50">
                   <SelectItem value="mixed">Mixte - Ouvert à tous</SelectItem>
-                  <SelectItem value="women">Femmes uniquement</SelectItem>
-                  <SelectItem value="men">Hommes uniquement</SelectItem>
+                  <SelectItem value="women_only">Femmes uniquement</SelectItem>
+                  <SelectItem value="men_only">Hommes uniquement</SelectItem>
                 </SelectContent>
               </Select>
             </div>

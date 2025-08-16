@@ -126,7 +126,7 @@ const Profile = () => {
         enrollments(count)
       `)
       .eq('host_id', user.id)
-      .order('date', { ascending: false })
+      .order('scheduled_at', { ascending: false })
       .limit(5);
 
     // Sessions rejointes
@@ -224,59 +224,56 @@ const Profile = () => {
     setUploadingAvatar(true);
     try {
       // Validation du fichier
-      if (!file.type.startsWith('image/')) {
-        throw new Error("Le fichier doit être une image");
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        throw new Error("Le fichier doit être une image (JPEG, PNG, WebP)");
       }
       
       if (file.size > 5 * 1024 * 1024) {
         throw new Error("La taille maximum est de 5MB");
       }
 
-      // Nom unique pour éviter les conflits
-      const fileExt = file.name.split('.').pop()?.toLowerCase();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      // Générer le chemin avec le bon format
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${user.id}/avatar-${Date.now()}.${fileExt}`;
 
-      console.log("[avatar] Upload fichier:", fileName);
+      console.log("[avatar] Upload fichier:", path);
 
       // Supprimer l'ancien avatar s'il existe
       if (profile?.avatar_url) {
-        const oldPath = profile.avatar_url.split('/').pop();
-        if (oldPath) {
-          await supabase.storage
-            .from('avatars')
-            .remove([`${user.id}/${oldPath}`]);
+        try {
+          // Extraire le chemin depuis l'URL
+          const urlParts = profile.avatar_url.split('/');
+          const oldPath = urlParts.slice(-2).join('/'); // user_id/filename
+          if (oldPath && oldPath.includes('/')) {
+            await supabase.storage
+              .from('avatars')
+              .remove([oldPath]);
+          }
+        } catch (err) {
+          console.warn("Impossible de supprimer l'ancien avatar:", err);
         }
       }
 
-      // Upload du nouveau fichier
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { 
-          cacheControl: '3600',
-          upsert: true 
-        });
+      // Upload du nouveau fichier avec le bon format de chemin
+      const bucket = supabase.storage.from('avatars');
+      const { error: upErr } = await bucket.upload(path, file, { 
+        upsert: true,
+        cacheControl: '3600'
+      });
 
-      if (uploadError) {
-        console.error("[avatar] Erreur upload:", uploadError);
-        throw new Error(`Erreur upload: ${uploadError.message}`);
-      }
+      if (upErr) throw upErr;
 
       // Récupération de l'URL publique
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
+      const { data: pub } = bucket.getPublicUrl(path);
 
-      console.log("[avatar] URL publique:", publicUrl);
+      console.log("[avatar] URL publique:", pub.publicUrl);
 
       // Mise à jour du profil avec la nouvelle URL
       const { data, error: updateError } = await supabase
         .from('profiles')
-        .upsert({ 
-          id: user.id,
-          email: user.email || '',
-          avatar_url: publicUrl,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' })
+        .update({ avatar_url: pub.publicUrl })
+        .eq('id', user.id)
         .select()
         .single();
 
