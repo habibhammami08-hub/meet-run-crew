@@ -157,7 +157,6 @@ class WebNotifications implements NotificationInterface {
           badge: payload.badge,
           data: payload.data,
           tag: 'meetrun-notification',
-          renotify: true,
         });
       } else {
         // Fallback to basic notification

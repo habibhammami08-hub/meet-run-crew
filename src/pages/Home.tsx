@@ -8,11 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from 'react-i18next';
 
 const Home = () => {
   const navigate = useNavigate();
   const { user, signOut, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -125,19 +127,19 @@ const Home = () => {
             {user ? (
               <>
                 <Button variant="ghost" onClick={() => navigate("/profile")}>
-                  Profil
+                  {t('navigation.profile')}
                 </Button>
                 <Button variant="ghost" onClick={signOut}>
-                  Déconnexion
+                  {t('auth.logout')}
                 </Button>
               </>
             ) : (
               <div className="flex items-center gap-2">
                 <Button variant="ghost" onClick={() => navigate("/auth")} className="text-primary font-semibold">
-                  Se connecter
+                  {t('auth.login')}
                 </Button>
                 <Button variant="sport" onClick={() => navigate("/auth?mode=signup")}>
-                  S'inscrire
+                  {t('auth.signup')}
                 </Button>
               </div>
             )}
@@ -156,8 +158,8 @@ const Home = () => {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
-          <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
-          <p className="text-lg font-bold opacity-95 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
+          <h1 className="text-4xl font-bold mb-2 text-center">{t('app.name')}</h1>
+          <p className="text-lg font-bold opacity-95 mb-6 text-center">{t('app.description')}</p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
               <>
