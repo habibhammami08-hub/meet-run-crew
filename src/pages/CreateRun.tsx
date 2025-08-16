@@ -399,7 +399,10 @@ export default function CreateRun() {
               </Card>
 
               <Button
-                onClick={handleSubmit}
+                onClick={() => {
+                  console.log("🔥 Bouton cliqué - start:", start, "end:", end, "disabled:", isSaving || !start || !end);
+                  handleSubmit();
+                }}
                 disabled={isSaving || !start || !end}
                 className="w-full"
                 size="lg"
