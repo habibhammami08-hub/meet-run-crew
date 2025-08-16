@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
-import { storageHelpers } from "@/core/storage";
 
 interface AuthContextType {
   user: User | null;
@@ -160,7 +159,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Nettoyer le localStorage immédiatement
       try {
-        await storageHelpers.clearAuthData();
+        localStorage.clear();
+        sessionStorage.clear();
       } catch (e) {
         logger.warn("Storage clear error:", e);
       }
@@ -198,7 +198,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Nettoyer le stockage et rediriger quoi qu'il arrive
       try {
-        await storageHelpers.clearAuthData();
+        localStorage.clear();
+        sessionStorage.clear();
       } catch (e) {}
       
       window.location.replace("/");

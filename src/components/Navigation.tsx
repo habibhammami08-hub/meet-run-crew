@@ -2,12 +2,10 @@ import { Button } from "@/components/ui/button";
 import { MapPin, User, Plus, Home, Crown } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useTranslation } from 'react-i18next';
 
 const Navigation = () => {
   const location = useLocation();
   const { user, hasActiveSubscription } = useAuth();
-  const { t } = useTranslation();
   
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   
@@ -25,7 +23,7 @@ const Navigation = () => {
             }`}
           >
             <Home size={20} />
-            <span className="text-xs font-medium">{t('navigation.home')}</span>
+            <span className="text-xs font-medium">Accueil</span>
           </Button>
         </Link>
         
@@ -40,7 +38,7 @@ const Navigation = () => {
             }`}
           >
             <MapPin size={20} />
-            <span className="text-xs font-medium">{t('navigation.map')}</span>
+            <span className="text-xs font-medium">Carte</span>
           </Button>
         </Link>
         
@@ -55,7 +53,7 @@ const Navigation = () => {
             }`}
           >
             <Crown size={20} />
-            <span className="text-xs font-medium">{t('subscription.premium')}</span>
+            <span className="text-xs font-medium">Abonnement</span>
             {user && hasActiveSubscription && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
             )}
@@ -83,7 +81,7 @@ const Navigation = () => {
             }`}
           >
             <User size={20} />
-            <span className="text-xs font-medium">{t('navigation.profile')}</span>
+            <span className="text-xs font-medium">Profil</span>
           </Button>
         </Link>
       </div>
