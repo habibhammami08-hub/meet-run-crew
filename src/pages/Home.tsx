@@ -30,8 +30,10 @@ const Home = () => {
     
     setLoading(true);
     try {
+      console.log("[Home] Fetching user activity for user:", user.id);
+      
       // Récupérer les sessions créées par l'utilisateur
-      const { data: createdSessions } = await supabase
+      const { data: createdSessions, error: sessionsError } = await supabase
         .from('sessions')
         .select(`
           *,
@@ -40,9 +42,11 @@ const Home = () => {
         .eq('host_id', user.id)
         .order('scheduled_at', { ascending: false })
         .limit(3);
+      
+      console.log("[Home] Created sessions result:", { createdSessions, sessionsError });
 
       // Récupérer les sessions auxquelles l'utilisateur est inscrit
-      const { data: enrolledSessions } = await supabase
+      const { data: enrolledSessions, error: enrollmentsError } = await supabase
         .from('enrollments')
         .select(`
           *,
@@ -51,6 +55,8 @@ const Home = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(3);
+      
+      console.log("[Home] Enrolled sessions result:", { enrolledSessions, enrollmentsError });
 
       // Combiner les activités avec un type
       const activities = [];
@@ -75,6 +81,7 @@ const Home = () => {
       // Trier par date
       activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
       
+      console.log("[Home] Final activities:", activities);
       setUserActivity(activities.slice(0, 5));
     } catch (error) {
       console.error('Erreur lors du chargement des activités:', error);
