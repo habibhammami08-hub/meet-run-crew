@@ -14,74 +14,14 @@ export type Database = {
   }
   public: {
     Tables: {
-      audit_log: {
-        Row: {
-          id: string
-          ip_address: unknown | null
-          new_data: Json | null
-          old_data: Json | null
-          operation: string
-          record_id: string | null
-          table_name: string
-          timestamp: string | null
-          user_agent: string | null
-          user_id: string | null
-        }
-        Insert: {
-          id?: string
-          ip_address?: unknown | null
-          new_data?: Json | null
-          old_data?: Json | null
-          operation: string
-          record_id?: string | null
-          table_name: string
-          timestamp?: string | null
-          user_agent?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          id?: string
-          ip_address?: unknown | null
-          new_data?: Json | null
-          old_data?: Json | null
-          operation?: string
-          record_id?: string | null
-          table_name?: string
-          timestamp?: string | null
-          user_agent?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      deleted_users: {
-        Row: {
-          deleted_at: string
-          deletion_reason: string | null
-          email: string
-          id: string
-        }
-        Insert: {
-          deleted_at?: string
-          deletion_reason?: string | null
-          email: string
-          id: string
-        }
-        Update: {
-          deleted_at?: string
-          deletion_reason?: string | null
-          email?: string
-          id?: string
-        }
-        Relationships: []
-      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
-          created_at: string
+          created_at: string | null
           id: string
           paid_at: string | null
           session_id: string
-          status: string
+          status: string | null
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
           updated_at: string | null
@@ -89,11 +29,11 @@ export type Database = {
         }
         Insert: {
           amount_paid_cents?: number | null
-          created_at?: string
+          created_at?: string | null
           id?: string
           paid_at?: string | null
           session_id: string
-          status?: string
+          status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           updated_at?: string | null
@@ -101,11 +41,11 @@ export type Database = {
         }
         Update: {
           amount_paid_cents?: number | null
-          created_at?: string
+          created_at?: string | null
           id?: string
           paid_at?: string | null
           session_id?: string
-          status?: string
+          status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           updated_at?: string | null
@@ -117,6 +57,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions_with_details"
             referencedColumns: ["id"]
           },
           {
@@ -132,7 +79,7 @@ export type Database = {
         Row: {
           age: number | null
           avatar_url: string | null
-          created_at: string
+          created_at: string | null
           email: string
           full_name: string | null
           gender: string | null
@@ -142,12 +89,12 @@ export type Database = {
           stripe_customer_id: string | null
           sub_current_period_end: string | null
           sub_status: string | null
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
           age?: number | null
           avatar_url?: string | null
-          created_at?: string
+          created_at?: string | null
           email: string
           full_name?: string | null
           gender?: string | null
@@ -157,12 +104,12 @@ export type Database = {
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
           age?: number | null
           avatar_url?: string | null
-          created_at?: string
+          created_at?: string | null
           email?: string
           full_name?: string | null
           gender?: string | null
@@ -172,88 +119,79 @@ export type Database = {
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       sessions: {
         Row: {
-          blur_radius_m: number
-          created_at: string
-          current_enrollments: number | null
+          created_at: string | null
           description: string | null
           distance_km: number
           duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
-          host_avatar: string | null
           host_fee_cents: number | null
           host_id: string
-          host_name: string | null
           id: string
           intensity: string
           location_hint: string | null
           max_participants: number
           min_participants: number | null
-          price_cents: number
-          scheduled_at: string | null
+          price_cents: number | null
+          scheduled_at: string
           session_type: string | null
           start_lat: number
           start_lng: number
           status: string | null
           title: string
+          updated_at: string | null
         }
         Insert: {
-          blur_radius_m?: number
-          created_at?: string
-          current_enrollments?: number | null
+          created_at?: string | null
           description?: string | null
           distance_km: number
           duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
-          host_avatar?: string | null
           host_fee_cents?: number | null
           host_id: string
-          host_name?: string | null
           id?: string
           intensity: string
           location_hint?: string | null
           max_participants: number
           min_participants?: number | null
-          price_cents?: number
-          scheduled_at?: string | null
+          price_cents?: number | null
+          scheduled_at: string
           session_type?: string | null
           start_lat: number
           start_lng: number
           status?: string | null
           title: string
+          updated_at?: string | null
         }
         Update: {
-          blur_radius_m?: number
-          created_at?: string
-          current_enrollments?: number | null
+          created_at?: string | null
           description?: string | null
           distance_km?: number
           duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
-          host_avatar?: string | null
           host_fee_cents?: number | null
           host_id?: string
-          host_name?: string | null
           id?: string
           intensity?: string
           location_hint?: string | null
           max_participants?: number
           min_participants?: number | null
-          price_cents?: number
-          scheduled_at?: string | null
+          price_cents?: number | null
+          scheduled_at?: string
           session_type?: string | null
           start_lat?: number
           start_lng?: number
           status?: string | null
           title?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -267,36 +205,36 @@ export type Database = {
       }
       subscribers: {
         Row: {
-          created_at: string
+          created_at: string | null
           email: string
           id: string
           stripe_customer_id: string | null
-          subscribed: boolean
+          subscribed: boolean | null
           subscription_end: string | null
           subscription_tier: string | null
-          updated_at: string
+          updated_at: string | null
           user_id: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           email: string
           id?: string
           stripe_customer_id?: string | null
-          subscribed?: boolean
+          subscribed?: boolean | null
           subscription_end?: string | null
           subscription_tier?: string | null
-          updated_at?: string
+          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           email?: string
           id?: string
           stripe_customer_id?: string | null
-          subscribed?: boolean
+          subscribed?: boolean | null
           subscription_end?: string | null
           subscription_tier?: string | null
-          updated_at?: string
+          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -311,80 +249,48 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      sessions_with_details: {
+        Row: {
+          available_spots: number | null
+          created_at: string | null
+          current_enrollments: number | null
+          description: string | null
+          distance_km: number | null
+          duration_minutes: number | null
+          end_lat: number | null
+          end_lng: number | null
+          host_avatar: string | null
+          host_fee_cents: number | null
+          host_id: string | null
+          host_name: string | null
+          id: string | null
+          intensity: string | null
+          location_hint: string | null
+          max_participants: number | null
+          min_participants: number | null
+          price_cents: number | null
+          scheduled_at: string | null
+          session_type: string | null
+          start_lat: number | null
+          start_lng: number | null
+          status: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      can_enroll_in_session: {
-        Args: { p_session_id: string }
-        Returns: boolean
-      }
-      cleanup_database: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_old_audit_logs: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_old_deleted_users: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      get_session_status: {
-        Args: { p_session_id: string }
-        Returns: string
-      }
-      get_user_enrollments: {
-        Args: { user_id: string }
-        Returns: {
-          amount_paid_cents: number
-          enrollment_id: string
-          enrollment_status: string
-          host_name: string
-          paid_at: string
-          session_date: string
-          session_id: string
-          session_title: string
-        }[]
-      }
-      get_user_sessions: {
-        Args: { user_id: string }
-        Returns: {
-          available_spots: number
-          created_at: string
-          current_enrollments: number
-          description: string
-          distance_km: number
-          duration_minutes: number
-          end_lat: number
-          end_lng: number
-          host_avatar: string
-          host_fee_cents: number
-          host_name: string
-          intensity: string
-          location_hint: string
-          max_participants: number
-          min_participants: number
-          price_cents: number
-          scheduled_at: string
-          session_id: string
-          session_type: string
-          start_lat: number
-          start_lng: number
-          status: string
-          title: string
-        }[]
-      }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
-        Returns: boolean
-      }
-      is_session_open: {
-        Args: { session_id: string }
-        Returns: boolean
-      }
-      is_user_deleted: {
-        Args: { check_email: string }
         Returns: boolean
       }
     }
