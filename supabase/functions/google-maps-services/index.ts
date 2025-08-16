@@ -20,6 +20,8 @@ serve(async (req) => {
         return await handleReverseGeocode(params);
       case 'directions':
         return await handleDirections(params);
+      case 'distance_matrix':
+        return await handleDistanceMatrix(params);
       default:
         throw new Error('Action non supportée');
     }
@@ -73,6 +75,34 @@ async function handleDirections({ origin, destination, waypoints }: {
     url += `&waypoints=${waypoints.map(w => encodeURIComponent(w)).join('|')}`;
   }
 
+  const response = await fetch(url);
+  const data = await response.json();
+
+  return new Response(
+    JSON.stringify(data),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+async function handleDistanceMatrix({ 
+  origins, 
+  destinations, 
+  mode = 'walking',
+  units = 'metric' 
+}: { 
+  origins: string[]; 
+  destinations: string[]; 
+  mode?: string;
+  units?: string;
+}) {
+  const apiKey = Deno.env.get('GOOGLE_DISTANCE_MATRIX_API_KEY');
+  if (!apiKey) throw new Error('Clé API Distance Matrix manquante');
+
+  const originsParam = origins.map(o => encodeURIComponent(o)).join('|');
+  const destinationsParam = destinations.map(d => encodeURIComponent(d)).join('|');
+  
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsParam}&destinations=${destinationsParam}&mode=${mode}&units=${units}&key=${apiKey}`;
+  
   const response = await fetch(url);
   const data = await response.json();
 
