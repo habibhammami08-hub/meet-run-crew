@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { getSupabase } from "@/integrations/supabase/client";
+import { getSupabase, ensureFreshSession } from "@/integrations/supabase/client";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 import { Calendar, Clock, MapPin, Users, Loader2 } from "lucide-react";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
@@ -49,12 +49,18 @@ export default function CreateRun() {
   const acStartRef = useRef<google.maps.places.Autocomplete | null>(null);
   const acEndRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-  // Redirect if not authenticated
+  // Protected route - redirect if not authenticated
   useEffect(() => {
-    if (!user) {
-      navigate("/auth");
-    }
-  }, [user, navigate]);
+    (async () => {
+      const c = getSupabase?.();
+      if (!c) return;
+      const { data: { session } } = await c.auth.getSession();
+      if (!session) {
+        console.warn("[create] no session -> redirect /auth");
+        navigate("/auth");
+      }
+    })();
+  }, [navigate]);
 
   // Get user location
   useEffect(() => {
@@ -228,25 +234,20 @@ export default function CreateRun() {
         return;
       }
 
-      console.info("[create] about to call supabase.auth.getUser()");
-      let user = null as null | { id: string };
+      console.info("[create] about to call supabase.auth.getSession()");
+      let sessionRes;
       try {
-        const res = await supabase.auth.getUser();
-        console.info("[create] getUser() raw:", res);
-        if (res?.error) {
-          console.error("[create] getUser error:", res.error);
-          alert("Erreur d'authentification : " + (res.error.message || "inconnue"));
-          return;
-        }
-        user = res?.data?.user || null;
+        sessionRes = await ensureFreshSession();
+        console.info("[create] getSession() ->", sessionRes);
       } catch (e) {
-        console.error("[create] getUser threw:", e);
-        alert("Impossible de récupérer la session utilisateur. Veuillez vous reconnecter.");
+        console.error("[create] getSession threw", e);
+        alert("Erreur d'authentification. Veuillez vous reconnecter.");
         return;
       }
 
-      if (!user) {
-        console.warn("[create] stop: no user after getUser()");
+      const userId = sessionRes?.session?.user?.id;
+      if (!userId) {
+        console.warn("[create] stop: not logged in");
         alert("Vous devez être connecté pour créer une session.");
         return;
       }
@@ -307,7 +308,7 @@ export default function CreateRun() {
       });
 
       const payload = {
-        host_id: user.id,
+        host_id: userId,
         title: title.trim(),
         scheduled_at: scheduledIso,
         start_lat: Number(start.lat), 
@@ -335,19 +336,25 @@ export default function CreateRun() {
       }
 
       console.info("[create] insert OK", data);
-      alert("Session créée 🎉");
       
-      // Reset
-      setStart(null);
-      setEnd(null);
-      setWaypoints([]);
-      setDirResult(null);
-      setDistanceKm(null);
-      setTitle("");
-      setDateTime("");
-      setIntensityState("course modérée");
-      setSessionTypeState("mixed");
-      setMaxParticipantsState(10);
+      // Reset form
+      try {
+        setStart(null);
+        setEnd(null);
+        setWaypoints([]);
+        setDirResult(null);
+        setDistanceKm(null);
+        setTitle("");
+        setDateTime("");
+        setIntensityState("course modérée");
+        setSessionTypeState("mixed");
+        setMaxParticipantsState(10);
+      } catch {}
+      
+      alert("Session créée 🎉");
+      if (typeof window !== "undefined") {
+        window.location.assign("/");
+      }
       
     } catch (e: any) {
       console.error("[create] fatal", e);

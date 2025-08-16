@@ -40,6 +40,23 @@ export const supabase = getSupabase();
 // Environment check utility
 export const ENV_READY = Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 
+// Helper de vérification client
+export function assertSupabaseOrThrow() {
+  const c = getSupabase ? getSupabase() : null;
+  if (!c) throw new Error("Supabase client indisponible (env manquantes ?)");
+  return c;
+}
+
+// Rafraîchir la session avant usage sensible
+export async function ensureFreshSession() {
+  const c = assertSupabaseOrThrow();
+  const { data: { session } } = await c.auth.getSession();
+  if (!session) return { session: null };
+  // Tente un refresh si token proche de l'expiration
+  try { await c.auth.refreshSession(); } catch {}
+  return await c.auth.getSession();
+}
+
 // Connection check utility
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   const client = getSupabase();
@@ -85,13 +102,6 @@ export const ensureUserProfile = async () => {
   if (insErr) throw insErr;
   return created;
 };
-
-// Helper de vérification client
-export function assertSupabaseOrThrow() {
-  const c = getSupabase ? getSupabase() : null;
-  if (!c) throw new Error("Supabase client indisponible (env manquantes ?)");
-  return c;
-}
 
 // Hook profile creation to auth state changes
 const client = getSupabase();
