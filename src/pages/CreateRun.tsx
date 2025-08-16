@@ -40,8 +40,8 @@ export default function CreateRun() {
   });
 
   const [isSaving, setIsSaving] = useState(false);
-  const acStart = useRef<google.maps.places.Autocomplete | null>(null);
-  const acEnd = useRef<google.maps.places.Autocomplete | null>(null);
+  const acStartRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const acEndRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -103,11 +103,25 @@ export default function CreateRun() {
     setDistanceKm(meters / 1000);
   }, []);
 
-  const onPlaceSelect = (ac: google.maps.places.Autocomplete | null, setter: (v: Pt) => void) => {
-    const place = ac?.getPlace();
-    const loc = place?.geometry?.location;
-    if (loc) {
-      setter({ lat: loc.lat(), lng: loc.lng() });
+  const onPickStart = () => {
+    const place = acStartRef.current?.getPlace();
+    const geometry = place?.geometry?.location;
+    if (geometry) {
+      setStart({ lat: geometry.lat(), lng: geometry.lng() });
+    }
+  };
+
+  const onPickEnd = () => {
+    const place = acEndRef.current?.getPlace();
+    const geometry = place?.geometry?.location;
+    if (geometry) {
+      setEnd({ lat: geometry.lat(), lng: geometry.lng() });
+    }
+  };
+
+  const preventEnterSubmit = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
     }
   };
 
@@ -251,19 +265,31 @@ export default function CreateRun() {
                   <div>
                     <Label>Point de départ *</Label>
                     <Autocomplete
-                      onLoad={ac => acStart.current = ac}
-                      onPlaceChanged={() => onPlaceSelect(acStart.current, setStart)}
+                      onLoad={ac => acStartRef.current = ac}
+                      onPlaceChanged={onPickStart}
+                      options={{
+                        fields: ["geometry", "formatted_address", "name", "place_id"]
+                      }}
                     >
-                      <Input placeholder="Adresse ou lieu de départ" />
+                      <Input 
+                        placeholder="Adresse ou lieu de départ" 
+                        onKeyDown={preventEnterSubmit}
+                      />
                     </Autocomplete>
                   </div>
                   <div>
                     <Label>Point d'arrivée *</Label>
                     <Autocomplete
-                      onLoad={ac => acEnd.current = ac}
-                      onPlaceChanged={() => onPlaceSelect(acEnd.current, setEnd)}
+                      onLoad={ac => acEndRef.current = ac}
+                      onPlaceChanged={onPickEnd}
+                      options={{
+                        fields: ["geometry", "formatted_address", "name", "place_id"]
+                      }}
                     >
-                      <Input placeholder="Adresse ou lieu d'arrivée" />
+                      <Input 
+                        placeholder="Adresse ou lieu d'arrivée" 
+                        onKeyDown={preventEnterSubmit}
+                      />
                     </Autocomplete>
                   </div>
                   <div className="flex items-center justify-between">
