@@ -16,7 +16,7 @@ export const EnvironmentFallback: React.FC<EnvironmentFallbackProps> = ({ missin
   const envTemplate = `# Add these variables to Lovable Settings → Environment Variables
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key_here
-VITE_STRIPE_PUBLIC_KEY=pk_live_your_stripe_public_key_here
+VITE_STRIPE_PUBLISHABLE_KEY=pk_live_your_stripe_public_key_here
 VITE_SITE_URL=https://your-domain.com
 VITE_STRIPE_BUY_BUTTON_ID=buy_btn_your_stripe_buy_button_id_here`;
 

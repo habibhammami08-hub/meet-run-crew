@@ -355,7 +355,7 @@ const Subscription = () => {
                   <div className="stripe-buy-button-container w-full">
                     <stripe-buy-button
                       buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"}
-                      publishable-key={import.meta.env.VITE_STRIPE_PUBLIC_KEY}
+                      publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY}
                     />
                   </div>
                 ) : (
