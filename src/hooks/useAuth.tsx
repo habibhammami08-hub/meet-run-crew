@@ -144,13 +144,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, fetchSubscriptionStatus]);
 
-  // CORRECTION: Fonction de déconnexion sécurisée
+  // CORRECTION: Fonction de déconnexion forcée et immédiate
   const signOut = async () => {
     try {
-      setLoading(true);
       logger.debug("Starting logout process...");
 
-      // CORRECTION: Nettoyer les channels realtime proprement
+      // IMMÉDIATEMENT nettoyer le state local pour éviter tout délai
+      setUser(null);
+      setSession(null);
+      setHasActiveSubscription(false);
+      setSubscriptionStatus(null);
+      setSubscriptionEnd(null);
+      setLoading(false);
+
+      // Nettoyer le localStorage immédiatement
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (e) {
+        logger.warn("Storage clear error:", e);
+      }
+
+      // Nettoyer les channels realtime
       try {
         const channels = supabase.getChannels();
         for (const channel of channels) {
@@ -160,37 +175,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logger.warn("Error removing channels:", e);
       }
 
-      // CORRECTION: Déconnexion globale avec fallback
-      try {
-        const { error } = await supabase.auth.signOut({ scope: "global" });
-        if (error) {
-          logger.warn("Global signOut error:", error);
-          // Fallback: déconnexion locale
-          await supabase.auth.signOut({ scope: "local" });
+      // Déconnexion Supabase (en arrière-plan, ne pas attendre)
+      setTimeout(async () => {
+        try {
+          await supabase.auth.signOut({ scope: "global" });
+        } catch (e) {
+          logger.warn("SignOut error:", e);
         }
-      } catch (e) {
-        logger.warn("SignOut error:", e);
-      }
+      }, 0);
 
-      // Nettoyer le state local immédiatement
-      setUser(null);
-      setSession(null);
-      setHasActiveSubscription(false);
-      setSubscriptionStatus(null);
-      setSubscriptionEnd(null);
-
-      // Nettoyer le localStorage après déconnexion
-      try { 
-        // CORRECTION: Nettoyage sélectif du localStorage
-        const supabaseKeys = Object.keys(localStorage).filter(key => key.startsWith('sb-'));
-        supabaseKeys.forEach(key => localStorage.removeItem(key));
-        sessionStorage.clear(); 
-      } catch (e) {
-        logger.warn("Storage clear error:", e);
-      }
-
-      // CORRECTION: Redirection sécurisée
-      window.location.href = "/";
+      // Redirection immédiate sans attendre
+      window.location.replace("/");
     } catch (error) {
       logger.error("Critical logout error:", error);
       // Force logout même en cas d'erreur critique
@@ -199,9 +194,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setHasActiveSubscription(false);
       setSubscriptionStatus(null);
       setSubscriptionEnd(null);
-      window.location.href = "/";
-    } finally {
       setLoading(false);
+      
+      // Nettoyer le stockage et rediriger quoi qu'il arrive
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (e) {}
+      
+      window.location.replace("/");
     }
   };
 
