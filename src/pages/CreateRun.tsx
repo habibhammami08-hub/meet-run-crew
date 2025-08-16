@@ -149,81 +149,28 @@ export default function CreateRun() {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-6 p-4">
-      {/* Colonne formulaire */}
-      <div className="space-y-4">
-        <div className="rounded-2xl border shadow-sm p-4">
-          <h1 className="text-xl font-semibold mb-2">Créer une session</h1>
-          <p className="text-sm text-muted-foreground mb-4">
-            Cliquez sur la carte pour placer le <b>départ</b>, puis l'<b>arrivée</b>, et ajoutez des points intermédiaires si besoin.
-          </p>
+    <div className="p-4 space-y-6">
+      {/* Formulaire */}
+      <div className="rounded-2xl border shadow-sm p-4">
+        <h1 className="text-xl font-semibold mb-2">Créer une session</h1>
+        <p className="text-sm text-muted-foreground mb-4">
+          Cliquez sur la carte pour placer le <b>départ</b>, puis l'<b>arrivée</b>, et ajoutez des points intermédiaires si besoin.
+        </p>
 
-          <div className="grid grid-cols-1 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Titre</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="Sortie running du matin" />
-            </div>
+        <div className="grid grid-cols-1 gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Titre</label>
+            <input className="w-full rounded-xl border px-3 py-2" value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="Sortie running du matin" />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Date & heure</label>
-              <input className="w-full rounded-xl border px-3 py-2" type="datetime-local" value={dateTime} onChange={(e)=>setDateTime(e.target.value)} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Intensité</label>
-                <select className="w-full rounded-xl border px-3 py-2" value={intensityState} onChange={(e)=>setIntensityState(e.target.value)}>
-                  <option>marche</option>
-                  <option>course modérée</option>
-                  <option>course intensive</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Type de session</label>
-                <select className="w-full rounded-xl border px-3 py-2" value={sessionTypeState} onChange={(e)=>setSessionTypeState(e.target.value as any)}>
-                  <option value="mixed">mixte</option>
-                  <option value="women">femmes</option>
-                  <option value="men">hommes</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Participants max</label>
-              <input className="w-full rounded-xl border px-3 py-2" type="number" min={3} max={20} value={maxParticipantsState}
-                onChange={(e)=>setMaxParticipantsState(Number(e.target.value || 10))} />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Description (optionnel)</label>
-              <textarea className="w-full rounded-xl border px-3 py-2 min-h-[100px]" value={description}
-                onChange={(e)=>setDescription(e.target.value)} placeholder="Détails pratiques, niveau visé, équipements, etc." />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Distance: {distanceKm ? <b>{distanceKm.toFixed(2)} km</b> : "—"} (calculée depuis l'itinéraire)
-              </div>
-              <button type="button" className="rounded-xl px-4 py-2 border hover:bg-accent"
-                onClick={()=>{ setWaypoints([]); if (start && end) calcRoute(start, end, []); }}>
-                Réinitialiser waypoints
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className="rounded-xl px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-              disabled={!!disabledReason()}
-              onClick={onSubmit}
-            >
-              {isSaving ? "Enregistrement..." : "Créer la session"}
-            </button>
-            {!!disabledReason() && <p className="text-xs text-amber-600">⚠️ {disabledReason()}</p>}
+          <div>
+            <label className="block text-sm font-medium mb-1">Date & heure</label>
+            <input className="w-full rounded-xl border px-3 py-2" type="datetime-local" value={dateTime} onChange={(e)=>setDateTime(e.target.value)} />
           </div>
         </div>
       </div>
 
-      {/* Colonne carte */}
+      {/* Carte - placée après date/heure sur mobile */}
       <div className="rounded-2xl overflow-hidden border shadow-sm">
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
@@ -239,13 +186,67 @@ export default function CreateRun() {
               directions={dirResult}
               options={{ draggable: true, suppressMarkers: true }}
               onDirectionsChanged={() => {
-                // Note: This callback doesn't provide the renderer instance
-                // We'll handle route updates through the main calculation flow
                 console.log("[directions] Route changed via drag");
               }}
             />
           )}
         </GoogleMap>
+      </div>
+
+      {/* Suite du formulaire */}
+      <div className="rounded-2xl border shadow-sm p-4">
+        <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Intensité</label>
+              <select className="w-full rounded-xl border px-3 py-2" value={intensityState} onChange={(e)=>setIntensityState(e.target.value)}>
+                <option>marche</option>
+                <option>course modérée</option>
+                <option>course intensive</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Type de session</label>
+              <select className="w-full rounded-xl border px-3 py-2" value={sessionTypeState} onChange={(e)=>setSessionTypeState(e.target.value as any)}>
+                <option value="mixed">mixte</option>
+                <option value="women">femmes</option>
+                <option value="men">hommes</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Participants max</label>
+            <input className="w-full rounded-xl border px-3 py-2" type="number" min={3} max={20} value={maxParticipantsState}
+              onChange={(e)=>setMaxParticipantsState(Number(e.target.value || 10))} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Description (optionnel)</label>
+            <textarea className="w-full rounded-xl border px-3 py-2 min-h-[100px]" value={description}
+              onChange={(e)=>setDescription(e.target.value)} placeholder="Détails pratiques, niveau visé, équipements, etc." />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Distance: {distanceKm ? <b>{distanceKm.toFixed(2)} km</b> : "—"} (calculée depuis l'itinéraire)
+            </div>
+            <button type="button" className="rounded-xl px-4 py-2 border hover:bg-accent"
+              onClick={()=>{ setWaypoints([]); if (start && end) calcRoute(start, end, []); }}>
+              Réinitialiser waypoints
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="rounded-xl px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            disabled={!!disabledReason()}
+            onClick={onSubmit}
+          >
+            {isSaving ? "Enregistrement..." : "Créer la session"}
+          </button>
+          {!!disabledReason() && <p className="text-xs text-amber-600">⚠️ {disabledReason()}</p>}
+        </div>
       </div>
     </div>
   );
