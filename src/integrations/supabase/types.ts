@@ -311,7 +311,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      dashboard_stats: {
+        Row: {
+          active_subscribers: number | null
+          published_sessions: number | null
+          total_users: number | null
+          upcoming_sessions: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_enroll_in_session: {
