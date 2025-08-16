@@ -139,137 +139,114 @@ export default function CreateRun() {
   };
 
   const onSubmit = async () => {
-    if (!supabase) {
-      toast({
-        title: "Erreur",
-        description: "Configuration Supabase manquante.",
-        variant: "destructive"
-      });
-      return;
+    if (!supabase) { 
+      console.error("[create] No supabase client");
+      alert("Configuration Supabase manquante."); 
+      return; 
     }
 
     try {
       setIsSaving(true);
+      console.info("[create] Submit clicked", { 
+        start, 
+        end, 
+        hasDir: !!dirResult, 
+        formData,
+        title: formData.title,
+        scheduled_at: formData.scheduled_at 
+      });
 
-      // 1) Auth & RLS
+      // Auth pour RLS
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr) throw authErr;
-      if (!user) {
-        toast({
-          title: "Erreur",
-          description: "Vous devez être connecté pour créer une session.",
-          variant: "destructive"
-        });
-        navigate("/auth");
-        return;
+      if (authErr) {
+        console.error("[create] Auth error", authErr);
+        throw authErr;
+      }
+      if (!user) { 
+        console.error("[create] No user");
+        alert("Vous devez être connecté."); 
+        return; 
+      }
+      console.info("[create] User authenticated", user.id);
+
+      // Préconditions
+      if (!start || !end) { 
+        console.error("[create] Missing start/end", { start, end });
+        alert("Sélectionnez un départ et une arrivée."); 
+        return; 
+      }
+      if (!dirResult) { 
+        console.error("[create] Missing directions");
+        alert("Calculez l'itinéraire avant de créer la session."); 
+        return; 
+      }
+      if (!formData.title?.trim()) { 
+        console.error("[create] Missing title");
+        alert("Indiquez un titre."); 
+        return; 
+      }
+      if (!formData.scheduled_at) { 
+        console.error("[create] Missing scheduled_at");
+        alert("Choisissez la date et l'heure."); 
+        return; 
+      }
+      if (!formData.intensity) { 
+        console.error("[create] Missing intensity");
+        alert("Choisissez l'intensité."); 
+        return; 
+      }
+      if (!formData.session_type) { 
+        console.error("[create] Missing session_type");
+        alert("Choisissez le type de session."); 
+        return; 
       }
 
-      // 2) Préconditions
-      if (!start || !end) {
-        toast({
-          title: "Erreur",
-          description: "Sélectionnez un point de départ et d'arrivée.",
-          variant: "destructive"
-        });
-        return;
-      }
-      if (!dirResult) {
-        toast({
-          title: "Erreur",
-          description: "Aucun itinéraire calculé. Définissez ou ajustez l'itinéraire avant de créer la session.",
-          variant: "destructive"
-        });
-        return;
-      }
+      console.info("[create] All preconditions OK");
 
-      // 3) Validation des champs requis
-      const title = formData.title?.trim() || "";
-      const scheduledAt = formData.scheduled_at;
-      const intensity = formData.intensity;
-      const sessionType = formData.session_type;
-
-      if (!title) {
-        toast({
-          title: "Erreur",
-          description: "Le titre est obligatoire.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!scheduledAt) {
-        toast({
-          title: "Erreur",
-          description: "La date et l'heure sont obligatoires.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!intensity) {
-        toast({
-          title: "Erreur", 
-          description: "L'intensité est obligatoire.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!sessionType) {
-        toast({
-          title: "Erreur",
-          description: "Le type de session est obligatoire.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // 4) Extraire distance & polyline depuis Directions
+      // Distance / polyline
       const route = dirResult.routes?.[0];
       const legs = route?.legs ?? [];
-      const meters = legs.reduce((sum, l) => sum + (l.distance?.value ?? 0), 0);
-      const polyline =
-        route?.overview_polyline?.toString?.() ??
-        (route?.overview_polyline as any)?.points ??
-        "";
+      const meters = legs.reduce((s, l) => s + (l.distance?.value ?? 0), 0);
+      const polyline = route?.overview_polyline?.toString?.() ?? (route?.overview_polyline as any)?.points ?? "";
       const startAddr = legs[0]?.start_address ?? null;
       const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
-      // 5) Construire payload pour respecter le schéma
+      console.info("[create] Route data", { meters, polyline: polyline.length, startAddr, endAddr });
+
+      // scheduled_at depuis l'input datetime-local (TZ locale)
+      const scheduledIso = new Date(formData.scheduled_at).toISOString();
+
+      // Payload conforme schéma/RLS
       const payload = {
-        host_id: user.id,                // RLS: requis
-        title,
+        host_id: user.id,
+        title: formData.title.trim(),
         description: formData.description || null,
-        scheduled_at: new Date(scheduledAt).toISOString(),
-        start_lat: start.lat,
+        scheduled_at: scheduledIso,
+        start_lat: start.lat, 
         start_lng: start.lng,
-        end_lat: end.lat,
+        end_lat: end.lat, 
         end_lng: end.lng,
         distance_km: meters / 1000,
         route_distance_m: meters,
         route_polyline: polyline,
-        start_place: startAddr,
+        start_place: startAddr, 
         end_place: endAddr,
-        intensity: uiToDbIntensity(intensity),
-        session_type: sessionType,
-        max_participants: formData.max_participants || 10,
+        intensity: uiToDbIntensity(formData.intensity),
+        session_type: formData.session_type,
+        max_participants: Number(formData.max_participants) || 10,
         status: "published",
-        // NE PAS inclure de prix: trigger DB force 450 cents / EUR
       };
 
-      // 6) Insert Supabase
-      const { error } = await supabase.from("sessions").insert(payload);
+      console.info("[create] Inserting session", payload);
+
+      const { data, error } = await supabase.from("sessions").insert(payload).select();
       if (error) {
-        console.error("[sessions.insert]", { payload, error });
-        toast({
-          title: "Erreur",
-          description: "Création impossible: " + (error.message || "erreur inconnue"),
-          variant: "destructive"
-        });
+        console.error("[sessions.insert] ERROR", { payload, error });
+        alert("Création impossible : " + (error.message || "erreur inconnue"));
         return;
       }
 
-      // 7) Succès
+      console.info("[create] Insert OK", data);
       toast({
         title: "Session créée 🎉",
         description: "Votre session de course a été créée avec succès"
@@ -280,6 +257,7 @@ export default function CreateRun() {
       setEnd(null);
       setWaypoints([]);
       setDirResult(null);
+      setDistanceKm(null);
       setFormData({
         title: "",
         description: "",
@@ -290,13 +268,14 @@ export default function CreateRun() {
       });
       navigate("/");
     } catch (e: any) {
-      console.error("[create-session]", e);
+      console.error("[create] Fatal error", e);
       toast({
         title: "Erreur",
-        description: "Erreur lors de la création de la session. Veuillez réessayer.",
+        description: "Erreur lors de la création. Vérifiez les champs et réessayez.",
         variant: "destructive"
       });
     } finally {
+      console.info("[create] Finally - setting saving to false");
       setIsSaving(false);
     }
   };
@@ -484,8 +463,9 @@ export default function CreateRun() {
               </Card>
 
               <Button
+                type="button"
                 onClick={onSubmit}
-                disabled={isSaving || !start || !end || !dirResult || !formData.title || !formData.scheduled_at || !formData.intensity || !formData.session_type}
+                disabled={isSaving || !start || !end || !dirResult || !formData.title?.trim() || !formData.scheduled_at || !formData.intensity || !formData.session_type}
                 className="w-full"
                 size="lg"
               >
