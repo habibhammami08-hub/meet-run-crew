@@ -7,6 +7,9 @@ type Pt = google.maps.LatLngLiteral;
 
 export default function CreateRun() {
   const supabase = getSupabase();
+  const [userReady, setUserReady] = useState<"loading"|"ok"|"none">("loading");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
   const [center, setCenter] = useState<Pt>({ lat: 48.8566, lng: 2.3522 });
   const [start, setStart] = useState<Pt | null>(null);
   const [end, setEnd] = useState<Pt | null>(null);
@@ -29,6 +32,19 @@ export default function CreateRun() {
       );
     }
   }, []);
+
+  // Vérifier l'état d'authentification de façon robuste
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!supabase) { setUserReady("none"); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!alive) return;
+      setCurrentUser(user);
+      setUserReady(user ? "ok" : "none");
+    })();
+    return () => { alive = false; };
+  }, [supabase]);
 
   const mapContainerStyle = useMemo(() => ({ width: "100%", height: "70vh" }), []);
 
@@ -85,11 +101,30 @@ export default function CreateRun() {
     try {
       console.info("[create] submit", { title, dateTime, hasStart: !!start, hasEnd: !!end, hasDir: !!dirResult });
 
-      const { user, source } = await getCurrentUserSafe({ timeoutMs: 5000 });
-      console.info("[create] current user:", { hasUser: !!user, source });
-      if (!user) {
+      // Utiliser l'utilisateur déjà vérifié
+      if (!currentUser) {
         alert("Veuillez vous connecter pour créer une session.");
         return;
+      }
+
+      // S'assurer que le profil existe (pour RLS)
+      const { data: prof, error: pe } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (!prof) {
+        // déclenche la création via upsert minimal
+        const { error: upErr } = await supabase.from('profiles').upsert({ 
+          id: currentUser.id, 
+          email: currentUser.email || '',
+          full_name: currentUser.email?.split('@')[0] || 'Runner' 
+        });
+        if (upErr) {
+          alert("Votre profil n'est pas prêt. Déconnectez/reconnectez-vous puis réessayez.");
+          return;
+        }
       }
 
       // Préconditions UI
@@ -110,7 +145,7 @@ export default function CreateRun() {
 
       // Payload DB (ajoute description si dispo côté schéma)
       const payload: any = {
-        host_id: user.id,
+        host_id: currentUser.id,
         title: title.trim(),
         scheduled_at: scheduledIso,
         start_lat: Number(start.lat), start_lng: Number(start.lng),
@@ -146,6 +181,16 @@ export default function CreateRun() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  // États de chargement et erreur d'authentification
+  if (userReady === "loading") {
+    return <div className="p-4 text-sm opacity-70">Vérification de votre session…</div>;
+  }
+  if (userReady === "none") {
+    return <div className="p-4 text-sm">
+      Merci de vous connecter pour créer une session. <a href="/auth" className="underline">Se connecter</a>
+    </div>;
   }
 
   return (

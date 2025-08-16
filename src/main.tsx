@@ -29,3 +29,12 @@ if (import.meta.env.DEV) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Hydrate la session tôt pour éviter les faux "non connecté"
+import { getSupabase } from '@/integrations/supabase/client';
+const sb = getSupabase();
+if (sb) {
+  sb.auth.getSession().catch(() => {});
+  // tente un refresh silencieux si token proche de l'expiration
+  sb.auth.refreshSession().catch(() => {});
+}

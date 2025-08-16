@@ -5,32 +5,40 @@ import { CONFIG } from '@/config';
 let _client: SupabaseClient<Database> | null = null;
 
 export function getSupabase(): SupabaseClient<Database> | null {
-  const url = CONFIG.SUPABASE_URL;
-  const anon = CONFIG.SUPABASE_ANON_KEY;
-  
+  if (_client) return _client;
+
+  const url = CONFIG.SUPABASE_URL || (globalThis as any)?.window?.__ENV?.VITE_SUPABASE_URL;
+  const anon = CONFIG.SUPABASE_ANON_KEY || (globalThis as any)?.window?.__ENV?.VITE_SUPABASE_ANON_KEY;
   if (!url || !anon) {
     if (import.meta.env.DEV) {
-      console.error('Missing Supabase environment variables: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY');
+      console.error('[supabase] Missing env: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
     }
     return null;
   }
-  
-  if (!_client) {
-    _client = createClient<Database>(url, anon, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
+
+  _client = createClient<Database>(url, anon, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+      // Fallback si localStorage indisponible (Safari Private / ITP)
+      storage: typeof localStorage !== 'undefined' ? localStorage : sessionStorage,
+    },
+    global: { fetch },
+    realtime: {
+      params: { 
+        eventsPerSecond: 10 
       },
-      realtime: {
-        params: { 
-          eventsPerSecond: 10 
-        },
-      },
-    });
-  }
-  
+    },
+  });
+
+  // Enregistrer ici l'abonnement (une seule fois)
+  _client.auth.onAuthStateChange(async () => {
+    try { await ensureUserProfile(); } 
+    catch (e) { console.error('[profile]', e); }
+  });
+
   return _client;
 }
 
@@ -87,7 +95,13 @@ export async function getCurrentUserSafe(opts?: { timeoutMs?: number }) {
     if (user3) return { user: user3, source: "getUser2" as const };
 
     return { user: null, source: "none" as const };
-  } catch (e) {
+  } catch (e: any) {
+    // Ne considère pas un timeout comme "déconnecté" : on redonne une chance
+    try {
+      const gs: any = await c.auth.getSession();
+      const user = gs?.data?.session?.user ?? null;
+      if (user) return { user, source: "getSession-after-timeout" as const };
+    } catch {}
     console.error("[auth] getCurrentUserSafe error:", e);
     return { user: null, source: "error" as const };
   }
@@ -138,15 +152,3 @@ export const ensureUserProfile = async () => {
   if (insErr) throw insErr;
   return created;
 };
-
-// Hook profile creation to auth state changes
-const client = getSupabase();
-if (client) {
-  client.auth.onAuthStateChange(async () => {
-    try { 
-      await ensureUserProfile(); 
-    } catch (e) { 
-      console.error('[profile]', e); 
-    }
-  });
-}
