@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 import { Calendar, Clock, MapPin, Users, Loader2 } from "lucide-react";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
@@ -17,7 +17,7 @@ import { uiToDbIntensity } from "@/lib/sessions/intensity";
 type Pt = google.maps.LatLngLiteral;
 
 export default function CreateRun() {
-  const [authState, setAuthState] = useState<"loading"|"no-session"|"session">("loading");
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const supabase = getSupabase();
@@ -49,16 +49,6 @@ export default function CreateRun() {
   const acStartRef = useRef<google.maps.places.Autocomplete | null>(null);
   const acEndRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-  // Check auth state
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { user } = await getCurrentUserSafe({ timeoutMs: 2000 });
-      if (!mounted) return;
-      setAuthState(user ? "session" : "no-session");
-    })();
-    return () => { mounted = false; };
-  }, []);
 
   // Get user location
   useEffect(() => {
@@ -240,9 +230,7 @@ export default function CreateRun() {
         return;
       }
 
-      console.info("[create] about to resolve current user (safe)");
-      const { user, source } = await getCurrentUserSafe({ timeoutMs: 3000 });
-      console.info("[create] current user:", { hasUser: !!user, source });
+      console.info("[create] current user from useAuth:", { hasUser: !!user, userId: user?.id?.slice(0,8) });
       if (!user) {
         alert("Vous devez être connecté pour créer une session.");
         return;
@@ -393,11 +381,11 @@ export default function CreateRun() {
     else alert("Insert test OK: " + data?.id);
   }
 
-  if (authState === "loading") {
-    return <div className="p-6 text-center text-sm text-muted-foreground">Chargement…</div>;
+  if (loading) {
+    return <div className="p-6 text-center text-sm text-muted-foreground">Chargement de l'authentification…</div>;
   }
 
-  if (authState === "no-session") {
+  if (!user) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="max-w-md w-full p-6 rounded-2xl border bg-background shadow-sm text-center space-y-3">
@@ -619,7 +607,7 @@ export default function CreateRun() {
                 <div>title: {title || "—"}</div>
                 <div>dateTime: {dateTime || "—"}</div>
                 <div>distanceKm: {distanceKm?.toFixed?.(2) ?? "—"}</div>
-                <div>authState: {authState}</div>
+                <div>user: {user?.id?.slice(0,8) ?? "—"}</div>
                 <div>intensity: {intensityState}</div>
                 <div>sessionType: {sessionTypeState}</div>
                 <div>maxParticipants: {maxParticipantsState}</div>
