@@ -28,14 +28,21 @@ const AccountDeletionComponent: React.FC = () => {
 
     try {
       setIsDeleting(true);
+      logger.info("Starting account deletion process...");
+      
       const res = await deleteMyAccount();
+      logger.info("Account deletion result:", res);
       
       if (res.ok) {
         toast({ 
           title: "Compte supprimé", 
           description: "Votre compte et vos données ont été supprimés." 
         });
-        window.location.replace("/account-deleted");
+        // Fermer le dialog avant la redirection pour éviter les problèmes d'accessibilité
+        setShowConfirmDialog(false);
+        setTimeout(() => {
+          window.location.replace("/account-deleted");
+        }, 1000);
       } else {
         toast({ 
           title: "Erreur", 
@@ -43,6 +50,7 @@ const AccountDeletionComponent: React.FC = () => {
           variant: "destructive" 
         });
         logger.error("Account deletion error:", res.error);
+        setShowConfirmDialog(false);
       }
     } catch (e: any) {
       logger.error("Account deletion exception:", e);
@@ -51,9 +59,9 @@ const AccountDeletionComponent: React.FC = () => {
         description: e?.message || "Suppression impossible", 
         variant: "destructive" 
       });
+      setShowConfirmDialog(false);
     } finally {
       setIsDeleting(false);
-      setShowConfirmDialog(false);
     }
   };
 
