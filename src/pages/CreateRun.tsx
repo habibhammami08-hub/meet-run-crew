@@ -99,6 +99,38 @@ export default function CreateRun() {
     return () => clearTimeout(timer);
   }, [calcRoute]);
 
+  // Forcer le calcul des directions si manquant
+  const calcRouteIfNeeded = useCallback(async () => {
+    if (dirResult || !start || !end) return;
+    try {
+      console.info("[create] calcRouteIfNeeded() starting...");
+      const svc = new google.maps.DirectionsService();
+      const res = await svc.route({
+        origin: start,
+        destination: end,
+        waypoints: waypoints.map(w => ({ location: w })),
+        travelMode: google.maps.TravelMode.WALKING,
+        optimizeWaypoints: false,
+        provideRouteAlternatives: false,
+      });
+      setDirResult(res);
+      const meters = res.routes[0].legs?.reduce((sum, l) => sum + (l.distance?.value ?? 0), 0) ?? 0;
+      setDistanceKm(meters / 1000);
+      console.info("[create] calcRouteIfNeeded() -> OK", { meters });
+    } catch (e) {
+      console.error("[create] calcRouteIfNeeded() failed", e);
+      throw e;
+    }
+  }, [start, end, waypoints, dirResult]);
+
+  // Normalisation dateTime (retourne ISO ou null)
+  function toIsoFromLocal(input: string): string | null {
+    if (!input) return null;
+    const d = new Date(input);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
   // Handle route drag by user (DirectionsRenderer draggable)
   const onDirectionsChanged = useCallback((renderer: google.maps.DirectionsRenderer | null) => {
     const updated = renderer?.getDirections();
@@ -173,6 +205,24 @@ export default function CreateRun() {
         maxParticipantsState
       });
 
+      // Forcer le calcul si dirResult absent
+      if (!dirResult) {
+        console.warn("[create] dirResult absent -> calcRouteIfNeeded()");
+        try { 
+          await calcRouteIfNeeded(); 
+        } catch {
+          alert("Impossible de calculer l'itinéraire. Ajustez A/B ou réessayez.");
+          return;
+        }
+      }
+
+      // Re-tester la présence d'un itinéraire
+      if (!dirResult) {
+        console.warn("[create] stop: still no dirResult after calc");
+        alert("Calculez l'itinéraire avant de créer la session.");
+        return;
+      }
+
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
       console.info("[create] getUser ->", { userId: user?.id, authErr });
       if (authErr) throw authErr;
@@ -208,6 +258,14 @@ export default function CreateRun() {
         return; 
       }
 
+      // Normaliser la date
+      const scheduledIso = toIsoFromLocal(dateTime);
+      if (!scheduledIso) {
+        console.warn("[create] stop: invalid dateTime", { dateTime });
+        alert("Date/heure invalide. Merci de la re-sélectionner.");
+        return;
+      }
+
       const route = dirResult.routes?.[0];
       if (!route) { 
         console.warn("[create] stop: no route in dirResult"); 
@@ -220,7 +278,6 @@ export default function CreateRun() {
       const polyline = route.overview_polyline?.toString?.() ?? (route.overview_polyline as any)?.points ?? "";
       const startAddr = legs[0]?.start_address ?? null;
       const endAddr = legs[legs.length-1]?.end_address ?? null;
-      const scheduledIso = new Date(dateTime).toISOString();
 
       console.info("[create] computed", { 
         meters, 
@@ -253,7 +310,7 @@ export default function CreateRun() {
 
       const { data, error } = await supabase.from("sessions").insert(payload).select("id").single();
       if (error) {
-        console.error("[sessions.insert] error", error);
+        console.error("[sessions.insert] error", { payload, error });
         alert("Création impossible : " + (error.message || error.details || "erreur inconnue"));
         return;
       }
