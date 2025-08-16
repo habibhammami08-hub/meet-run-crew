@@ -186,7 +186,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-8 h-8 min-w-8 min-h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                   1
                 </div>
                 <div>
@@ -200,7 +200,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-8 h-8 min-w-8 min-h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                   2
                 </div>
                 <div>
@@ -214,7 +214,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-8 h-8 min-w-8 min-h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                   3
                 </div>
                 <div>
@@ -242,22 +242,22 @@ const Home = () => {
         <div className="p-6">
           <Card className="shadow-card border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Crown size={20} className="text-primary" />
-                    <h3 className="font-bold text-lg">MeetRun Unlimited</h3>
+                    <h3 className="font-bold text-lg whitespace-nowrap">MeetRun Unlimited</h3>
                   </div>
-                  <p className="text-sport-gray mb-3">
+                  <p className="text-sport-gray mb-3 text-sm sm:text-base">
                     Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
                   </p>
-                  <div className="text-2xl font-bold text-primary">9,99 €/mois</div>
+                  <div className="text-xl sm:text-2xl font-bold text-primary whitespace-nowrap">9,99 €/mois</div>
                 </div>
                 <Button 
                   variant="sport" 
                   size="lg"
                   onClick={() => navigate("/subscription")}
-                  className="ml-4"
+                  className="w-full sm:w-auto sm:ml-4"
                 >
                   {user ? "S'abonner" : "Découvrir"}
                 </Button>
