@@ -132,9 +132,14 @@ const Home = () => {
                 </Button>
               </>
             ) : (
-              <Button variant="sport" onClick={() => navigate("/auth")}>
-                Se connecter
-              </Button>
+              <>
+                <Button variant="sportOutline" onClick={() => navigate("/auth")}>
+                  Se connecter
+                </Button>
+                <Button variant="sport" onClick={() => navigate("/auth")}>
+                  S'inscrire
+                </Button>
+              </>
             )}
           </div>
         </div>
