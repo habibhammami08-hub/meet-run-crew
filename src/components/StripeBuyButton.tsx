@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { logger } from "@/utils/logger";
+import { CONFIG } from '@/config';
+import EnvHelp from './EnvHelp';
 
 declare global {
   namespace JSX {
@@ -18,14 +20,15 @@ interface StripeBuyButtonProps {
 }
 
 // Environment variables for Stripe
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
-const STRIPE_BUY_BUTTON_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_ID as string | undefined;
-
-if (!STRIPE_PUBLISHABLE_KEY || !STRIPE_BUY_BUTTON_ID) {
-  throw new Error("Missing Stripe environment variables: VITE_STRIPE_PUBLISHABLE_KEY and/or VITE_STRIPE_BUY_BUTTON_ID");
-}
+const STRIPE_PUBLISHABLE_KEY = CONFIG.STRIPE_PUBLISHABLE_KEY;
+const STRIPE_BUY_BUTTON_ID = CONFIG.STRIPE_BUY_BUTTON_ID;
 
 const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
+  // Early return if Stripe config is missing
+  if (!STRIPE_PUBLISHABLE_KEY || !STRIPE_BUY_BUTTON_ID) {
+    return <EnvHelp />;
+  }
+
   useEffect(() => {
     // Vérifier si le script existe déjà
     const existingScript = document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]');

@@ -1,11 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { CONFIG } from '@/config';
 
 let _client: SupabaseClient<Database> | null = null;
 
 export function getSupabase(): SupabaseClient<Database> | null {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const url = CONFIG.SUPABASE_URL;
+  const anon = CONFIG.SUPABASE_ANON_KEY;
   
   if (!url || !anon) {
     console.error('Missing Supabase environment variables: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY');
@@ -35,7 +36,7 @@ export function getSupabase(): SupabaseClient<Database> | null {
 export const supabase = getSupabase();
 
 // Environment check utility
-export const ENV_READY = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+export const ENV_READY = Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 
 // Connection check utility
 export const checkSupabaseConnection = async (): Promise<boolean> => {

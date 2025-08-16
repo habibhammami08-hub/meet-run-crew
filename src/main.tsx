@@ -10,4 +10,11 @@ console.log('[BUILD] STRIPE_BUY_BUTTON_ID =', Boolean(import.meta.env?.VITE_STRI
 console.log('[BUILD] SITE_URL =', Boolean(import.meta.env?.VITE_SITE_URL));
 console.log('[BUILD] Total VITE_ vars =', Object.keys(import.meta.env || {}).filter(k => k.startsWith('VITE_')).length);
 
+// Debug logs pour vérifier les variables au runtime (inclut fallback window.__ENV)
+import { ENV_STATUS } from './config';
+setTimeout(() => {
+  console.log('[RUNTIME] ENV_STATUS.vite =', ENV_STATUS.vite);
+  console.log('[RUNTIME] ENV_STATUS.win =', ENV_STATUS.win);
+}, 100);
+
 createRoot(document.getElementById("root")!).render(<App />);
