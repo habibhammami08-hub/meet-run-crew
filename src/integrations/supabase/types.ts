@@ -134,13 +134,10 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string
-          first_name: string | null
           full_name: string | null
           gender: string | null
           id: string
-          last_name: string | null
           phone: string | null
-          photo_url: string | null
           role: string | null
           stripe_customer_id: string | null
           sub_current_period_end: string | null
@@ -152,13 +149,10 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email: string
-          first_name?: string | null
           full_name?: string | null
           gender?: string | null
           id: string
-          last_name?: string | null
           phone?: string | null
-          photo_url?: string | null
           role?: string | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
@@ -170,13 +164,10 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string
-          first_name?: string | null
           full_name?: string | null
           gender?: string | null
           id?: string
-          last_name?: string | null
           phone?: string | null
-          photo_url?: string | null
           role?: string | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
@@ -323,33 +314,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      backfill_missing_profiles: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       can_enroll_in_session: {
         Args: { p_session_id: string }
         Returns: boolean
-      }
-      cleanup_expired_blocklist: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
       }
       cleanup_old_deleted_users: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      get_basic_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
       get_session_status: {
         Args: { p_session_id: string }
         Returns: string
-      }
-      get_system_health: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
       }
       get_user_enrollments: {
         Args: { user_id: string }
