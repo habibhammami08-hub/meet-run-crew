@@ -51,7 +51,6 @@ const App = () => (
                   <Route path="/" element={<Home />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/map" element={<Map />} />
-                  <Route path="/run/:id" element={<Navigate to="/" replace />} />
                   <Route path="/session/:id" element={<SessionDetails />} />
                   <Route path="/create" element={<CreateRun />} />
                   <Route path="/profile" element={<Profile />} />

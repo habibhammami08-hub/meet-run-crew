@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Header from "@/components/Header";
+
 import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -403,9 +403,7 @@ const Profile = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
-        <Header title="Profil" />
-        
-        <div className="p-4 pt-20">
+        <div className="p-4">
           <Card className="shadow-card">
             <CardContent className="p-8 text-center">
               <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -442,23 +440,6 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header 
-        title="Profil"
-        actions={
-          !isEditing ? (
-            <Button variant="ghost" size="icon" onClick={() => setIsEditing(true)}>
-              <Edit size={20} />
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)}>
-                <X size={20} />
-              </Button>
-            </div>
-          )
-        }
-      />
-      
       <div className="p-4 space-y-6 main-content">
         {/* User info */}
         <Card className="shadow-card">

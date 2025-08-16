@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import Header from "@/components/Header";
+
 import LocationPicker from "@/components/LocationPicker";
 import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,9 +39,7 @@ const CreateRun = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
-        <Header title="Créer une session" />
-        
-        <div className="p-4 pt-20">
+        <div className="p-4">
           <Card className="shadow-card">
             <CardContent className="p-8 text-center">
               <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -286,8 +284,6 @@ const CreateRun = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header title="Créer une session" />
-      
       <form onSubmit={handleSubmit} className="p-4 space-y-6 main-content">
         {/* Basic Info */}
         <Card className="shadow-card">

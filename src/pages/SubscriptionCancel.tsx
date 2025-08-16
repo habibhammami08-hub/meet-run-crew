@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Header from "@/components/Header";
+
 import { XCircle, RotateCcw, ArrowLeft } from "lucide-react";
 
 const SubscriptionCancel = () => {
@@ -9,9 +9,7 @@ const SubscriptionCancel = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header title="Abonnement annulé" />
-      
-      <div className="p-4 pt-20 flex items-center justify-center min-h-[calc(100vh-80px)]">
+      <div className="p-4 flex items-center justify-center min-h-screen">
         <Card className="shadow-card max-w-md w-full">
           <CardContent className="p-8 text-center space-y-6">
             <div className="flex justify-center">

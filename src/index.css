@@ -5,9 +5,7 @@
 /* Import Leaflet CSS */
 @import 'leaflet/dist/leaflet.css';
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Clean production-ready design system */
 
 @layer base {
   :root {
@@ -41,23 +39,15 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    /* MeetRun custom design tokens */
-    --sport-green: 142 76% 36%;
-    --sport-green-light: 142 76% 45%;
-    --sport-green-dark: 142 76% 28%;
-    --sport-black: 210 40% 8%;
-    --sport-gray: 215 16% 47%;
-    --sport-gray-light: 210 40% 96%;
-
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--sport-green)), hsl(var(--sport-green-light)));
-    --gradient-hero: linear-gradient(135deg, hsl(var(--sport-green)) 0%, hsl(var(--sport-green-light)) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(142 76% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(142 76% 45%) 100%);
     --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(210 40% 98%) 100%);
 
     /* Shadows */
-    --shadow-sport: 0 10px 30px -10px hsl(var(--sport-green) / 0.3);
+    --shadow-sport: 0 10px 30px -10px hsl(var(--primary) / 0.3);
     --shadow-card: 0 4px 20px -2px hsl(210 40% 8% / 0.1);
-    --shadow-hover: 0 8px 30px -8px hsl(var(--sport-green) / 0.4);
+    --shadow-hover: 0 8px 30px -8px hsl(var(--primary) / 0.4);
 
     /* Animations */
     --transition-sport: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -101,21 +91,13 @@ All colors MUST be HSL.
     --input: 217 33% 17%;
     --ring: 142 76% 45%;
 
-    /* Dark mode MeetRun tokens */
-    --sport-green: 142 76% 45%;
-    --sport-green-light: 142 76% 55%;
-    --sport-green-dark: 142 76% 35%;
-    --sport-black: 0 0% 98%;
-    --sport-gray: 215 20% 65%;
-    --sport-gray-light: 217 33% 17%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(var(--sport-green)), hsl(var(--sport-green-light)));
-    --gradient-hero: linear-gradient(135deg, hsl(var(--sport-green)) 0%, hsl(var(--sport-green-light)) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(142 76% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(142 76% 55%) 100%);
     --gradient-card: linear-gradient(145deg, hsl(217 33% 17%) 0%, hsl(217 33% 20%) 100%);
 
-    --shadow-sport: 0 10px 30px -10px hsl(var(--sport-green) / 0.4);
+    --shadow-sport: 0 10px 30px -10px hsl(var(--primary) / 0.4);
     --shadow-card: 0 4px 20px -2px hsl(0 0% 0% / 0.3);
-    --shadow-hover: 0 8px 30px -8px hsl(var(--sport-green) / 0.5);
+    --shadow-hover: 0 8px 30px -8px hsl(var(--primary) / 0.5);
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -135,11 +117,10 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground font-sans;
-    /* CORRECTION: Éviter le défilement horizontal sur mobile */
     overflow-x: hidden;
   }
 
-  /* Custom sport utilities */
+  /* Custom utilities */
   .gradient-primary {
     background: var(--gradient-primary);
   }
@@ -168,19 +149,7 @@ All colors MUST be HSL.
     transition: var(--transition-sport);
   }
 
-  /* Running animation */
-  @keyframes pulse-sport {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
-  }
-
-  .animate-pulse-sport {
-    animation: pulse-sport 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  /* Navigation fixe - styles de base */
-
-  /* CORRECTION: Styles spécifiques pour Leaflet */
+  /* Leaflet styles */
   .leaflet-container {
     height: 100%;
     width: 100%;
@@ -207,7 +176,7 @@ All colors MUST be HSL.
     background-color: #f4f4f4;
   }
 
-  /* Corrections pour les marqueurs personnalisés */
+  /* Custom markers */
   .custom-marker,
   .custom-cluster-icon,
   .user-location-marker,
@@ -217,31 +186,11 @@ All colors MUST be HSL.
     background: transparent !important;
   }
 
-  /* Styles pour les popups de clusters */
-  .cluster-popup {
-    max-width: 300px;
-  }
-
-  .cluster-popup ul {
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .cluster-popup .btn-open-session {
-    transition: all 0.2s ease;
-  }
-
-  .cluster-popup .btn-open-session:hover {
-    background-color: #047857 !important;
-    transform: translateY(-1px);
-  }
-
-  /* CORRECTION: Améliorer le padding pour mobile */
+  /* Layout */
   .main-content {
-    padding-bottom: 85px; /* Augmenter pour mobile */
+    padding-bottom: 85px;
   }
 
-  /* Navigation plus stable */
   .fixed-navigation {
     position: fixed;
     bottom: 0;
@@ -254,39 +203,27 @@ All colors MUST be HSL.
     box-shadow: 0 -4px 20px -2px hsl(210 40% 8% / 0.15);
   }
 
-  /* Responsive pour mobile */
+  /* Responsive */
   @media (max-width: 768px) {
     .fixed-navigation {
       padding: 8px 16px;
     }
     
     .main-content {
-      padding-bottom: 90px; /* Plus d'espace sur mobile */
+      padding-bottom: 90px;
     }
   }
 
-  /* CORRECTION: S'assurer que les cartes flottantes ne passent pas sous la navigation */
   .floating-card {
     max-height: calc(100vh - 200px);
     overflow-y: auto;
   }
 
   .floating-filters {
-    bottom: 95px; /* Positionnement au-dessus de la navigation améliorée */
+    bottom: 95px;
   }
 
-  /* Optimisation images */
-  img {
-    loading: lazy;
-  }
-
-  /* Avatar optimisés */
-  .avatar-img {
-    object-fit: cover;
-    aspect-ratio: 1;
-  }
-
-  /* Focus visible pour navigation clavier */
+  /* Accessibility */
   button:focus-visible,
   input:focus-visible,
   select:focus-visible {
@@ -294,7 +231,6 @@ All colors MUST be HSL.
     outline-offset: 2px;
   }
 
-  /* Amélioration pour les écrans très petits */
   @media (max-height: 600px) {
     .floating-card {
       max-height: calc(100vh - 140px);

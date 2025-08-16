@@ -62,14 +62,6 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				sport: {
-					green: 'hsl(var(--sport-green))',
-					'green-light': 'hsl(var(--sport-green-light))',
-					'green-dark': 'hsl(var(--sport-green-dark))',
-					black: 'hsl(var(--sport-black))',
-					gray: 'hsl(var(--sport-gray))',
-					'gray-light': 'hsl(var(--sport-gray-light))'
-				}
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

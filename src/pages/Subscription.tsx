@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Header from "@/components/Header";
+
 import { Crown, Check, X, ExternalLink, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -129,9 +129,7 @@ const Subscription = () => {
   // CORRECTION: Page accessible même sans être connecté
   const renderUnauthenticatedView = () => (
     <div className="min-h-screen bg-background">
-      <Header title="Abonnement MeetRun" />
-      
-      <div className="p-4 space-y-6 main-content pt-20">
+      <div className="p-4 space-y-6 main-content">
         {/* Hero pour non connectés */}
         <Card className="shadow-card border-primary/20">
           <CardHeader>
@@ -240,9 +238,7 @@ const Subscription = () => {
   // Vue pour utilisateurs connectés
   return (
     <div className="min-h-screen bg-background">
-      <Header title="Mon abonnement" />
-      
-      <div className="p-4 space-y-6 main-content pt-20">
+      <div className="p-4 space-y-6 main-content">
         {/* Current Status */}
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">

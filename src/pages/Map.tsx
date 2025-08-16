@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import Header from "@/components/Header";
+
 import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
 import { Filter, MapPin, Users, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -368,7 +368,6 @@ const Map = () => {
   if (loading) {
     return (
       <div className="h-screen bg-background flex flex-col">
-        <Header title="Carte des sessions" />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -382,7 +381,6 @@ const Map = () => {
   if (error) {
     return (
       <div className="h-screen bg-background flex flex-col">
-        <Header title="Carte des sessions" />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="shadow-card max-w-md">
             <CardContent className="p-6 text-center">
@@ -400,27 +398,6 @@ const Map = () => {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-      <Header 
-        title={`Carte (${filteredSessions.length})`}
-        actions={
-          <div className="flex items-center gap-2">
-            {activeFilters.length > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={clearAllFilters}
-                className="text-xs"
-              >
-                <X size={14} className="mr-1" />
-                Effacer
-              </Button>
-            )}
-            <Button variant="ghost" size="icon">
-              <Filter size={20} />
-            </Button>
-          </div>
-        }
-      />
       
       {/* CORRECTION: Map container avec gestion d'erreur */}
       <div className="flex-1 relative main-content">

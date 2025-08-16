@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Header from "@/components/Header";
+
 import { MapPin, Calendar, Clock, Users, Share2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,8 +141,7 @@ const SessionDetails = () => {
   if (!session) {
     return (
       <div className="min-h-screen bg-background">
-        <Header title="Détails de la session" />
-        <div className="p-4 pt-20">
+        <div className="p-4">
           <div className="text-center">Chargement...</div>
         </div>
       </div>
@@ -157,15 +156,6 @@ const SessionDetails = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header 
-        title="Détails de la session" 
-        actions={
-          <Button variant="ghost" size="icon">
-            <Share2 size={20} />
-          </Button>
-        }
-      />
-      
       <div className="p-4 space-y-6 main-content">
         {/* Main session info */}
         <Card className="shadow-card">

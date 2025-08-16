@@ -36,7 +36,7 @@ const Home = () => {
           enrollments(count)
         `)
         .eq('host_id', user.id)
-        .order('date', { ascending: false })
+        .order('scheduled_at', { ascending: false })
         .limit(3);
 
       // Récupérer les sessions auxquelles l'utilisateur est inscrit
@@ -185,7 +185,7 @@ const Home = () => {
 
       {/* How it works section */}
       <div className="p-6">
-        <h2 className="text-2xl font-bold text-center mb-8 text-sport-black">
+        <h2 className="text-2xl font-bold text-center mb-8 text-foreground">
           Comment ça marche ?
         </h2>
         
@@ -197,8 +197,8 @@ const Home = () => {
                   1
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Trouve ta course avec d'autres runners</h3>
-                  <p className="text-sport-gray">Découvre les sessions de running collectif près de chez toi sur la carte interactive.</p>
+                  <h3 className="font-semibold text-foreground mb-2">Trouve ta course avec d'autres runners</h3>
+                  <p className="text-muted-foreground">Découvre les sessions de running collectif près de chez toi sur la carte interactive.</p>
                 </div>
               </div>
             </CardContent>
@@ -211,8 +211,8 @@ const Home = () => {
                   2
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Abonne-toi</h3>
-                  <p className="text-sport-gray">Abonne-toi pour 9,99€/mois et accède à toutes les sessions de running collectif en illimité.</p>
+                  <h3 className="font-semibold text-foreground mb-2">Abonne-toi</h3>
+                  <p className="text-muted-foreground">Abonne-toi pour 9,99€/mois et accède à toutes les sessions de running collectif en illimité.</p>
                 </div>
               </div>
             </CardContent>
@@ -225,8 +225,8 @@ const Home = () => {
                   3
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Run et fais des rencontres inoubliables</h3>
-                  <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ton run collectif !</p>
+                  <h3 className="font-semibold text-foreground mb-2">Run et fais des rencontres inoubliables</h3>
+                  <p className="text-muted-foreground">Rejoins ton groupe au point de rendez-vous et profite de ton run collectif !</p>
                 </div>
               </div>
             </CardContent>
@@ -255,7 +255,7 @@ const Home = () => {
                     <Crown size={20} className="text-primary" />
                     <h3 className="font-bold text-lg whitespace-nowrap">MeetRun Unlimited</h3>
                   </div>
-                  <p className="text-sport-gray mb-3 text-sm sm:text-base">
+                  <p className="text-muted-foreground mb-3 text-sm sm:text-base">
                     Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
                   </p>
                   <div className="text-2xl font-bold text-primary whitespace-nowrap">9,99 €/mois</div>
@@ -328,16 +328,16 @@ const Home = () => {
                              )}
                            </div>
                          </div>
-                         <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                           <Calendar size={12} />
-                           {new Date(activity.date).toLocaleDateString('fr-FR', {
-                             day: 'numeric',
-                             month: 'long'
-                           })}
-                         </p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                            <Calendar size={12} />
+                            {new Date(activity.scheduled_at || activity.date).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long'
+                            })}
+                          </p>
                          <p className="text-sm text-muted-foreground flex items-center gap-1">
-                           <MapPin size={12} />
-                           {activity.area_hint || 'Localisation masquée'}
+                            <MapPin size={12} />
+                            {activity.location_hint || 'Localisation masquée'}
                            {activity.activity_type === 'created' && activity.enrollments && (
                              <span className="ml-2 flex items-center gap-1">
                                <Users size={12} />
