@@ -18,7 +18,7 @@ interface StripeBuyButtonProps {
 }
 
 // Environment variable for Stripe public key
-const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || "pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc";
 
 const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
   useEffect(() => {
