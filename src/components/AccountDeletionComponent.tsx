@@ -17,10 +17,7 @@ const AccountDeletionComponent: React.FC = () => {
   const { user } = useAuth();
 
   const handleConfirmDelete = async () => {
-    if (import.meta.env.DEV) console.log('[delete] handleConfirmDelete called, confirmationText:', confirmationText);
-    
     if (confirmationText !== 'SUPPRIMER') {
-      if (import.meta.env.DEV) console.log('[delete] Confirmation text incorrect');
       toast({
         title: "Confirmation requise",
         description: "Veuillez taper exactement 'SUPPRIMER' pour confirmer",
@@ -91,14 +88,7 @@ const AccountDeletionComponent: React.FC = () => {
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogTrigger asChild>
-          <Button 
-            variant="destructive" 
-            className="flex items-center gap-2"
-            onClick={() => {
-              if (import.meta.env.DEV) console.log('[delete] Button clicked - opening dialog');
-              setShowConfirmDialog(true);
-            }}
-          >
+          <Button variant="destructive" className="flex items-center gap-2">
             <Trash2 size={16} />
             Supprimer mon compte
           </Button>
