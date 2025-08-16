@@ -61,7 +61,8 @@ export async function ensureFreshSession() {
 export async function getCurrentUserSafe(opts?: { timeoutMs?: number }) {
   const c: any = (typeof getSupabase === 'function' ? getSupabase() : (globalThis as any).supabase) || null;
   if (!c) return { user: null, source: "no-client" as const };
-  const timeoutMs = opts?.timeoutMs ?? 3000;
+
+  const timeoutMs = opts?.timeoutMs ?? 8000;
 
   const withTimeout = <T,>(p: Promise<T>, label: string) => new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(label + " timeout")), timeoutMs);
@@ -69,13 +70,21 @@ export async function getCurrentUserSafe(opts?: { timeoutMs?: number }) {
   });
 
   try {
+    // 1) getSession
     const s: any = await withTimeout(c.auth.getSession(), "getSession()");
     const user1 = s?.data?.session?.user ?? null;
     if (user1) return { user: user1, source: "session" as const };
 
+    // 2) fallback getUser
     const u: any = await withTimeout(c.auth.getUser(), "getUser()");
     const user2 = u?.data?.user ?? null;
     if (user2) return { user: user2, source: "user" as const };
+
+    // 3) dernier essai: refreshSession + getSession
+    try { await c.auth.refreshSession(); } catch {}
+    const s2: any = await withTimeout(c.auth.getSession(), "getSession(2)");
+    const user3 = s2?.data?.session?.user ?? null;
+    if (user3) return { user: user3, source: "session2" as const };
 
     return { user: null, source: "none" as const };
   } catch (e) {
