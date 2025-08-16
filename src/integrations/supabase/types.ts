@@ -318,6 +318,14 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
+      cleanup_database: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_audit_logs: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_old_deleted_users: {
         Args: Record<PropertyKey, never>
         Returns: undefined
