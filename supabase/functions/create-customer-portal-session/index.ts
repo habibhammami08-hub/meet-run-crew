@@ -128,7 +128,8 @@ function createStripeClient(): Stripe {
 
   return new Stripe(stripeKey, {
     apiVersion: '2023-10-16',
-    timeout: 10000
+    timeout: 15000, // Standardized timeout
+    maxNetworkRetries: 2
   });
 }
 
@@ -250,7 +251,7 @@ async function getPortalConfiguration(
   requestId: string
 ): Promise<string | undefined> {
   try {
-    // Try to get existing configuration or create a default one
+    // D'abord chercher une configuration existante
     const configurations = await stripe.billingPortal.configurations.list({
       limit: 1,
       active: true
@@ -260,52 +261,23 @@ async function getPortalConfiguration(
       return configurations.data[0].id;
     }
 
-    // Create a basic configuration if none exists
-    const config = await stripe.billingPortal.configurations.create({
-      business_profile: {
-        headline: 'Gérer votre abonnement MeetRun',
-      },
-      features: {
-        payment_method_update: {
-          enabled: true
-        },
-        subscription_cancel: {
-          enabled: true,
-          mode: 'at_period_end',
-          cancellation_reason: {
-            enabled: true,
-            options: ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other']
-          }
-        },
-        subscription_pause: {
-          enabled: false
-        },
-        subscription_update: {
-          enabled: true,
-          default_allowed_updates: ['price', 'quantity', 'promotion_code'],
-          proration_behavior: 'create_prorations'
-        },
-        invoice_history: {
-          enabled: true
-        }
-      }
-    });
-
+    // Si aucune configuration n'existe, utiliser la configuration par défaut
+    // En production, il est recommandé de créer la configuration via le dashboard Stripe
     logEvent({
-      level: 'info',
+      level: 'warn',
       function_name: 'create-customer-portal-session',
-      action: 'portal_config_created',
-      success: true,
+      action: 'no_portal_config_found',
+      success: false,
       metadata: {
-        configuration_id: config.id
+        message: 'Using default Stripe portal configuration. Consider creating a custom one.'
       },
       request_id: requestId
     });
 
-    return config.id;
-
+    return undefined; // Utilise la configuration par défaut de Stripe
+    
   } catch (error) {
-    console.warn('Failed to get/create portal configuration, using default:', error);
-    return undefined; // Use Stripe's default configuration
+    console.warn('Failed to get portal configuration, using default:', error);
+    return undefined;
   }
 }

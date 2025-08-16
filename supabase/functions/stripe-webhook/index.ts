@@ -40,7 +40,8 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { 
       apiVersion: "2023-10-16",
-      timeout: 10000
+      timeout: 15000, // Standardized timeout
+      maxNetworkRetries: 2
     });
     
     // Get the raw body and signature
@@ -140,73 +141,87 @@ async function handleSubscriptionEvent(
   subscription: Stripe.Subscription, 
   eventType: string
 ) {
-  try {
-    logStep("Processing subscription event", { 
-      subscriptionId: subscription.id, 
-      customerId: subscription.customer,
-      status: subscription.status,
-      eventType
-    });
+  const maxRetries = 3;
+  let attempt = 0;
 
-    // Find the user by Stripe customer ID
-    const { data: profile, error: profileError } = await supabaseService
-      .from('profiles')
-      .select('id')
-      .eq('stripe_customer_id', subscription.customer)
-      .single();
-
-    if (profileError || !profile) {
-      logStep("Profile not found for customer", { 
+  while (attempt < maxRetries) {
+    try {
+      logStep("Processing subscription event", { 
+        subscriptionId: subscription.id, 
         customerId: subscription.customer,
-        error: profileError?.message 
+        status: subscription.status,
+        eventType,
+        attempt: attempt + 1
       });
-      return;
-    }
 
-    // Update subscription status with proper error handling
-    const updateData = {
-      sub_status: subscription.status,
-      sub_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      updated_at: new Date().toISOString()
-    };
+      // Find the user by Stripe customer ID
+      const { data: profile, error: profileError } = await supabaseService
+        .from('profiles')
+        .select('id')
+        .eq('stripe_customer_id', subscription.customer)
+        .single();
 
-    const { error: updateError } = await supabaseService
-      .from('profiles')
-      .update(updateData)
-      .eq('id', profile.id);
+      if (profileError || !profile) {
+        logStep("Profile not found for customer", { 
+          customerId: subscription.customer,
+          error: profileError?.message 
+        });
+        return;
+      }
 
-    if (updateError) {
-      logStep("Error updating profile", { 
-        error: updateError.message,
-        profileId: profile.id 
+      // Update subscription status with proper error handling
+      const updateData = {
+        sub_status: subscription.status,
+        sub_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: updateError } = await supabaseService
+        .from('profiles')
+        .update(updateData)
+        .eq('id', profile.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      logStep("Profile updated successfully", { 
+        profileId: profile.id, 
+        ...updateData 
       });
-      throw updateError;
+
+      // Also update subscribers table for compatibility
+      await supabaseService
+        .from('subscribers')
+        .upsert({
+          user_id: profile.id,
+          email: '', // Will be updated by profile trigger
+          stripe_customer_id: subscription.customer as string,
+          subscribed: ['active', 'trialing'].includes(subscription.status),
+          subscription_tier: 'premium',
+          subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+      // Succès, sortir de la boucle
+      break;
+      
+    } catch (error) {
+      attempt++;
+      
+      if (attempt >= maxRetries) {
+        // Échec final, logger et re-throw
+        logStep("Final attempt failed for subscription update", {
+          subscriptionId: subscription.id,
+          attempt,
+          error: error.message
+        });
+        throw error;
+      }
+      
+      // Attendre avant le prochain essai
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
-
-    logStep("Profile updated successfully", { 
-      profileId: profile.id, 
-      ...updateData 
-    });
-
-    // Also update subscribers table for compatibility
-    await supabaseService
-      .from('subscribers')
-      .upsert({
-        user_id: profile.id,
-        email: '', // Will be updated by profile trigger
-        stripe_customer_id: subscription.customer as string,
-        subscribed: ['active', 'trialing'].includes(subscription.status),
-        subscription_tier: 'premium',
-        subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-
-  } catch (error) {
-    logStep("Error in handleSubscriptionEvent", { 
-      error: error.message,
-      subscriptionId: subscription.id 
-    });
-    throw error;
   }
 }
 

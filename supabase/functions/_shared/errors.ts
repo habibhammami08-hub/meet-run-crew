@@ -25,6 +25,7 @@ export enum ErrorCode {
   CONFIG_ERROR = 'CONFIG_ERROR',
   DATABASE_ERROR = 'DATABASE_ERROR',
   STRIPE_ERROR = 'STRIPE_ERROR',
+  CUSTOMER_NOT_FOUND = 'CUSTOMER_NOT_FOUND',
   INTERNAL_ERROR = 'INTERNAL_ERROR'
 }
 
@@ -100,6 +101,26 @@ interface LogEventData {
   duration_ms?: number;
   metadata?: any;
   request_id: string;
+}
+
+// Constants for standardized timeouts
+export const STRIPE_TIMEOUT = 15000; // 15 seconds standard
+
+// Environment validation function
+export function validateEnvironment(): void {
+  const requiredVars = [
+    'SUPABASE_URL',
+    'SUPABASE_ANON_KEY', 
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET'
+  ];
+
+  const missing = requiredVars.filter(varName => !Deno.env.get(varName));
+  
+  if (missing.length > 0) {
+    throw new Error(`Missing environment variables: ${missing.join(', ')}`);
+  }
 }
 
 export function logEvent(data: LogEventData): void {

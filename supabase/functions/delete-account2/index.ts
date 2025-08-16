@@ -122,44 +122,8 @@ serve(async (req) => {
       .delete()
       .eq('user_id', userId);
 
-    // Try to delete auth user (this will cascade to profile via FK)
-    try {
-      const { error: deleteUserError } = await supabase.auth.admin.deleteUser(userId);
-      
-      if (deleteUserError) {
-        console.error('Error deleting auth user:', deleteUserError);
-        
-        // Fallback: delete profile manually
-        const { error: profileDeleteError } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('id', userId);
-          
-        if (profileDeleteError) {
-          throw new AppError(
-            'Failed to delete user profile',
-            ErrorCode.DATABASE_ERROR,
-            500
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error in user deletion:', error);
-      
-      // Fallback: delete profile manually
-      const { error: profileDeleteError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-        
-      if (profileDeleteError) {
-        throw new AppError(
-          'Failed to delete user profile',
-          ErrorCode.DATABASE_ERROR,
-          500
-        );
-      }
-    }
+    // Improved user deletion with fallback
+    await deleteUserWithFallback(supabase, userId);
 
     const response: DeleteAccountResponse = {
       success: true,
@@ -203,3 +167,53 @@ serve(async (req) => {
     return createErrorResponse(error, requestId, corsHeaders);
   }
 });
+
+async function deleteUserWithFallback(supabase: any, userId: string): Promise<void> {
+  try {
+    // Tentative de suppression via Auth
+    const { error: deleteUserError } = await supabase.auth.admin.deleteUser(userId);
+    
+    if (deleteUserError) {
+      console.error('Auth user deletion failed:', deleteUserError);
+      throw deleteUserError;
+    }
+    
+    // Vérifier que le profil a bien été supprimé
+    const { data: profileCheck } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .single();
+      
+    if (profileCheck) {
+      // Le profil existe encore, le supprimer manuellement
+      const { error: profileDeleteError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+        
+      if (profileDeleteError) {
+        throw new AppError(
+          'Failed to delete user profile after auth deletion',
+          ErrorCode.DATABASE_ERROR,
+          500
+        );
+      }
+    }
+    
+  } catch (error) {
+    // Fallback complet : supprimer le profil manuellement
+    const { error: profileDeleteError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+      
+    if (profileDeleteError) {
+      throw new AppError(
+        'Complete user deletion failed',
+        ErrorCode.DATABASE_ERROR,
+        500
+      );
+    }
+  }
+}
