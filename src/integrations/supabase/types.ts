@@ -110,6 +110,7 @@ export type Database = {
           stripe_customer_id: string | null
           sub_current_period_end: string | null
           sub_status: string | null
+          total_km: number | null
           updated_at: string | null
         }
         Insert: {
@@ -125,6 +126,7 @@ export type Database = {
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
+          total_km?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -140,6 +142,7 @@ export type Database = {
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
+          total_km?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -152,6 +155,7 @@ export type Database = {
           duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
+          end_place: string | null
           host_fee_cents: number | null
           host_id: string
           id: string
@@ -160,10 +164,13 @@ export type Database = {
           max_participants: number
           min_participants: number | null
           price_cents: number | null
+          route_distance_m: number | null
+          route_polyline: string | null
           scheduled_at: string
           session_type: string | null
           start_lat: number
           start_lng: number
+          start_place: string | null
           status: string | null
           title: string
           updated_at: string | null
@@ -175,6 +182,7 @@ export type Database = {
           duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
+          end_place?: string | null
           host_fee_cents?: number | null
           host_id: string
           id?: string
@@ -183,10 +191,13 @@ export type Database = {
           max_participants: number
           min_participants?: number | null
           price_cents?: number | null
+          route_distance_m?: number | null
+          route_polyline?: string | null
           scheduled_at: string
           session_type?: string | null
           start_lat: number
           start_lng: number
+          start_place?: string | null
           status?: string | null
           title: string
           updated_at?: string | null
@@ -198,6 +209,7 @@ export type Database = {
           duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
+          end_place?: string | null
           host_fee_cents?: number | null
           host_id?: string
           id?: string
@@ -206,10 +218,13 @@ export type Database = {
           max_participants?: number
           min_participants?: number | null
           price_cents?: number | null
+          route_distance_m?: number | null
+          route_polyline?: string | null
           scheduled_at?: string
           session_type?: string | null
           start_lat?: number
           start_lng?: number
+          start_place?: string | null
           status?: string | null
           title?: string
           updated_at?: string | null
@@ -330,6 +345,10 @@ export type Database = {
       is_user_deleted: {
         Args: { check_email: string }
         Returns: boolean
+      }
+      mark_enrollment_completed: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {

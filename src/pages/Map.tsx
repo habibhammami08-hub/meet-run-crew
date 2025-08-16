@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
+import GoogleSessionsMap from "@/components/Map/GoogleSessionsMap";
 import { Filter, MapPin, Users, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -422,8 +422,8 @@ const Map = () => {
           </div>
         ) : (
           <>
-            {/* Map with properly formatted data and coordinate obfuscation */}
-            <LeafletMeetRunMap 
+            {/* Google Maps with properly formatted data and coordinate obfuscation */}
+            <GoogleSessionsMap 
               sessions={filteredSessions.map(session => {
                 if (!session) return null;
                 
@@ -431,40 +431,33 @@ const Map = () => {
                   return {
                     id: session.id,
                     title: session.title || 'Session sans titre',
-                    date: session.scheduled_at,
-                    location_lat: Number(session.start_lat),
-                    location_lng: Number(session.start_lng),
+                    scheduled_at: session.scheduled_at,
+                    start_lat: Number(session.start_lat),
+                    start_lng: Number(session.start_lng),
                     end_lat: session.end_lat ? Number(session.end_lat) : null,
                     end_lng: session.end_lng ? Number(session.end_lng) : null,
-                    blur_radius_m: session.blur_radius_m || 800,
-                    area_hint: session.location_hint || session.area_hint,
+                    route_polyline: session.route_polyline,
+                    distance_km: Number(session.distance_km) || 0,
                     max_participants: session.max_participants || 10,
                     price_cents: session.price_cents || 0,
-                    distance_km: Number(session.distance_km) || 0,
-                    intensity: session.intensity || 'medium',
-                    host_id: session.host_id,
-                    enrollments: session.enrollments || [],
-                    host_profile: session.host_profile
+                    host_name: session.host_profile?.full_name || 'Anonyme',
+                    current_enrollments: session.enrollments?.filter((e: any) => 
+                      e && ['paid', 'included_by_subscription'].includes(e.status)
+                    ).length || 0
                   };
                 } catch (error) {
                   console.error("Erreur formatage session pour carte:", error);
                   return null;
                 }
               }).filter(Boolean)}
-              onSessionSelect={(sessionId) => {
+              onSessionSelect={(session) => {
                 try {
-                  const session = sessions.find(s => s && s.id === sessionId);
-                  if (session) {
-                    setSelectedSession(session);
-                  } else {
-                    navigate(`/session/${sessionId}`);
-                  }
+                  setSelectedSession(session);
                 } catch (error) {
                   console.error("Erreur sélection session:", error);
                 }
               }}
               className="h-full"
-              isLoading={loading}
             />
 
             {/* Floating Filter Bar */}
