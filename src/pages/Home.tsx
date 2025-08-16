@@ -190,8 +190,8 @@ const Home = () => {
                   1
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Trouve ta course</h3>
-                  <p className="text-sport-gray">Découvre les sessions de running près de chez toi sur la carte interactive.</p>
+                  <h3 className="font-semibold text-sport-black mb-2">Trouve ta course avec d'autres runners</h3>
+                  <p className="text-sport-gray">Découvre les sessions de running collectif près de chez toi sur la carte interactive.</p>
                 </div>
               </div>
             </CardContent>
@@ -218,8 +218,8 @@ const Home = () => {
                   3
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sport-black mb-2">Cours ensemble</h3>
-                  <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ton run en groupe !</p>
+                  <h3 className="font-semibold text-sport-black mb-2">Run et fais des rencontres inoubliables</h3>
+                  <p className="text-sport-gray">Rejoins ton groupe au point de rendez-vous et profite de ton run collectif !</p>
                 </div>
               </div>
             </CardContent>
