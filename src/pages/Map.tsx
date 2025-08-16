@@ -169,7 +169,7 @@ const Map = () => {
         throw new Error(`Erreur récupération sessions: ${error.message}`);
       }
 
-      // CORRECTION: Validation stricte et sécurisée des coordonnées
+      // Validation stricte et sécurisée des coordonnées avec nouveaux noms de colonnes
       const validSessions = (data || []).filter(session => {
         if (!session || typeof session !== 'object') {
           console.warn("Session invalide (non-objet):", session);
@@ -191,7 +191,7 @@ const Map = () => {
           return false;
         }
 
-        // CORRECTION: Validation des champs obligatoires
+        // Validation des champs obligatoires avec les nouveaux noms
         if (!session.id || !session.title || !session.scheduled_at) {
           console.warn(`Session ${session.id} - champs obligatoires manquants`);
           return false;
@@ -420,7 +420,7 @@ const Map = () => {
           </div>
         ) : (
           <>
-            {/* CORRECTION: Carte avec données formatées et validation */}
+            {/* Map with properly formatted data and coordinate obfuscation */}
             <LeafletMeetRunMap 
               sessions={filteredSessions.map(session => {
                 if (!session) return null;
@@ -434,7 +434,7 @@ const Map = () => {
                     location_lng: Number(session.start_lng),
                     end_lat: session.end_lat ? Number(session.end_lat) : null,
                     end_lng: session.end_lng ? Number(session.end_lng) : null,
-                    blur_radius_m: session.blur_radius_m || 1000,
+                    blur_radius_m: session.blur_radius_m || 800,
                     area_hint: session.location_hint || session.area_hint,
                     max_participants: session.max_participants || 10,
                     price_cents: session.price_cents || 0,

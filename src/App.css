@@ -40,3 +40,21 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Map container height for Leaflet */
+.main-content #map {
+  height: calc(100vh - 112px);
+  min-height: 400px;
+}
+
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* Ensure proper map display */
+.leaflet-map-pane,
+.leaflet-tile,
+.leaflet-layer {
+  outline: none;
+}

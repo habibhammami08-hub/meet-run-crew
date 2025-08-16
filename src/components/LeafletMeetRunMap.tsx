@@ -71,11 +71,24 @@ const LeafletMeetRunMap = ({
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  const { user } = useAuth();
+  const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // CORRECTION: Validation stricte et sécurisée des sessions
+  // Guard browser-only operations
+  if (typeof window === 'undefined') return null;
+
+  // Coordinate jitter function for non-subscribers
+  const jitter = (lat: number, lng: number, meters = 800) => {
+    const r = meters / 111320; // ~ meters -> degrees
+    const u = Math.random();
+    const v = Math.random();
+    const w = r * Math.sqrt(u);
+    const t = 2 * Math.PI * v;
+    return [lat + w * Math.cos(t), lng + w * Math.sin(t)] as const;
+  };
+
+  // Validation stricte et sécurisée des sessions
   const validSessions = sessions.filter(session => {
     if (!session || typeof session !== 'object') return false;
     
@@ -159,7 +172,7 @@ const LeafletMeetRunMap = ({
     return user && session && session.host_id === user.id;
   }, [user]);
 
-  // Get display coordinates avec validation améliorée
+  // Get display coordinates with jitter for non-subscribers
   const getDisplayLatLng = useCallback((session: Session, canSeeExact: boolean) => {
     if (!session) return { lat: PARIS_COORDS[0], lng: PARIS_COORDS[1] };
     
@@ -167,25 +180,32 @@ const LeafletMeetRunMap = ({
       return { lat: session.location_lat, lng: session.location_lng };
     }
     
-    // Generate consistent blur based on session ID avec validation
-    let hash = 0;
-    if (session.id && typeof session.id === 'string') {
-      for (let i = 0; i < session.id.length; i++) {
-        const char = session.id.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
+    // For non-subscribers, apply jitter/blur to coordinates
+    if (!hasActiveSubscription) {
+      // Generate consistent blur based on session ID for reproducible results
+      let hash = 0;
+      if (session.id && typeof session.id === 'string') {
+        for (let i = 0; i < session.id.length; i++) {
+          const char = session.id.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash; // Convert to 32bit integer
+        }
       }
+      
+      // Use hash to create deterministic but obscured coordinates
+      const blurKm = 0.8; // 800m blur radius
+      const latOffset = (Math.sin(hash) * blurKm) / 111;
+      const lngOffset = (Math.cos(hash) * blurKm) / (111 * Math.cos(session.location_lat * Math.PI / 180));
+      
+      return {
+        lat: session.location_lat + latOffset,
+        lng: session.location_lng + lngOffset,
+      };
     }
     
-    const blurKm = 1; // 1km blur radius
-    const latOffset = (Math.sin(hash) * blurKm) / 111;
-    const lngOffset = (Math.cos(hash) * blurKm) / (111 * Math.cos(session.location_lat * Math.PI / 180));
-    
-    return {
-      lat: session.location_lat + latOffset,
-      lng: session.location_lng + lngOffset,
-    };
-  }, []);
+    // Fallback for edge cases
+    return { lat: session.location_lat, lng: session.location_lng };
+  }, [hasActiveSubscription]);
 
   // Format date avec gestion d'erreur
   const formatDate = useCallback((dateStr: string) => {
@@ -245,8 +265,11 @@ const LeafletMeetRunMap = ({
     );
   }, [onLocationFound, onLocationError]);
 
-  // Initialize map avec nettoyage et gestion d'erreur
+  // Initialize map with proper cleanup and error handling
   useEffect(() => {
+    // Guard browser-only operations
+    if (typeof window === 'undefined') return;
+    
     if (!mapContainer.current || map.current) {
       return;
     }
@@ -267,7 +290,7 @@ const LeafletMeetRunMap = ({
         errorTileUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="%23f0f0f0"/></svg>'
       }).addTo(map.current);
 
-      // Initialize cluster group avec options améliorées
+      // Initialize cluster group with improved options
       clusterGroup.current = (L as any).markerClusterGroup({
         spiderfyOnMaxZoom: false,
         showCoverageOnHover: false,
@@ -282,7 +305,7 @@ const LeafletMeetRunMap = ({
       
       map.current.addLayer(clusterGroup.current);
 
-      // Handle cluster clicks avec validation améliorée
+      // Handle cluster clicks with validation
       clusterGroup.current.on("clusterclick", (e: any) => {
         try {
           const center = e.layer.getLatLng();
@@ -311,7 +334,7 @@ const LeafletMeetRunMap = ({
         }
       });
 
-      // Handle popup clicks pour navigation avec validation
+      // Handle popup clicks for navigation
       map.current.on("popupopen", (evt: any) => {
         try {
           const popupElement = evt.popup.getElement();
@@ -344,7 +367,7 @@ const LeafletMeetRunMap = ({
       });
     }
 
-    // Cleanup function
+    // Cleanup function with proper map removal
     return () => {
       if (map.current) {
         try {
@@ -353,6 +376,7 @@ const LeafletMeetRunMap = ({
           clusterGroup.current = null;
           userMarker.current = null;
           sessionMarkers.current = [];
+          setHasInitialized(false);
         } catch (error) {
           console.error("Erreur cleanup carte:", error);
         }

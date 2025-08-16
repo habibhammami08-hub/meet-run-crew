@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
 
-  // CORRECTION: Fonction pour récupérer le statut d'abonnement avec retry et validation
+  // Fonction pour récupérer le statut d'abonnement avec validation complète
   const fetchSubscriptionStatus = useCallback(async (userId: string, retryCount = 0) => {
     const maxRetries = 3;
     
@@ -69,18 +69,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      // CORRECTION: Validation stricte du statut d'abonnement
+      // Validation stricte du statut d'abonnement
       const validStatuses = ['active', 'trialing', 'canceled', 'past_due', 'incomplete'];
       const status = validStatuses.includes(data.sub_status) ? data.sub_status : 'inactive';
       
-      const isActive = ['active', 'trialing'].includes(status);
+      // Calculer hasActiveSubscription selon les critères stricts
+      const isActiveStatus = ['active', 'trialing'].includes(status);
       const isNotExpired = !data.sub_current_period_end || new Date(data.sub_current_period_end) > new Date();
+      const computedActiveSubscription = isActiveStatus && isNotExpired;
       
-      setHasActiveSubscription(isActive && isNotExpired);
+      setHasActiveSubscription(computedActiveSubscription);
       setSubscriptionStatus(status);
       setSubscriptionEnd(data.sub_current_period_end);
       
-      logger.debug('Subscription status updated:', { status, isActive, isNotExpired });
+      logger.debug('Subscription status updated:', { 
+        status, 
+        isActiveStatus, 
+        isNotExpired, 
+        hasActiveSubscription: computedActiveSubscription 
+      });
     } catch (error) {
       logger.error('Error in fetchSubscriptionStatus:', error);
       setHasActiveSubscription(false);
