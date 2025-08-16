@@ -168,8 +168,8 @@ const SessionDetails = () => {
                 <h1 className="text-xl font-bold text-sport-black mb-2">{session.title}</h1>
                 <p className="text-sport-gray flex items-center gap-1">
                   <MapPin size={16} />
-                  {canSeeExactLocation 
-                    ? session.area_hint || "Lieu exact disponible"
+                  {canSeeExactLocation
+                    ? (session.start_place || `${session.start_lat}, ${session.start_lng}`)
                     : `Zone approximative (${session.blur_radius_m || 1000}m)`
                   }
                 </p>

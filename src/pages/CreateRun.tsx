@@ -98,6 +98,7 @@ export default function CreateRun() {
       if (!title?.trim()) { alert("Indiquez un titre."); return; }
       const scheduledIso = toIsoFromLocal(dateTime);
       if (!scheduledIso) { alert("Date/heure invalide."); return; }
+      if (new Date(scheduledIso) <= new Date()) { alert("La date doit être dans le futur."); return; }
 
       // Extractions Directions
       const r = (dirResult || {} as any).routes?.[0];
@@ -120,7 +121,7 @@ export default function CreateRun() {
         start_place: startAddr, end_place: endAddr,
         intensity: uiToDbIntensity(intensityState),
         session_type: sessionTypeState,
-        max_participants: Math.min(20, Math.max(2, Number(maxParticipantsState) || 10)),
+        max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
         status: "published",
       };
       if (description?.trim()) payload.description = description.trim();
@@ -189,7 +190,7 @@ export default function CreateRun() {
 
             <div>
               <label className="block text-sm font-medium mb-1">Participants max</label>
-              <input className="w-full rounded-xl border px-3 py-2" type="number" min={2} max={20} value={maxParticipantsState}
+              <input className="w-full rounded-xl border px-3 py-2" type="number" min={3} max={20} value={maxParticipantsState}
                 onChange={(e)=>setMaxParticipantsState(Number(e.target.value || 10))} />
             </div>
 

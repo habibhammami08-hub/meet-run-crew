@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
+import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
@@ -15,16 +16,27 @@ type SessionRow = {
   route_polyline: string | null;
   intensity: string | null;
   session_type: string | null;
+  blur_radius_m?: number | null;
 };
 
-function jitter(lat: number, lng: number, meters = 800): LatLng {
-  const r = meters / 111320;
-  const u = Math.random(), v = Math.random();
+// Brouillage déterministe et cohérent par session (évite le "saut")
+function seededNoise(seed: string) {
+  let h = 2166136261;
+  for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  // deux pseudo-aléas [0,1)
+  const u = ((h >>> 0) % 10000) / 10000;
+  const v = (((h * 48271) >>> 0) % 10000) / 10000;
+  return { u, v };
+}
+function jitterDeterministic(lat:number, lng:number, meters:number, seed:string): LatLng {
+  const r = meters / 111320; // ≈ degrés/terre
+  const { u, v } = seededNoise(seed);
   const w = r * Math.sqrt(u), t = 2 * Math.PI * v;
   return { lat: lat + w * Math.cos(t), lng: lng + w * Math.sin(t) };
 }
 
 export default function MapPage() {
+  const navigate = useNavigate();
   const supabase = getSupabase();
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -61,7 +73,7 @@ export default function MapPage() {
 
       const { data, error } = await supabase
         .from("sessions")
-        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type")
+        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m")
         .gte("scheduled_at", new Date(Date.now() - 1000*60*60*24).toISOString()) // d'hier → futur
         .order("scheduled_at", { ascending: true })
         .limit(500);
@@ -125,7 +137,8 @@ export default function MapPage() {
         >
             {sessions.map(s => {
               const start = { lat: s.start_lat, lng: s.start_lng };
-              const startShown = hasSub ? start : jitter(start.lat, start.lng, 800);
+              const radius = s.blur_radius_m ?? 1000;
+              const startShown = hasSub ? start : jitterDeterministic(start.lat, start.lng, radius, s.id);
               const showPolyline = hasSub && s.route_polyline;
               const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
 
@@ -134,9 +147,7 @@ export default function MapPage() {
                   <MarkerF 
                     position={startShown} 
                     title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
-                    onClick={() => {
-                      console.log("[map] marker clicked:", s.id, s.title);
-                    }}
+                    onClick={() => navigate(`/session/${s.id}`)}
                   />
                 {showPolyline && path.length > 1 && (
                   <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />
