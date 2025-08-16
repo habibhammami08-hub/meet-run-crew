@@ -1,84 +1,24 @@
-import { getSupabase } from "@/integrations/supabase/client";
-import { logger } from "@/utils/logger";
+import { getSupabase } from '@/integrations/supabase/client';
 
-const supabase = getSupabase();
+export async function deleteMyAccount(): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: 'Supabase indisponible (env manquante)' };
 
-/** Supprime le compte (Edge Function) + déconnecte proprement le client */
-export async function deleteAccountAndSignOut(): Promise<boolean> {
-  if (!supabase) {
-    logger.error("[account-deletion] Supabase client indisponible");
-    return false;
-  }
-  
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+  // Récupérer la session pour que supabase-js envoie le JWT (Authorization: Bearer ...)
+  const { data: { session }, error: sErr } = await supabase.auth.getSession();
+  if (sErr || !session) return { ok: false, error: 'Session invalide' };
 
-    if (accessToken) {
-      logger.info("[account-deletion] Appel Edge Function Delete-Acount2...");
-      const { data, error } = await supabase.functions.invoke("Delete-Acount2", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      
-      logger.info("[account-deletion] Réponse de la fonction:", { data, error });
-      
-      if (error) {
-        logger.warn("[account-deletion] Function erreur (on continue le nettoyage local):", error);
-      } else if (data?.ok) {
-        logger.info("[account-deletion] Suppression côté serveur réussie");
-      }
-    } else {
-      logger.warn("[account-deletion] Pas d'access token; on nettoie localement.");
-    }
-  } catch (e) {
-    logger.warn("[account-deletion] Erreur appel function (on continue local):", e);
-  }
+  if (import.meta.env.DEV) console.log('[delete] invoking Delete-Acount2');
 
-  // Nettoyage client (évite "toujours connecté")
-  try {
-    try {
-      // @ts-ignore
-      supabase.realtime.removeAllChannels?.();
-      // @ts-ignore
-      supabase.realtime.disconnect?.();
-    } catch {}
+  // IMPORTANT: utiliser le NOM EXACT de la fonction existante (avec majuscules + typo)
+  const { data, error } = await supabase.functions.invoke('Delete-Acount2', {
+    body: { confirm: true },
+  });
 
-    try { 
-      await supabase.auth.signOut({ scope: "local" }); 
-    } catch {}
-    
-    try { 
-      await supabase.auth.signOut({ scope: "global" }); 
-    } catch (e) { 
-      console.warn("signOut global:", e); 
-    }
+  if (error) return { ok: false, error: error.message || 'Erreur edge' };
+  if (!data || data.status !== 'ok') return { ok: false, error: (data?.error || 'Suppression non confirmée') };
 
-    try { 
-      localStorage.clear(); 
-      sessionStorage.clear(); 
-    } catch {}
-
-    try {
-      // @ts-ignore
-      if (indexedDB && typeof indexedDB.databases === "function") {
-        // @ts-ignore
-        const dbs = await indexedDB.databases();
-        for (const db of dbs) { 
-          if (db.name) indexedDB.deleteDatabase(db.name); 
-        }
-      }
-    } catch {}
-
-    try {
-      document.cookie.split(";").forEach(c => { 
-        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;");
-      });
-    } catch {}
-
-    return true;
-  } catch (e) {
-    console.error("[account-deletion] Erreur nettoyage local:", e);
-    return false;
-  }
+  // Déconnexion locale et nettoyage UI
+  await supabase.auth.signOut();
+  return { ok: true };
 }

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteAccountAndSignOut } from "@/utils/deleteAccount";
+import { deleteMyAccount } from "@/utils/deleteAccount";
 import { logger } from "@/utils/logger";
 
 const AccountDeletionComponent: React.FC = () => {
@@ -28,14 +28,24 @@ const AccountDeletionComponent: React.FC = () => {
 
     try {
       setIsDeleting(true);
-      await deleteAccountAndSignOut();
-      toast({ 
-        title: "Compte supprimé", 
-        description: "Votre compte et vos données ont été supprimés." 
-      });
-      window.location.replace("/goodbye");
+      const res = await deleteMyAccount();
+      
+      if (res.ok) {
+        toast({ 
+          title: "Compte supprimé", 
+          description: "Votre compte et vos données ont été supprimés." 
+        });
+        window.location.replace("/goodbye");
+      } else {
+        toast({ 
+          title: "Erreur", 
+          description: res.error || "Suppression impossible", 
+          variant: "destructive" 
+        });
+        logger.error("Account deletion error:", res.error);
+      }
     } catch (e: any) {
-      logger.error("Account deletion error:", e);
+      logger.error("Account deletion exception:", e);
       toast({ 
         title: "Erreur", 
         description: e?.message || "Suppression impossible", 

@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AccountDeletionComponent from "@/components/AccountDeletionComponent";
-import { deleteAccountAndSignOut } from "@/utils/deleteAccount";
+import { deleteMyAccount } from "@/utils/deleteAccount";
 
 const Profile = () => {
   const { user, signOut } = useAuth();
@@ -377,20 +377,28 @@ const Profile = () => {
     try {
       setLoading(true);
       
-      await deleteAccountAndSignOut();
+      const res = await deleteMyAccount();
       
-      toast({
-        title: "Compte supprimé",
-        description: "Votre compte et toutes vos données ont été supprimés.",
-      });
-      
-      navigate("/goodbye");
+      if (res.ok) {
+        toast({
+          title: "Compte supprimé",
+          description: "Votre compte et toutes vos données ont été supprimés.",
+        });
+        navigate("/");
+      } else {
+        toast({ 
+          title: "Erreur de suppression", 
+          description: res.error || "Suppression impossible",
+          variant: "destructive" 
+        });
+        console.error("[delete] Error:", res.error);
+      }
         
     } catch (error: any) {
-      console.error("[account-deletion] Erreur complète:", error);
+      console.error("[delete] Exception:", error);
       toast({ 
         title: "Erreur de suppression", 
-        description: `Impossible de supprimer le compte: ${error.message}. Veuillez contacter le support.`,
+        description: `Impossible de supprimer le compte: ${error.message}`,
         variant: "destructive" 
       });
     } finally {
