@@ -223,38 +223,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       logger.debug("Auth state changed:", event, session?.user?.id);
       
       try {
-        // CORRECTION: Mise à jour synchrone du state
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Ne pas recréer le profil si suppression ou déconnexion en cours
-        if (session?.user && 
-            !localStorage.getItem('deletion_in_progress') && 
-            !localStorage.getItem('logout_in_progress') &&
-            mounted) {
+        // CORRECTION: Vérification stricte - seulement traiter les sessions valides avec un utilisateur
+        if (session && session.user) {
+          // Utilisateur connecté avec session valide
+          setSession(session);
+          setUser(session.user);
           
-          // CORRECTION: Opérations asynchrones avec timeout de sécurité
-          const timeoutId = setTimeout(() => {
-            if (mounted) {
-              logger.warn("Auth operations timeout, proceeding without profile/subscription");
-              setLoading(false);
-            }
-          }, 10000); // 10 secondes max
+          // Ne pas recréer le profil si suppression ou déconnexion en cours
+          if (!localStorage.getItem('deletion_in_progress') && 
+              !localStorage.getItem('logout_in_progress') &&
+              mounted) {
+            
+            // CORRECTION: Opérations asynchrones avec timeout de sécurité
+            const timeoutId = setTimeout(() => {
+              if (mounted) {
+                logger.warn("Auth operations timeout, proceeding without profile/subscription");
+                setLoading(false);
+              }
+            }, 10000); // 10 secondes max
 
-          try {
-            await ensureProfile(session.user);
-            if (mounted) {
-              await fetchSubscriptionStatus(session.user.id);
+            try {
+              await ensureProfile(session.user);
+              if (mounted) {
+                await fetchSubscriptionStatus(session.user.id);
+              }
+            } catch (error) {
+              logger.error("Auth async operations error:", error);
+            } finally {
+              clearTimeout(timeoutId);
+              if (mounted) {
+                setLoading(false);
+              }
             }
-          } catch (error) {
-            logger.error("Auth async operations error:", error);
-          } finally {
-            clearTimeout(timeoutId);
-            if (mounted) {
-              setLoading(false);
-            }
+          } else {
+            setLoading(false);
           }
         } else {
+          // Aucune session ou session invalide - utilisateur non connecté
+          setSession(null);
+          setUser(null);
           setHasActiveSubscription(false);
           setSubscriptionStatus(null);
           setSubscriptionEnd(null);
@@ -262,6 +269,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (error) {
         logger.error("Error in auth state change handler:", error);
+        // En cas d'erreur, s'assurer que l'utilisateur n'est pas connecté par défaut
+        setSession(null);
+        setUser(null);
+        setHasActiveSubscription(false);
+        setSubscriptionStatus(null);
+        setSubscriptionEnd(null);
         if (mounted) {
           setLoading(false);
         }
