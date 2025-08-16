@@ -2,10 +2,39 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
+// Debug environment variables
+console.log('🔍 Environment Debug Info:');
+console.log('- import.meta.env.DEV:', import.meta.env.DEV);
+console.log('- import.meta.env.PROD:', import.meta.env.PROD);
+console.log('- import.meta.env.MODE:', import.meta.env.MODE);
+console.log('- Available env vars:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
+console.log('- VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? 'PRESENT' : 'MISSING');
+console.log('- VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 'PRESENT' : 'MISSING');
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY!;
 
+console.log('📋 Final values:');
+console.log('- SUPABASE_URL type:', typeof SUPABASE_URL, 'value:', SUPABASE_URL ? 'SET' : 'EMPTY');
+console.log('- SUPABASE_ANON_KEY type:', typeof SUPABASE_ANON_KEY, 'value:', SUPABASE_ANON_KEY ? 'SET' : 'EMPTY');
+
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('❌ Missing environment variables:');
+  console.error('- VITE_SUPABASE_URL:', SUPABASE_URL || 'undefined');
+  console.error('- VITE_SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY || 'undefined');
+  console.error('- All import.meta.env:', import.meta.env);
+  
+  // Instead of throwing immediately, let's show a helpful error page
+  const missingVars = [];
+  if (!SUPABASE_URL) missingVars.push('VITE_SUPABASE_URL');
+  if (!SUPABASE_ANON_KEY) missingVars.push('VITE_SUPABASE_ANON_KEY');
+  
+  // Store missing vars for error component to display
+  (window as any).__LOVABLE_ENV_ERROR__ = {
+    missingVars,
+    timestamp: new Date().toISOString()
+  };
+  
   throw new Error("Missing Supabase env vars: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY");
 }
 
