@@ -16,6 +16,7 @@ export const CONFIG = {
   STRIPE_PUBLISHABLE_KEY: read('VITE_STRIPE_PUBLISHABLE_KEY'),
   STRIPE_BUY_BUTTON_ID: read('VITE_STRIPE_BUY_BUTTON_ID'),
   SITE_URL: read('VITE_SITE_URL'),
+  GOOGLE_MAPS_API_KEY: read('VITE_GOOGLE_MAPS_API_KEY'),
 };
 
 export const ENV_STATUS = {
@@ -25,6 +26,7 @@ export const ENV_STATUS = {
     VITE_STRIPE_PUBLISHABLE_KEY: Boolean((import.meta as any)?.env?.VITE_STRIPE_PUBLISHABLE_KEY),
     VITE_STRIPE_BUY_BUTTON_ID: Boolean((import.meta as any)?.env?.VITE_STRIPE_BUY_BUTTON_ID),
     VITE_SITE_URL: Boolean((import.meta as any)?.env?.VITE_SITE_URL),
+    VITE_GOOGLE_MAPS_API_KEY: Boolean((import.meta as any)?.env?.VITE_GOOGLE_MAPS_API_KEY),
   },
   win: {
     VITE_SUPABASE_URL: typeof window !== 'undefined' && Boolean(window.__ENV?.VITE_SUPABASE_URL),
@@ -32,5 +34,6 @@ export const ENV_STATUS = {
     VITE_STRIPE_PUBLISHABLE_KEY: typeof window !== 'undefined' && Boolean(window.__ENV?.VITE_STRIPE_PUBLISHABLE_KEY),
     VITE_STRIPE_BUY_BUTTON_ID: typeof window !== 'undefined' && Boolean(window.__ENV?.VITE_STRIPE_BUY_BUTTON_ID),
     VITE_SITE_URL: typeof window !== 'undefined' && Boolean(window.__ENV?.VITE_SITE_URL),
+    VITE_GOOGLE_MAPS_API_KEY: typeof window !== 'undefined' && Boolean(window.__ENV?.VITE_GOOGLE_MAPS_API_KEY),
   }
 };
