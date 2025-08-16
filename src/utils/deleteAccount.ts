@@ -11,7 +11,7 @@ export async function deleteMyAccount(): Promise<DeleteResult> {
   if (sErr || !session) return { ok: false, error: 'Session invalide' };
 
   // 2) Appel edge function EXISTANTE (nom exact)
-  const { data, error } = await supabase.functions.invoke('Delete-Acount2', {
+  const { data, error } = await supabase.functions.invoke('delete-account2', {
     body: { confirm: true },
   });
 

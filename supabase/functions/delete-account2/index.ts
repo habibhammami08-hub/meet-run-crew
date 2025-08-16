@@ -52,10 +52,12 @@ serve(async (req) => {
       request_id: requestId
     });
 
-    const supabase = await createSupabaseClient(true);
+    // Créer le client Supabase avec le token utilisateur pour RPC
+    const userSupabase = await createSupabaseClient(false, req.headers.get('Authorization'));
+    const supabase = await createSupabaseClient(true); // Service role pour storage et auth
 
     // Check for future sessions as host
-    const { data: futureSessions, error: futureSessionsError } = await supabase
+    const { data: futureSessions, error: futureSessionsError } = await userSupabase
       .from('sessions')
       .select('id, title, scheduled_at')
       .eq('host_id', userId)
@@ -79,58 +81,58 @@ serve(async (req) => {
       );
     }
 
-    // Start deletion process
-    let deletedSessions = 0;
-    let deletedEnrollments = 0;
-
-    // Cancel future enrollments
-    const { error: enrollmentCancelError } = await supabase
-      .from('enrollments')
-      .update({ 
-        status: 'cancelled', 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('user_id', userId)
-      .in('session_id', 
-        supabase
-          .from('sessions')
-          .select('id')
-          .gte('scheduled_at', new Date().toISOString())
+    // Appeler la RPC sécurisée pour nettoyer la DB
+    const { data: rpcResult, error: rpcError } = await userSupabase.rpc('app_delete_account');
+    
+    if (rpcError) {
+      console.error('RPC delete account error:', rpcError);
+      throw new AppError(
+        'Failed to execute account deletion',
+        ErrorCode.DATABASE_ERROR,
+        500
       );
-
-    if (enrollmentCancelError) {
-      console.error('Error cancelling enrollments:', enrollmentCancelError);
     }
 
-    // Archive past sessions (don't delete for data integrity)
-    const { error: sessionArchiveError } = await supabase
-      .from('sessions')
-      .update({ 
-        status: 'cancelled', 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('host_id', userId)
-      .lt('scheduled_at', new Date().toISOString());
+    // Nettoyer le Storage (avatars de l'utilisateur)
+    try {
+      const { data: files, error: listError } = await supabase.storage
+        .from('avatars')
+        .list(`avatars/${userId}`, { limit: 100 });
 
-    if (sessionArchiveError) {
-      console.error('Error archiving sessions:', sessionArchiveError);
+      if (!listError && files && files.length > 0) {
+        const filePaths = files.map(file => `avatars/${userId}/${file.name}`);
+        const { error: removeError } = await supabase.storage
+          .from('avatars')
+          .remove(filePaths);
+        
+        if (removeError) {
+          console.error('Storage cleanup error:', removeError);
+          // Ne pas faire échouer la suppression pour ça
+        }
+      }
+    } catch (storageError) {
+      console.error('Storage cleanup failed:', storageError);
+      // Ne pas faire échouer la suppression pour ça
     }
 
-    // Delete subscriber records
-    await supabase
-      .from('subscribers')
-      .delete()
-      .eq('user_id', userId);
-
-    // Improved user deletion with fallback
-    await deleteUserWithFallback(supabase, userId);
+    // Supprimer l'utilisateur Auth (admin)
+    const { error: deleteUserError } = await supabase.auth.admin.deleteUser(userId);
+    
+    if (deleteUserError) {
+      console.error('Auth user deletion failed:', deleteUserError);
+      throw new AppError(
+        'Failed to delete auth user',
+        ErrorCode.DATABASE_ERROR,
+        500
+      );
+    }
 
     const response: DeleteAccountResponse = {
       success: true,
       message: 'Account deleted successfully',
       deleted_data: {
-        sessions: deletedSessions,
-        enrollments: deletedEnrollments,
+        sessions: (rpcResult?.deleted_sessions || 0) + (rpcResult?.cancelled_sessions || 0),
+        enrollments: rpcResult?.deleted_enrollments || 0,
         profile: true
       }
     };
@@ -167,53 +169,3 @@ serve(async (req) => {
     return createErrorResponse(error, requestId, corsHeaders);
   }
 });
-
-async function deleteUserWithFallback(supabase: any, userId: string): Promise<void> {
-  try {
-    // Tentative de suppression via Auth
-    const { error: deleteUserError } = await supabase.auth.admin.deleteUser(userId);
-    
-    if (deleteUserError) {
-      console.error('Auth user deletion failed:', deleteUserError);
-      throw deleteUserError;
-    }
-    
-    // Vérifier que le profil a bien été supprimé
-    const { data: profileCheck } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', userId)
-      .single();
-      
-    if (profileCheck) {
-      // Le profil existe encore, le supprimer manuellement
-      const { error: profileDeleteError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-        
-      if (profileDeleteError) {
-        throw new AppError(
-          'Failed to delete user profile after auth deletion',
-          ErrorCode.DATABASE_ERROR,
-          500
-        );
-      }
-    }
-    
-  } catch (error) {
-    // Fallback complet : supprimer le profil manuellement
-    const { error: profileDeleteError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
-      
-    if (profileDeleteError) {
-      throw new AppError(
-        'Complete user deletion failed',
-        ErrorCode.DATABASE_ERROR,
-        500
-      );
-    }
-  }
-}

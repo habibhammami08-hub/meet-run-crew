@@ -15,22 +15,40 @@ export class AuthError extends Error {
   }
 }
 
-export async function createSupabaseClient(serviceRole = false): Promise<SupabaseClient> {
+export async function createSupabaseClient(serviceRole = false, userToken?: string | null): Promise<SupabaseClient> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseKey = serviceRole 
-    ? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    : Deno.env.get('SUPABASE_ANON_KEY');
+  let supabaseKey: string | undefined;
+  
+  if (serviceRole) {
+    supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  } else if (userToken) {
+    // Pour les requêtes avec token utilisateur, on utilise l'anon key
+    supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+  } else {
+    supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+  }
 
   if (!supabaseUrl || !supabaseKey) {
     throw new AuthError('Supabase configuration missing', 'CONFIG_ERROR', 500);
   }
 
-  return createClient(supabaseUrl, supabaseKey, {
+  const client = createClient(supabaseUrl, supabaseKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
     }
   });
+
+  // Si on a un token utilisateur, l'utiliser pour authentifier le client
+  if (userToken && !serviceRole) {
+    const token = userToken.startsWith('Bearer ') ? userToken.replace('Bearer ', '') : userToken;
+    await client.auth.setSession({
+      access_token: token,
+      refresh_token: '' // Pas besoin pour les edge functions
+    });
+  }
+
+  return client;
 }
 
 export async function authenticateUser(

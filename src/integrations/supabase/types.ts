@@ -356,6 +356,10 @@ export type Database = {
       }
     }
     Functions: {
+      app_delete_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       cleanup_old_deleted_users: {
         Args: Record<PropertyKey, never>
         Returns: undefined
