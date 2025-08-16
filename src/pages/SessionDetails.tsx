@@ -49,7 +49,7 @@ const SessionDetails = () => {
       .from('sessions')
       .select(`
         *,
-        profiles:host_id (id, full_name, age, gender, avatar_url)
+        profiles:host_id (id, full_name, age, gender, avatar_url, city, sport_level)
       `)
       .eq('id', id)
       .maybeSingle();
@@ -73,7 +73,7 @@ const SessionDetails = () => {
       .from('enrollments')
       .select(`
         *,
-        profiles!enrollments_user_id_fkey (id, full_name, age, gender, avatar_url)
+        profiles!enrollments_user_id_fkey (id, full_name, age, gender, avatar_url, city, sport_level)
       `)
       .eq('session_id', id)
       .in('status', ['paid', 'included_by_subscription']);

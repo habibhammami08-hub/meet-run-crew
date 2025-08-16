@@ -100,6 +100,7 @@ export type Database = {
         Row: {
           age: number | null
           avatar_url: string | null
+          city: string | null
           created_at: string | null
           email: string
           full_name: string | null
@@ -109,6 +110,7 @@ export type Database = {
           role: string | null
           sessions_hosted: number | null
           sessions_joined: number | null
+          sport_level: string | null
           stripe_customer_id: string | null
           sub_current_period_end: string | null
           sub_status: string | null
@@ -119,6 +121,7 @@ export type Database = {
         Insert: {
           age?: number | null
           avatar_url?: string | null
+          city?: string | null
           created_at?: string | null
           email: string
           full_name?: string | null
@@ -128,6 +131,7 @@ export type Database = {
           role?: string | null
           sessions_hosted?: number | null
           sessions_joined?: number | null
+          sport_level?: string | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
@@ -138,6 +142,7 @@ export type Database = {
         Update: {
           age?: number | null
           avatar_url?: string | null
+          city?: string | null
           created_at?: string | null
           email?: string
           full_name?: string | null
@@ -147,6 +152,7 @@ export type Database = {
           role?: string | null
           sessions_hosted?: number | null
           sessions_joined?: number | null
+          sport_level?: string | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
