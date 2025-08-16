@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ENV_READY } from "@/integrations/supabase/client";
 import { EnvironmentFallback } from "@/components/EnvironmentFallback";
 import AppLayout from "./components/AppLayout";
 
@@ -39,19 +40,12 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  const [envError, setEnvError] = useState<{missingVars: string[]} | null>(null);
-
-  useEffect(() => {
-    // Check if there's an environment error stored by the Supabase client
-    const envErrorData = (window as any).__LOVABLE_ENV_ERROR__;
-    if (envErrorData) {
-      setEnvError(envErrorData);
-    }
-  }, []);
-
-  // If there are missing environment variables, show the fallback
-  if (envError) {
-    return <EnvironmentFallback missingVars={envError.missingVars} />;
+  // Si les variables d'environnement ne sont pas prêtes, afficher l'aide
+  if (!ENV_READY) {
+    const missingVars = [];
+    if (!import.meta.env.VITE_SUPABASE_URL) missingVars.push('VITE_SUPABASE_URL');
+    if (!import.meta.env.VITE_SUPABASE_ANON_KEY) missingVars.push('VITE_SUPABASE_ANON_KEY');
+    return <EnvironmentFallback missingVars={missingVars} />;
   }
 
   return (
