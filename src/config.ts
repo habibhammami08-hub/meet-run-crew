@@ -8,11 +8,11 @@ const configSchema = z.object({
   APP_URL: z.string().url().optional(),
   
   // Supabase Configuration
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_URL: z.string().url().default('https://qnupinrsetomnsdchhfa.supabase.co'),
+  SUPABASE_ANON_KEY: z.string().min(1).default('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg'),
   
-  // Stripe Configuration  
-  STRIPE_PUBLIC_KEY: z.string().min(1),
+  // Stripe Configuration - optional in development
+  STRIPE_PUBLIC_KEY: z.string().min(1).optional(),
   
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
