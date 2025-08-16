@@ -107,7 +107,19 @@ const Auth = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Gestion spécifique des cas courants
+        if (error.message.includes('already registered') || error.message.includes('already exists')) {
+          toast({
+            title: "Compte existant",
+            description: "Un compte avec cet email existe déjà. Utilisez la connexion ou réinitialisez votre mot de passe.",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast({
         title: "Compte créé",
