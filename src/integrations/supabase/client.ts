@@ -2,9 +2,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Environment variables with secure fallbacks
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://qnupinrsetomnsdchhfa.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error("Missing Supabase env vars: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY");
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -40,57 +43,34 @@ export const checkSupabaseConnection = async (): Promise<boolean> => {
   }
 };
 
-// User profile management utility
-export const ensureUserProfile = async (user: any) => {
+// Robust user profile management utility  
+export const ensureUserProfile = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  
-  try {
-    // Check if profile exists
-    const { data: existingProfile, error: selectError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .maybeSingle();
 
-    if (selectError && selectError.code !== 'PGRST116') {
-      throw selectError;
-    }
+  const { data: profile, error: selErr } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (selErr && selErr.code !== 'PGRST116') throw selErr;
+  if (profile) return profile;
 
-    if (!existingProfile) {
-      // Create profile with secure upsert
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email || '',
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, { 
-          onConflict: 'id',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
-
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.error("[profile] Creation error:", error);
-        }
-        throw error;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log("[profile] Profile created:", data);
-      }
-      return data;
-    }
-
-    return existingProfile;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[profile] ensureUserProfile error:", error);
-    }
-    throw error;
-  }
+  const payload = {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+  };
+  const { data: created, error: insErr } = await supabase.from('profiles').insert(payload).select('*').single();
+  if (insErr) throw insErr;
+  return created;
 };
+
+// Hook profile creation to auth state changes
+supabase.auth.onAuthStateChange(async () => {
+  try { 
+    await ensureUserProfile(); 
+  } catch (e) { 
+    console.error('[profile]', e); 
+  }
+});
