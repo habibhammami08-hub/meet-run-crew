@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import L from "leaflet";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,6 +74,8 @@ const LeafletMeetRunMap = ({
   const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  const supabase = getSupabase();
 
   // Guard browser-only operations
   if (typeof window === 'undefined') return null;

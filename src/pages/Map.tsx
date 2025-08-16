@@ -7,7 +7,7 @@ import LeafletMeetRunMap from "@/components/LeafletMeetRunMap";
 import { Filter, MapPin, Users, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const Map = () => {
@@ -23,6 +23,8 @@ const Map = () => {
 
   const realtimeChannelRef = useRef<any>(null);
   const isMountedRef = useRef(true);
+  
+  const supabase = getSupabase();
   
   useEffect(() => {
     isMountedRef.current = true;

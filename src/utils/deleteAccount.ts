@@ -1,8 +1,15 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
+
+const supabase = getSupabase();
 
 /** Supprime le compte (Edge Function) + déconnecte proprement le client */
 export async function deleteAccountAndSignOut(): Promise<boolean> {
+  if (!supabase) {
+    logger.error("[account-deletion] Supabase client indisponible");
+    return false;
+  }
+  
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;

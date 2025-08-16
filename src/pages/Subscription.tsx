@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { Crown, Check, X, ExternalLink, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 // Déclaration pour Stripe Buy Button
@@ -27,6 +27,8 @@ const Subscription = () => {
   const [stripeBuyButtonLoaded, setStripeBuyButtonLoaded] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  const supabase = getSupabase();
 
   // Charger le script Stripe Buy Button
   useEffect(() => {

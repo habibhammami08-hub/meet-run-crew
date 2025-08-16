@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Navigation } from "lucide-react";
 import GeolocationModal from "./GeolocationModal";
@@ -65,6 +65,8 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
   } = useGeolocation();
   
   const { user } = useAuth();
+  
+  const supabase = getSupabase();
 
   // Fetch user enrollments
   const fetchUserEnrollments = async () => {

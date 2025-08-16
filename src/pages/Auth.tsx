@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone } from "lucide-react";
+
+const supabase = getSupabase();
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +38,10 @@ const Auth = () => {
     const password = formData.get("password") as string;
 
     try {
+      if (!supabase) {
+        throw new Error("Supabase client indisponible");
+      }
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -73,6 +79,9 @@ const Auth = () => {
 
     try {
       const redirectUrl = `${window.location.origin}${returnTo}`;
+      if (!supabase) {
+        throw new Error("Supabase client indisponible");
+      }
       
       const { error } = await supabase.auth.signUp({
         email,

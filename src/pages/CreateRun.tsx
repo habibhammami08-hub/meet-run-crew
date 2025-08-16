@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import LocationPicker from "@/components/LocationPicker";
 import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useFormValidation } from "@/hooks/useFormValidation";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +20,8 @@ const CreateRun = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  
+  const supabase = getSupabase();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [mode, setMode] = useState<'start' | 'end'>('start');
   const [selectedLocations, setSelectedLocations] = useState<{

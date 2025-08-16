@@ -1,8 +1,8 @@
 import { ENV_STATUS } from '@/config';
 
 export default function EnvHelp() {
-  if (typeof window !== 'undefined') {
-    // Log de diagnostique au runtime
+  if (typeof window !== 'undefined' && import.meta.env.DEV) {
+    // Log de diagnostique au runtime (DEV uniquement)
     // eslint-disable-next-line no-console
     console.log('[ENV] vite=', ENV_STATUS.vite);
     // eslint-disable-next-line no-console

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 
 import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 import { deleteAccountAndSignOut } from "@/utils/deleteAccount";
@@ -30,6 +30,8 @@ const Profile = () => {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (user) {

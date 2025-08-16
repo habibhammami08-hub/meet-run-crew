@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { MapPin, Calendar, Clock, Users, Share2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const SessionDetails = () => {
@@ -18,6 +18,8 @@ const SessionDetails = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
+  
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (id) {
