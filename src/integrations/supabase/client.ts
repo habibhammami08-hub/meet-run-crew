@@ -62,7 +62,7 @@ export async function getCurrentUserSafe(opts?: { timeoutMs?: number }) {
   const c: any = (typeof getSupabase === 'function' ? getSupabase() : (globalThis as any).supabase) || null;
   if (!c) return { user: null, source: "no-client" as const };
 
-  const timeoutMs = opts?.timeoutMs ?? 8000;
+  const timeoutMs = opts?.timeoutMs ?? 5000;
 
   const withTimeout = <T,>(p: Promise<T>, label: string) => new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(label + " timeout")), timeoutMs);
@@ -70,21 +70,21 @@ export async function getCurrentUserSafe(opts?: { timeoutMs?: number }) {
   });
 
   try {
-    // 1) getSession
-    const s: any = await withTimeout(c.auth.getSession(), "getSession()");
-    const user1 = s?.data?.session?.user ?? null;
-    if (user1) return { user: user1, source: "session" as const };
+    // 1) getUser — rapide, fiable si une session existe (persistée)
+    const gu: any = await withTimeout(c.auth.getUser(), "getUser()");
+    const user1 = gu?.data?.user ?? null;
+    if (user1) return { user: user1, source: "getUser" as const };
 
-    // 2) fallback getUser
-    const u: any = await withTimeout(c.auth.getUser(), "getUser()");
-    const user2 = u?.data?.user ?? null;
-    if (user2) return { user: user2, source: "user" as const };
+    // 2) fallback getSession — au cas où getUser n'ait rien retourné mais une session existe
+    const gs: any = await withTimeout(c.auth.getSession(), "getSession()");
+    const user2 = gs?.data?.session?.user ?? null;
+    if (user2) return { user: user2, source: "getSession" as const };
 
-    // 3) dernier essai: refreshSession + getSession
-    try { await c.auth.refreshSession(); } catch {}
-    const s2: any = await withTimeout(c.auth.getSession(), "getSession(2)");
-    const user3 = s2?.data?.session?.user ?? null;
-    if (user3) return { user: user3, source: "session2" as const };
+    // 3) dernier essai (bref) : refreshSession puis re-getUser
+    try { await withTimeout(c.auth.refreshSession(), "refreshSession()"); } catch {}
+    const gu2: any = await withTimeout(c.auth.getUser(), "getUser(2)");
+    const user3 = gu2?.data?.user ?? null;
+    if (user3) return { user: user3, source: "getUser2" as const };
 
     return { user: null, source: "none" as const };
   } catch (e) {

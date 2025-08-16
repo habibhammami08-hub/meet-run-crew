@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
-import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
@@ -99,46 +98,44 @@ export default function MapPage() {
   };
 
   return (
-    <GoogleMapProvider>
-      <div className="w-full">
-        <div className="px-4 py-2 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Sessions autour de vous</h1>
-          {!hasSub && (
-            <div className="text-xs text-muted-foreground">
-              Coordonnées approximatives pour les non-abonnés • <a href="/subscribe" className="underline">S'abonner</a>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl overflow-hidden border mx-4">
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={center}
-            zoom={12}
-            options={{ mapTypeControl:false, streetViewControl:false, fullscreenControl:false }}
-          >
-            {sessions.map(s => {
-              const start = { lat: s.start_lat, lng: s.start_lng };
-              const startShown = hasSub ? start : jitter(start.lat, start.lng, 800);
-              const showPolyline = hasSub && s.route_polyline;
-              const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
-
-              return (
-                <div key={s.id}>
-                  <MarkerF position={startShown} title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`} />
-                  {showPolyline && path.length > 1 && (
-                    <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />
-                  )}
-                </div>
-              );
-            })}
-          </GoogleMap>
-        </div>
-
-        {loading && (
-          <div className="text-center text-sm text-muted-foreground py-2">Chargement…</div>
+    <div className="w-full">
+      <div className="px-4 py-2 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Sessions autour de vous</h1>
+        {!hasSub && (
+          <div className="text-xs text-muted-foreground">
+            Coordonnées approximatives pour les non-abonnés • <a href="/subscribe" className="underline">S'abonner</a>
+          </div>
         )}
       </div>
-    </GoogleMapProvider>
+
+      <div className="rounded-2xl overflow-hidden border mx-4">
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={center}
+          zoom={12}
+          options={{ mapTypeControl:false, streetViewControl:false, fullscreenControl:false }}
+        >
+          {sessions.map(s => {
+            const start = { lat: s.start_lat, lng: s.start_lng };
+            const startShown = hasSub ? start : jitter(start.lat, start.lng, 800);
+            const showPolyline = hasSub && s.route_polyline;
+            const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
+
+            return (
+              <div key={s.id}>
+                <MarkerF position={startShown} title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`} />
+                {showPolyline && path.length > 1 && (
+                  <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />
+                )}
+              </div>
+            );
+          })}
+        </GoogleMap>
+      </div>
+
+      {loading && (
+        <div className="text-center text-sm text-muted-foreground py-2">Chargement…</div>
+      )}
+    </div>
   );
 }

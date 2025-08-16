@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ENV_READY } from "@/integrations/supabase/client";
 import { EnvironmentFallback } from "@/components/EnvironmentFallback";
 import AppLayout from "./components/AppLayout";
+import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 
 // Lazy load pages for better performance
 const Home = lazy(() => import("./pages/Home"));
@@ -54,29 +55,31 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppLayout>
-                <Suspense fallback={<LoadingSpinner />}>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/auth" element={<Auth />} />
-                    <Route path="/map" element={<Map />} />
-                    <Route path="/session/:id" element={<SessionDetails />} />
-                    <Route path="/create" element={<CreateRun />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/subscription" element={<Subscription />} />
-                    <Route path="/subscription/success" element={<SubscriptionSuccess />} />
-                    <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
-                    <Route path="/goodbye" element={<Goodbye />} />
-                    <Route path="/account-deleted" element={<AccountDeleted />} />
-                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </AppLayout>
-            </BrowserRouter>
+            <GoogleMapProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppLayout>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/auth" element={<Auth />} />
+                      <Route path="/map" element={<Map />} />
+                      <Route path="/session/:id" element={<SessionDetails />} />
+                      <Route path="/create" element={<CreateRun />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/subscription" element={<Subscription />} />
+                      <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+                      <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
+                      <Route path="/goodbye" element={<Goodbye />} />
+                      <Route path="/account-deleted" element={<AccountDeleted />} />
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
+                </AppLayout>
+              </BrowserRouter>
+            </GoogleMapProvider>
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>
