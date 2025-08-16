@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AppLayout from "./components/AppLayout";
+import './i18n';
 
 // Lazy load pages for better performance
 const Home = lazy(() => import("./pages/Home"));

@@ -1,0 +1,104 @@
+{
+  "app": {
+    "name": "MeetRun",
+    "tagline": "Running collectif",
+    "description": "Rejoignez ou créez des sessions de running en groupe dans votre ville"
+  },
+  "navigation": {
+    "home": "Accueil",
+    "map": "Carte",
+    "create": "Créer",
+    "profile": "Profil",
+    "back": "Retour",
+    "close": "Fermer"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "signup": "S'inscrire",
+    "email": "Email",
+    "password": "Mot de passe",
+    "welcomeBack": "Bon retour !",
+    "createAccount": "Créer un compte",
+    "forgotPassword": "Mot de passe oublié ?",
+    "required": "Requis"
+  },
+  "session": {
+    "title": "Session",
+    "join": "Rejoindre",
+    "joined": "Inscrit",
+    "create": "Créer une session",
+    "details": "Détails",
+    "participants": "Participants",
+    "distance": "Distance",
+    "intensity": "Intensité",
+    "when": "Quand",
+    "where": "Où",
+    "host": "Organisateur",
+    "available": "{{count}} place disponible",
+    "available_plural": "{{count}} places disponibles",
+    "full": "Session complète"
+  },
+  "location": {
+    "findMy": "Me localiser",
+    "searching": "Recherche...",
+    "notFound": "Position non trouvée",
+    "permission": "Autorisation de géolocalisation",
+    "enable": "Activer la géolocalisation",
+    "city": "Ville",
+    "address": "Adresse"
+  },
+  "subscription": {
+    "premium": "Premium",
+    "subscribe": "S'abonner",
+    "manage": "Gérer",
+    "benefits": "Avantages",
+    "unlimited": "Sessions illimitées",
+    "support": "Support prioritaire",
+    "features": "Fonctionnalités avancées"
+  },
+  "buttons": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "update": "Mettre à jour",
+    "refresh": "Actualiser",
+    "retry": "Réessayer",
+    "continue": "Continuer",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "loading": "Chargement..."
+  },
+  "forms": {
+    "required": "Ce champ est requis",
+    "invalid": "Format invalide",
+    "tooShort": "Trop court",
+    "tooLong": "Trop long",
+    "selectOption": "Sélectionnez une option"
+  },
+  "time": {
+    "now": "Maintenant",
+    "today": "Aujourd'hui",
+    "tomorrow": "Demain",
+    "thisWeek": "Cette semaine",
+    "nextWeek": "Semaine prochaine",
+    "minutes": "{{count}} min",
+    "hours": "{{count}}h",
+    "days": "{{count}}j"
+  },
+  "errors": {
+    "general": "Une erreur est survenue",
+    "network": "Erreur de connexion",
+    "notFound": "Page non trouvée",
+    "unauthorized": "Non autorisé",
+    "forbidden": "Accès interdit",
+    "tryAgain": "Veuillez réessayer"
+  },
+  "success": {
+    "saved": "Sauvegardé avec succès",
+    "updated": "Mis à jour avec succès",
+    "deleted": "Supprimé avec succès",
+    "created": "Créé avec succès"
+  }
+}

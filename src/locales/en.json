@@ -1,0 +1,104 @@
+{
+  "app": {
+    "name": "MeetRun",
+    "tagline": "Group Running",
+    "description": "Join or create group running sessions in your city"
+  },
+  "navigation": {
+    "home": "Home",
+    "map": "Map",
+    "create": "Create",
+    "profile": "Profile",
+    "back": "Back",
+    "close": "Close"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "signup": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "welcomeBack": "Welcome back!",
+    "createAccount": "Create account",
+    "forgotPassword": "Forgot password?",
+    "required": "Required"
+  },
+  "session": {
+    "title": "Session",
+    "join": "Join",
+    "joined": "Joined",
+    "create": "Create session",
+    "details": "Details",
+    "participants": "Participants",
+    "distance": "Distance",
+    "intensity": "Intensity",
+    "when": "When",
+    "where": "Where",
+    "host": "Host",
+    "available": "{{count}} spot available",
+    "available_plural": "{{count}} spots available",
+    "full": "Session full"
+  },
+  "location": {
+    "findMy": "Find my location",
+    "searching": "Searching...",
+    "notFound": "Location not found",
+    "permission": "Geolocation permission",
+    "enable": "Enable geolocation",
+    "city": "City",
+    "address": "Address"
+  },
+  "subscription": {
+    "premium": "Premium",
+    "subscribe": "Subscribe",
+    "manage": "Manage",
+    "benefits": "Benefits",
+    "unlimited": "Unlimited sessions",
+    "support": "Priority support",
+    "features": "Advanced features"
+  },
+  "buttons": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "update": "Update",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "continue": "Continue",
+    "next": "Next",
+    "previous": "Previous",
+    "loading": "Loading..."
+  },
+  "forms": {
+    "required": "This field is required",
+    "invalid": "Invalid format",
+    "tooShort": "Too short",
+    "tooLong": "Too long",
+    "selectOption": "Select an option"
+  },
+  "time": {
+    "now": "Now",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "minutes": "{{count}} min",
+    "hours": "{{count}}h",
+    "days": "{{count}}d"
+  },
+  "errors": {
+    "general": "An error occurred",
+    "network": "Connection error",
+    "notFound": "Page not found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Access forbidden",
+    "tryAgain": "Please try again"
+  },
+  "success": {
+    "saved": "Successfully saved",
+    "updated": "Successfully updated",
+    "deleted": "Successfully deleted",
+    "created": "Successfully created"
+  }
+}
