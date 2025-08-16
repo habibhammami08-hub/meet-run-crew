@@ -17,7 +17,7 @@ verify_jwt = true
 verify_jwt = false
 
 # Correction: Nom de fonction standardisé
-[functions.delete-account]
+[functions.delete-account2]
 verify_jwt = true
 
 # Configuration des timeouts et limites
