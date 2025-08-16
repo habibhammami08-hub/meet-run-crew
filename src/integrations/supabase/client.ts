@@ -57,6 +57,41 @@ export async function ensureFreshSession() {
   return await c.auth.getSession();
 }
 
+// Helper d'auth "safe" avec timeout et fallback
+export async function getCurrentUserSafe(opts?: { timeoutMs?: number }) {
+  const c = getSupabase?.();
+  if (!c) return { user: null, source: "no-client" as const };
+
+  const timeoutMs = opts?.timeoutMs ?? 3000;
+
+  function withTimeout<T>(p: Promise<T>, label: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(label + " timeout")), timeoutMs);
+      p.then((v) => { clearTimeout(t); resolve(v); })
+       .catch((e) => { clearTimeout(t); reject(e); });
+    });
+  }
+
+  try {
+    // 1) getSession (rapide en général)
+    const s = await withTimeout(c.auth.getSession(), "getSession()");
+    if (import.meta.env.DEV) console.info("[auth] getSession ->", s);
+    const user1 = s?.data?.session?.user ?? null;
+    if (user1) return { user: user1, source: "session" as const };
+
+    // 2) fallback getUser
+    const u = await withTimeout(c.auth.getUser(), "getUser()");
+    if (import.meta.env.DEV) console.info("[auth] getUser ->", u);
+    const user2 = u?.data?.user ?? null;
+    if (user2) return { user: user2, source: "user" as const };
+
+    return { user: null, source: "none" as const };
+  } catch (e) {
+    console.error("[auth] getCurrentUserSafe error:", e);
+    return { user: null, source: "error" as const };
+  }
+}
+
 // Connection check utility
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   const client = getSupabase();

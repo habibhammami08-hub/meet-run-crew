@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { getSupabase, ensureFreshSession } from "@/integrations/supabase/client";
+import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 import { Calendar, Clock, MapPin, Users, Loader2 } from "lucide-react";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
@@ -17,7 +17,7 @@ import { uiToDbIntensity } from "@/lib/sessions/intensity";
 type Pt = google.maps.LatLngLiteral;
 
 export default function CreateRun() {
-  const { user } = useAuth();
+  const [authState, setAuthState] = useState<"loading"|"no-session"|"session">("loading");
   const navigate = useNavigate();
   const { toast } = useToast();
   const supabase = getSupabase();
@@ -49,18 +49,16 @@ export default function CreateRun() {
   const acStartRef = useRef<google.maps.places.Autocomplete | null>(null);
   const acEndRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-  // Protected route - redirect if not authenticated
+  // Check auth state
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      const c = getSupabase?.();
-      if (!c) return;
-      const { data: { session } } = await c.auth.getSession();
-      if (!session) {
-        console.warn("[create] no session -> redirect /auth");
-        navigate("/auth");
-      }
+      const { user } = await getCurrentUserSafe({ timeoutMs: 2000 });
+      if (!mounted) return;
+      setAuthState(user ? "session" : "no-session");
     })();
-  }, [navigate]);
+    return () => { mounted = false; };
+  }, []);
 
   // Get user location
   useEffect(() => {
@@ -191,6 +189,14 @@ export default function CreateRun() {
     return "";
   }
 
+  function withTimeout<T>(p: Promise<T>, ms: number, label = "operation"): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(label + " timeout")), ms);
+      p.then((v) => { clearTimeout(t); resolve(v); })
+       .catch((e) => { clearTimeout(t); reject(e); });
+    });
+  }
+
   async function onSubmit() {
     if (!supabase) {
       console.error("[create] supabase client is null");
@@ -234,20 +240,10 @@ export default function CreateRun() {
         return;
       }
 
-      console.info("[create] about to call supabase.auth.getSession()");
-      let sessionRes;
-      try {
-        sessionRes = await ensureFreshSession();
-        console.info("[create] getSession() ->", sessionRes);
-      } catch (e) {
-        console.error("[create] getSession threw", e);
-        alert("Erreur d'authentification. Veuillez vous reconnecter.");
-        return;
-      }
-
-      const userId = sessionRes?.session?.user?.id;
-      if (!userId) {
-        console.warn("[create] stop: not logged in");
+      console.info("[create] about to resolve current user (safe)");
+      const { user, source } = await getCurrentUserSafe({ timeoutMs: 3000 });
+      console.info("[create] current user:", { hasUser: !!user, source });
+      if (!user) {
         alert("Vous devez être connecté pour créer une session.");
         return;
       }
@@ -308,7 +304,7 @@ export default function CreateRun() {
       });
 
       const payload = {
-        host_id: userId,
+        host_id: user.id,
         title: title.trim(),
         scheduled_at: scheduledIso,
         start_lat: Number(start.lat), 
@@ -329,6 +325,7 @@ export default function CreateRun() {
       console.info("[create] inserting payload", payload);
 
       const { data, error } = await supabase.from("sessions").insert(payload).select("id").single();
+      
       if (error) {
         console.error("[sessions.insert] error", { payload, error });
         alert("Création impossible : " + (error.message || error.details || "erreur inconnue"));
@@ -396,7 +393,23 @@ export default function CreateRun() {
     else alert("Insert test OK: " + data?.id);
   }
 
-  if (!user) return null;
+  if (authState === "loading") {
+    return <div className="p-6 text-center text-sm text-muted-foreground">Chargement…</div>;
+  }
+
+  if (authState === "no-session") {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="max-w-md w-full p-6 rounded-2xl border bg-background shadow-sm text-center space-y-3">
+          <h2 className="text-lg font-semibold">Connectez-vous pour créer une session</h2>
+          <p className="text-sm text-muted-foreground">
+            La création de sessions est réservée aux utilisateurs connectés.
+          </p>
+          <a href="/auth" className="btn btn-primary inline-block">Se connecter</a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <GoogleMapProvider>
@@ -606,7 +619,7 @@ export default function CreateRun() {
                 <div>title: {title || "—"}</div>
                 <div>dateTime: {dateTime || "—"}</div>
                 <div>distanceKm: {distanceKm?.toFixed?.(2) ?? "—"}</div>
-                <div>user: {user?.id?.slice?.(0,8) ?? "—"}</div>
+                <div>authState: {authState}</div>
                 <div>intensity: {intensityState}</div>
                 <div>sessionType: {sessionTypeState}</div>
                 <div>maxParticipants: {maxParticipantsState}</div>
