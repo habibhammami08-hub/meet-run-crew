@@ -138,7 +138,13 @@ export default function CreateRun() {
   };
 
   const handleSubmit = async () => {
+    console.log("🚀 Début de handleSubmit");
+    console.log("supabase:", !!supabase, "user:", !!user);
+    console.log("start:", start, "end:", end, "dirResult:", !!dirResult);
+    console.log("formData:", formData);
+
     if (!supabase || !user) {
+      console.log("❌ Configuration manquante");
       toast({
         title: "Erreur",
         description: "Configuration manquante",
@@ -148,6 +154,7 @@ export default function CreateRun() {
     }
 
     if (!start || !end || !dirResult) {
+      console.log("❌ Points ou itinéraire manquants");
       toast({
         title: "Erreur",
         description: "Sélectionnez un départ, une arrivée et personnalisez l'itinéraire si besoin",
@@ -157,6 +164,7 @@ export default function CreateRun() {
     }
 
     if (!formData.title || !formData.scheduled_at || !formData.intensity || !formData.session_type) {
+      console.log("❌ Champs obligatoires manquants");
       toast({
         title: "Erreur",
         description: "Veuillez remplir tous les champs obligatoires",
