@@ -4,7 +4,7 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Locate } from "lucide-react";
-import GoogleMapProvider from "./GoogleMapProvider";
+
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -148,104 +148,102 @@ export default function GoogleSessionsMap({
   };
 
   return (
-    <GoogleMapProvider>
-      <div className={`relative ${className}`}>
-        <GoogleMap
-          mapContainerStyle={{ width: "100%", height: "100%" }}
-          zoom={12}
-          center={userLocation || center}
-          options={{
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false
-          }}
-        >
-          {/* User location marker */}
-          {userLocation && (
-            <Marker
-              position={userLocation}
-              icon={{
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 8,
-                fillColor: "#3b82f6",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 3
-              }}
-            />
-          )}
+    <div className={`relative ${className || ''}`}>
+      <GoogleMap
+        mapContainerStyle={{ width: "100%", height: "100%" }}
+        zoom={12}
+        center={userLocation || center}
+        options={{
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false
+        }}
+      >
+        {/* User location marker */}
+        {userLocation && (
+          <Marker
+            position={userLocation}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: "#3b82f6",
+              fillOpacity: 1,
+              strokeColor: "#ffffff",
+              strokeWeight: 3
+            }}
+          />
+        )}
 
-          {/* Session markers and routes */}
-          {sessions.map((session) => {
-            const startPos = { lat: session.start_lat, lng: session.start_lng };
-            const displayPos = hasActiveSubscription ? startPos : jitter(startPos.lat, startPos.lng);
-            
-            return (
-              <div key={session.id}>
-                {/* Start marker */}
+        {/* Session markers and routes */}
+        {sessions.map((session) => {
+          const startPos = { lat: session.start_lat, lng: session.start_lng };
+          const displayPos = hasActiveSubscription ? startPos : jitter(startPos.lat, startPos.lng);
+          
+          return (
+            <div key={session.id}>
+              {/* Start marker */}
+              <Marker
+                position={displayPos}
+                onClick={() => onSessionSelect?.(session)}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  scale: 10,
+                  fillColor: "#10b981",
+                  fillOpacity: 1,
+                  strokeColor: "#ffffff",
+                  strokeWeight: 2
+                }}
+              />
+
+              {/* Route polyline for subscribers only */}
+              {hasActiveSubscription && session.route_polyline && (
+                <Polyline
+                  path={decodePolyline(session.route_polyline)}
+                  options={{
+                    strokeColor: "#10b981",
+                    strokeOpacity: 0.8,
+                    strokeWeight: 3
+                  }}
+                />
+              )}
+
+              {/* End marker for subscribers */}
+              {hasActiveSubscription && session.end_lat && session.end_lng && (
                 <Marker
-                  position={displayPos}
-                  onClick={() => onSessionSelect?.(session)}
+                  position={{ lat: session.end_lat, lng: session.end_lng }}
                   icon={{
                     path: google.maps.SymbolPath.CIRCLE,
-                    scale: 10,
-                    fillColor: "#10b981",
+                    scale: 8,
+                    fillColor: "#ef4444",
                     fillOpacity: 1,
                     strokeColor: "#ffffff",
                     strokeWeight: 2
                   }}
                 />
+              )}
+            </div>
+          );
+        })}
+      </GoogleMap>
 
-                {/* Route polyline for subscribers only */}
-                {hasActiveSubscription && session.route_polyline && (
-                  <Polyline
-                    path={decodePolyline(session.route_polyline)}
-                    options={{
-                      strokeColor: "#10b981",
-                      strokeOpacity: 0.8,
-                      strokeWeight: 3
-                    }}
-                  />
-                )}
+      {/* Locate me button */}
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute top-4 right-4 bg-background shadow-lg"
+        onClick={requestLocation}
+      >
+        <Locate className="h-4 w-4" />
+      </Button>
 
-                {/* End marker for subscribers */}
-                {hasActiveSubscription && session.end_lat && session.end_lng && (
-                  <Marker
-                    position={{ lat: session.end_lat, lng: session.end_lng }}
-                    icon={{
-                      path: google.maps.SymbolPath.CIRCLE,
-                      scale: 8,
-                      fillColor: "#ef4444",
-                      fillOpacity: 1,
-                      strokeColor: "#ffffff",
-                      strokeWeight: 2
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </GoogleMap>
-
-        {/* Locate me button */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="absolute top-4 right-4 bg-background shadow-lg"
-          onClick={requestLocation}
-        >
-          <Locate className="h-4 w-4" />
-        </Button>
-
-        {/* Subscription notice for non-subscribers */}
-        {!hasActiveSubscription && (
-          <div className="absolute bottom-4 left-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border">
-            <p className="text-sm text-muted-foreground text-center">
-              🔒 Abonnez-vous pour voir les itinéraires précis et les points d'arrivée
-            </p>
-          </div>
-        )}
-      </div>
-    </GoogleMapProvider>
+      {/* Subscription notice for non-subscribers */}
+      {!hasActiveSubscription && (
+        <div className="absolute bottom-4 left-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border">
+          <p className="text-sm text-muted-foreground text-center">
+            🔒 Abonnez-vous pour voir les itinéraires précis et les points d'arrivée
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-
+import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 import GoogleSessionsMap from "@/components/Map/GoogleSessionsMap";
 import { Filter, MapPin, Users, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -399,7 +399,8 @@ const Map = () => {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <GoogleMapProvider>
+      <div className="h-screen bg-background flex flex-col">
       
       {/* CORRECTION: Map container avec gestion d'erreur */}
       <div className="flex-1 relative main-content">
@@ -620,6 +621,7 @@ const Map = () => {
         )}
       </div>
     </div>
+    </GoogleMapProvider>
   );
 };
 
