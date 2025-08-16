@@ -18,7 +18,7 @@ interface StripeBuyButtonProps {
 }
 
 // Environment variable for Stripe public key
-const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || "pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc";
+const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
 
 const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
   useEffect(() => {
@@ -67,7 +67,7 @@ const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
   return (
     <div className="stripe-buy-button-container w-full">
       <stripe-buy-button
-        buy-button-id="buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"
+        buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"}
         publishable-key={STRIPE_PUBLIC_KEY}
       />
     </div>
