@@ -505,7 +505,11 @@ export default function CreateRun() {
                           draggable: true,
                           suppressMarkers: true
                         }}
-                        onDirectionsChanged={() => onDirectionsChanged}
+                        onDirectionsChanged={() => {
+                          // Cette callback est appelée quand l'utilisateur fait glisser l'itinéraire
+                          // Mais l'API ne fournit pas directement les nouvelles directions
+                          // On peut récupérer les directions mises à jour via le ref si nécessaire
+                        }}
                       />
                     )}
 

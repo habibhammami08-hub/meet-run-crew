@@ -8,12 +8,18 @@ export default function GoogleMapProvider({ children }: PropsWithChildren) {
   console.log("[GoogleMapProvider] Loading with API key:", apiKey ? "Present" : "Missing");
   console.log("[GoogleMapProvider] Current URL:", window.location.href);
   
+  if (!apiKey) {
+    console.error("[GoogleMapProvider] No API key found!");
+    return <div>Erreur: Clé API Google Maps manquante</div>;
+  }
+  
   return (
     <LoadScript 
       googleMapsApiKey={apiKey} 
       libraries={libraries}
       onLoad={() => console.log("[GoogleMapProvider] Google Maps loaded successfully")}
       onError={(error) => console.error("[GoogleMapProvider] Google Maps load error:", error)}
+      loadingElement={<div>Chargement de Google Maps...</div>}
     >
       {children}
     </LoadScript>
