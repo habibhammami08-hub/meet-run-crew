@@ -9,7 +9,9 @@ export function getSupabase(): SupabaseClient<Database> | null {
   const anon = CONFIG.SUPABASE_ANON_KEY;
   
   if (!url || !anon) {
-    console.error('Missing Supabase environment variables: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY');
+    if (import.meta.env.DEV) {
+      console.error('Missing Supabase environment variables: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY');
+    }
     return null;
   }
   

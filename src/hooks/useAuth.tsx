@@ -47,6 +47,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchSubscriptionStatus = useCallback(async (userId: string, retryCount = 0) => {
     const maxRetries = 3;
     
+    if (!supabase) {
+      logger.warn("[auth] Client Supabase indisponible pour récupérer l'abonnement");
+      return;
+    }
+    
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -100,6 +105,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // CORRECTION: Fonction pour s'assurer qu'un profil existe avec gestion d'erreur améliorée
   const ensureProfile = useCallback(async (user: User) => {
+    if (!supabase) {
+      logger.warn("[auth] Client Supabase indisponible pour créer le profil");
+      return;
+    }
+    
     try {
       const { data: existingProfile, error: selectError } = await supabase
         .from('profiles')
@@ -155,6 +165,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // CORRECTION: Fonction de déconnexion forcée et immédiate
   const signOut = async () => {
+    if (!supabase) {
+      logger.warn("[auth] Client Supabase indisponible pour la déconnexion");
+      // Nettoyage local quand même
+      setUser(null);
+      setSession(null);
+      setHasActiveSubscription(false);
+      setSubscriptionStatus(null);
+      setSubscriptionEnd(null);
+      setLoading(false);
+      window.location.replace("/");
+      return;
+    }
+    
     try {
       logger.debug("Starting logout process...");
 
@@ -293,6 +316,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // CORRECTION: Initialisation avec gestion d'erreur améliorée
     const initAuth = async () => {
+      if (!supabase) {
+        logger.warn("[auth] Client Supabase indisponible - authentification désactivée");
+        setLoading(false);
+        return;
+      }
+      
       try {
         // Nettoyer l'URL avant d'initialiser l'auth
         if (window.location.hash && 
@@ -317,8 +346,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // CORRECTION: Écouter les changements d'état d'authentification avec gestion d'erreur
     try {
-      const { data } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-      authSubscription = data.subscription;
+      if (supabase) {
+        const { data } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+        authSubscription = data.subscription;
+      }
     } catch (error) {
       logger.error("Error setting up auth state listener:", error);
     }

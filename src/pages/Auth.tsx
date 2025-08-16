@@ -39,7 +39,12 @@ const Auth = () => {
 
     try {
       if (!supabase) {
-        throw new Error("Supabase client indisponible");
+        toast({
+          title: "Configuration manquante",
+          description: "Impossible de se connecter - variables d'environnement manquantes",
+          variant: "destructive",
+        });
+        return;
       }
       
       const { error } = await supabase.auth.signInWithPassword({
@@ -80,7 +85,12 @@ const Auth = () => {
     try {
       const redirectUrl = `${window.location.origin}${returnTo}`;
       if (!supabase) {
-        throw new Error("Supabase client indisponible");
+        toast({
+          title: "Configuration manquante",
+          description: "Impossible de créer le compte - variables d'environnement manquantes", 
+          variant: "destructive",
+        });
+        return;
       }
       
       const { error } = await supabase.auth.signUp({
