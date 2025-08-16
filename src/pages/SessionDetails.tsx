@@ -8,6 +8,7 @@ import { MapPin, Calendar, Clock, Users, Share2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import StripeBuyButton from "@/components/StripeBuyButton";
 
 const SessionDetails = () => {
   const { id } = useParams();
@@ -174,11 +175,14 @@ const SessionDetails = () => {
                 </p>
               </div>
               <div className="text-right">
-                {hasActiveSubscription ? (
-                  <span className="text-lg font-bold text-green-600">Inclus</span>
-                ) : (
-                  <span className="text-lg font-bold text-primary">Abonnement requis</span>
-                )}
+                <div className="text-sm text-muted-foreground">Tarif</div>
+                <div>
+                  {hasActiveSubscription ? (
+                    <>Inclus avec l'abonnement</>
+                  ) : (
+                    <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -200,8 +204,8 @@ const SessionDetails = () => {
             <div className="flex gap-2 mb-6">
               <Badge variant="secondary">{session.distance_km} km</Badge>
               <Badge variant={
-                session.intensity === 'faible' ? 'default' : 
-                session.intensity === 'moyenne' ? 'secondary' : 
+                session.intensity === 'marche' ? 'default' : 
+                session.intensity === 'course modérée' ? 'secondary' : 
                 'destructive'
               }>
                 {session.intensity}
@@ -211,20 +215,21 @@ const SessionDetails = () => {
             
             {!isEnrolled && !isHost && participants.length < session.max_participants ? (
               hasActiveSubscription ? (
-                <Button variant="sport" size="lg" className="w-full" onClick={handleSubscribeOrEnroll} disabled={isLoading}>
+                <Button size="lg" className="w-full" onClick={handleSubscribeOrEnroll} disabled={isLoading}>
                   {isLoading ? "Inscription en cours..." : "Rejoindre maintenant"}
                 </Button>
               ) : (
-                <Button variant="sport" size="lg" className="w-full" onClick={handleSubscribeOrEnroll} disabled={isLoading}>
-                  {isLoading ? "Redirection..." : "S'abonner - 9,99 €/mois"}
-                </Button>
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground text-center">Accès illimité à toutes les courses</div>
+                  <StripeBuyButton />
+                </div>
               )
             ) : isEnrolled ? (
-              <Button variant="sportOutline" size="lg" className="w-full" disabled>
+              <Button variant="outline" size="lg" className="w-full" disabled>
                 ✓ Vous êtes inscrit(e)
               </Button>
             ) : isHost ? (
-              <Button variant="sportOutline" size="lg" className="w-full" disabled>
+              <Button variant="outline" size="lg" className="w-full" disabled>
                 ✓ Vous êtes l'organisateur
               </Button>
             ) : (

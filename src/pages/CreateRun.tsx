@@ -36,9 +36,7 @@ export default function CreateRun() {
     scheduled_at: "",
     intensity: "",
     session_type: "",
-    max_participants: 10,
-    duration_minutes: 60,
-    price_cents: 450
+    max_participants: 10
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -302,17 +300,6 @@ export default function CreateRun() {
                       onChange={(e) => handleInputChange("scheduled_at", e.target.value)}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="duration">Durée (minutes)</Label>
-                    <Input
-                      id="duration"
-                      type="number"
-                      value={formData.duration_minutes}
-                      onChange={(e) => handleInputChange("duration_minutes", parseInt(e.target.value))}
-                      min="15"
-                      max="240"
-                    />
-                  </div>
                 </CardContent>
               </Card>
 
@@ -332,9 +319,9 @@ export default function CreateRun() {
                         <SelectValue placeholder="Sélectionnez l'intensité" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="easy">Facile</SelectItem>
-                        <SelectItem value="medium">Modéré</SelectItem>
-                        <SelectItem value="hard">Difficile</SelectItem>
+                        <SelectItem value="marche">Marche</SelectItem>
+                        <SelectItem value="course modérée">Course modérée</SelectItem>
+                        <SelectItem value="course intensive">Course intensive</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -372,17 +359,6 @@ export default function CreateRun() {
                       onChange={(e) => handleInputChange("max_participants", parseInt(e.target.value))}
                       min="2"
                       max="50"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="price">Prix (centimes)</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      value={formData.price_cents}
-                      onChange={(e) => handleInputChange("price_cents", parseInt(e.target.value))}
-                      min="0"
-                      placeholder="450 = 4.50€"
                     />
                   </div>
                 </CardContent>

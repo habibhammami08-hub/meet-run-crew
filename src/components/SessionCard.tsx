@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MapPin, Clock, Users, Euro, Calendar } from 'lucide-react';
 import type { SessionWithDetails } from '@/types/database';
+import { useAuth } from '@/hooks/useAuth';
+import StripeBuyButton from './StripeBuyButton';
 
 interface SessionCardProps {
   session: SessionWithDetails;
@@ -23,15 +25,16 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   userCanEnroll = true,
   currentUserId
 }) => {
+  const { hasActiveSubscription } = useAuth();
   const spotsLeft = session.available_spots || 0;
   const isFull = spotsLeft <= 0;
   const isPast = new Date(session.scheduled_at) < new Date();
   const isOwnSession = currentUserId === session.host_id;
   
   const intensityConfig = {
-    low: { label: 'Facile', className: 'bg-green-100 text-green-800 border-green-200' },
-    medium: { label: 'Modéré', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-    high: { label: 'Intense', className: 'bg-red-100 text-red-800 border-red-200' }
+    'marche': { label: 'Marche', className: 'bg-green-100 text-green-800 border-green-200' },
+    'course modérée': { label: 'Course modérée', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+    'course intensive': { label: 'Course intensive', className: 'bg-red-100 text-red-800 border-red-200' }
   };
 
   const typeLabels = {
@@ -121,10 +124,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span>{session.duration_minutes || 60} min</span>
-          </div>
           
           <div className="flex items-center gap-2 text-sm">
             <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -147,7 +146,14 @@ export const SessionCard: React.FC<SessionCardProps> = ({
 
           <div className="flex items-center gap-2 text-sm">
             <Euro className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="font-semibold">{formatPrice(session.price_cents)}€</span>
+            <div className="font-medium">Tarif</div>
+            <div>
+              {hasActiveSubscription ? (
+                <>Inclus avec l'abonnement</>
+              ) : (
+                <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+              )}
+            </div>
           </div>
         </div>
 
@@ -176,16 +182,30 @@ export const SessionCard: React.FC<SessionCardProps> = ({
         </Button>
 
         {/* Bouton inscription */}
-        {!isPast && !isOwnSession && (
+        {!isPast && !isOwnSession && !isFull && (
+          hasActiveSubscription ? (
+            <Button 
+              onClick={handleEnrollClick}
+              disabled={isEnrolling}
+              className="flex-1"
+            >
+              {isEnrolling ? 'Inscription...' : 'Rejoindre'}
+            </Button>
+          ) : (
+            <div className="flex-1 space-y-2">
+              <div className="text-xs text-muted-foreground text-center">Accès illimité à toutes les courses</div>
+              <StripeBuyButton />
+            </div>
+          )
+        )}
+        
+        {!isPast && !isOwnSession && isFull && (
           <Button 
-            onClick={handleEnrollClick}
-            disabled={isEnrolling || !userCanEnroll || isFull}
+            variant="secondary" 
+            disabled 
             className="flex-1"
-            variant={isFull ? "secondary" : "default"}
           >
-            {isEnrolling ? 'Inscription...' : 
-             isFull ? 'Complet' : 
-             'S\'inscrire'}
+            Complet
           </Button>
         )}
         

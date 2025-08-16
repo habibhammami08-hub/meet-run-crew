@@ -152,7 +152,6 @@ export type Database = {
           created_at: string | null
           description: string | null
           distance_km: number
-          duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
           end_place: string | null
@@ -164,6 +163,7 @@ export type Database = {
           max_participants: number
           min_participants: number | null
           price_cents: number | null
+          price_currency: string | null
           route_distance_m: number | null
           route_polyline: string | null
           scheduled_at: string
@@ -179,7 +179,6 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           distance_km: number
-          duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
           end_place?: string | null
@@ -191,6 +190,7 @@ export type Database = {
           max_participants: number
           min_participants?: number | null
           price_cents?: number | null
+          price_currency?: string | null
           route_distance_m?: number | null
           route_polyline?: string | null
           scheduled_at: string
@@ -206,7 +206,6 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           distance_km?: number
-          duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
           end_place?: string | null
@@ -218,6 +217,7 @@ export type Database = {
           max_participants?: number
           min_participants?: number | null
           price_cents?: number | null
+          price_currency?: string | null
           route_distance_m?: number | null
           route_polyline?: string | null
           scheduled_at?: string
@@ -301,9 +301,9 @@ export type Database = {
           current_enrollments: number | null
           description: string | null
           distance_km: number | null
-          duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
+          end_place: string | null
           host_avatar: string | null
           host_fee_cents: number | null
           host_id: string | null
@@ -314,10 +314,14 @@ export type Database = {
           max_participants: number | null
           min_participants: number | null
           price_cents: number | null
+          price_currency: string | null
+          route_distance_m: number | null
+          route_polyline: string | null
           scheduled_at: string | null
           session_type: string | null
           start_lat: number | null
           start_lng: number | null
+          start_place: string | null
           status: string | null
           title: string | null
           updated_at: string | null
