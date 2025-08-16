@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
+import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -170,12 +170,17 @@ const Home = () => {
               </>
             ) : (
               <>
-                <Button variant="sport" size="lg" onClick={() => navigate("/auth")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                  Créer un compte
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
                 <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
                   Voir les courses
+                </Button>
+                <Button variant="sport" size="lg" onClick={() => {
+                  if (!user) {
+                    navigate("/auth?returnTo=/create");
+                  } else {
+                    navigate("/create");
+                  }
+                }} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  Créer une course
                 </Button>
               </>
             )}
