@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import Header from "@/components/Header";
 import { MapPin, Calendar, Clock, Users, Share2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const SessionDetails = () => {
@@ -166,7 +166,7 @@ const SessionDetails = () => {
         }
       />
       
-      <div className="p-4 space-y-6 pb-20">
+      <div className="p-4 space-y-6 main-content">
         {/* Main session info */}
         <Card className="shadow-card">
           <CardContent className="p-6">

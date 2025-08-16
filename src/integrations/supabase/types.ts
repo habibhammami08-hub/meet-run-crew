@@ -53,6 +53,27 @@ export type Database = {
         }
         Relationships: []
       }
+      deleted_users: {
+        Row: {
+          deleted_at: string
+          deletion_reason: string | null
+          email: string
+          id: string
+        }
+        Insert: {
+          deleted_at?: string
+          deletion_reason?: string | null
+          email: string
+          id: string
+        }
+        Update: {
+          deleted_at?: string
+          deletion_reason?: string | null
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
@@ -63,6 +84,7 @@ export type Database = {
           status: string
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -74,6 +96,7 @@ export type Database = {
           status?: string
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -85,6 +108,7 @@ export type Database = {
           status?: string
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -93,13 +117,6 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "enrollments_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "sessions_complete"
             referencedColumns: ["id"]
           },
           {
@@ -168,111 +185,11 @@ export type Database = {
         }
         Relationships: []
       }
-      registrations: {
-        Row: {
-          id: string
-          payment_status: string
-          registered_at: string
-          run_id: string
-          stripe_session_id: string | null
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          payment_status?: string
-          registered_at?: string
-          run_id: string
-          stripe_session_id?: string | null
-          user_id: string
-        }
-        Update: {
-          id?: string
-          payment_status?: string
-          registered_at?: string
-          run_id?: string
-          stripe_session_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "registrations_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "registrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      runs: {
-        Row: {
-          created_at: string
-          date: string
-          description: string | null
-          distance: string
-          host_id: string
-          id: string
-          intensity: string
-          latitude: number
-          location_name: string
-          longitude: number
-          max_participants: number
-          price_cents: number
-          time: string
-          title: string
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          date: string
-          description?: string | null
-          distance: string
-          host_id: string
-          id?: string
-          intensity: string
-          latitude: number
-          location_name: string
-          longitude: number
-          max_participants: number
-          price_cents?: number
-          time: string
-          title: string
-          type: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          date?: string
-          description?: string | null
-          distance?: string
-          host_id?: string
-          id?: string
-          intensity?: string
-          latitude?: number
-          location_name?: string
-          longitude?: number
-          max_participants?: number
-          price_cents?: number
-          time?: string
-          title?: string
-          type?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       sessions: {
         Row: {
           blur_radius_m: number
           created_at: string
           current_enrollments: number | null
-          date: string
           description: string | null
           distance_km: number
           duration_minutes: number | null
@@ -294,13 +211,11 @@ export type Database = {
           start_lng: number
           status: string | null
           title: string
-          type: string
         }
         Insert: {
           blur_radius_m?: number
           created_at?: string
           current_enrollments?: number | null
-          date: string
           description?: string | null
           distance_km: number
           duration_minutes?: number | null
@@ -322,13 +237,11 @@ export type Database = {
           start_lng: number
           status?: string | null
           title: string
-          type: string
         }
         Update: {
           blur_radius_m?: number
           created_at?: string
           current_enrollments?: number | null
-          date?: string
           description?: string | null
           distance_km?: number
           duration_minutes?: number | null
@@ -350,7 +263,6 @@ export type Database = {
           start_lng?: number
           status?: string | null
           title?: string
-          type?: string
         }
         Relationships: [
           {
@@ -396,71 +308,19 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "subscribers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
-      payment_metrics: {
-        Row: {
-          avg_payment_cents: number | null
-          failed_payments: number | null
-          payments_24h: number | null
-          successful_payments: number | null
-          total_payments: number | null
-          total_revenue_cents: number | null
-        }
-        Relationships: []
-      }
-      session_performance_metrics: {
-        Row: {
-          avg_enrollments: number | null
-          avg_fill_rate_percent: number | null
-          avg_max_participants: number | null
-          full_sessions: number | null
-          published_sessions: number | null
-          sessions_24h: number | null
-          total_sessions: number | null
-          upcoming_sessions: number | null
-        }
-        Relationships: []
-      }
-      sessions_complete: {
-        Row: {
-          available_spots: number | null
-          created_at: string | null
-          current_enrollments: number | null
-          description: string | null
-          distance_km: number | null
-          duration_minutes: number | null
-          end_lat: number | null
-          end_lng: number | null
-          host_avatar: string | null
-          host_fee_cents: number | null
-          host_name: string | null
-          id: string | null
-          intensity: string | null
-          location_hint: string | null
-          max_participants: number | null
-          min_participants: number | null
-          price_cents: number | null
-          scheduled_at: string | null
-          session_type: string | null
-          start_lat: number | null
-          start_lng: number | null
-          status: string | null
-          title: string | null
-        }
-        Relationships: []
-      }
-      user_activity_metrics: {
-        Row: {
-          active_users_30d: number | null
-          active_users_7d: number | null
-          new_users_24h: number | null
-          total_users: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       backfill_missing_profiles: {
@@ -471,7 +331,11 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
-      delete_user_completely: {
+      cleanup_expired_blocklist: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_deleted_users: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
@@ -534,6 +398,10 @@ export type Database = {
       }
       is_session_open: {
         Args: { session_id: string }
+        Returns: boolean
+      }
+      is_user_deleted: {
+        Args: { check_email: string }
         Returns: boolean
       }
     }

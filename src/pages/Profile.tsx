@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import Header from "@/components/Header";
 import { Edit, MapPin, Calendar, Users, Star, Award, Save, X, Trash2, Camera, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import AccountDeletionComponent from "@/components/AccountDeletionComponent";
+import { deleteAccountAndSignOut } from "@/utils/deleteAccount";
 
 const Profile = () => {
   const { user, signOut } = useAuth();
@@ -49,7 +51,6 @@ const Profile = () => {
     if (!error && data) {
       setProfile(data);
     } else if (!data) {
-      // CORRECTION: Créer le profil s'il n'existe pas
       await createDefaultProfile();
     }
   };
@@ -162,7 +163,6 @@ const Profile = () => {
     setUserActivity(activities);
   };
 
-  // CORRECTION: Fonction updateProfile améliorée avec gestion d'erreur robuste
   const updateProfile = async (values: any) => {
     if (!user) {
       toast({ 
@@ -218,7 +218,6 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Upload d'avatar entièrement revu
   const uploadAvatar = async (file: File) => {
     if (!user) return;
     
@@ -273,7 +272,8 @@ const Profile = () => {
       const { data, error: updateError } = await supabase
         .from('profiles')
         .upsert({ 
-          id: user.id, 
+          id: user.id,
+          email: user.email || '',
           avatar_url: publicUrl,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' })
@@ -348,7 +348,6 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Déconnexion améliorée
   const handleSignOut = async () => {
     try {
       setLoading(true);
@@ -365,7 +364,6 @@ const Profile = () => {
     }
   };
 
-  // CORRECTION: Suppression de compte complète
   const handleDeleteAccount = async () => {
     if (!user) return;
     
@@ -380,59 +378,20 @@ const Profile = () => {
     try {
       setLoading(true);
       
-      // Supprimer les données utilisateur en cascade
-      // 1. Supprimer les inscriptions
-      await supabase
-        .from('enrollments')
-        .delete()
-        .eq('user_id', user.id);
-
-      // 2. Supprimer les sessions créées
-      await supabase
-        .from('sessions')
-        .delete()
-        .eq('host_id', user.id);
-
-      // 3. Supprimer l'avatar du storage
-      if (profile?.avatar_url) {
-        const fileName = profile.avatar_url.split('/').pop();
-        if (fileName) {
-          await supabase.storage
-            .from('avatars')
-            .remove([`${user.id}/${fileName}`]);
-        }
-      }
-
-      // 4. Supprimer le profil
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id);
-
-      // 5. Supprimer le compte auth
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
-      
-      if (deleteError) {
-        console.error("Erreur suppression compte auth:", deleteError);
-        // Continuer même si l'erreur auth, le profil est supprimé
-      }
-
-      // Déconnexion forcée
-      await supabase.auth.signOut();
+      await deleteAccountAndSignOut();
       
       toast({
         title: "Compte supprimé",
-        description: "Votre compte a été supprimé avec succès.",
+        description: "Votre compte et toutes vos données ont été supprimés.",
       });
       
-      // Redirection vers l'accueil
-      navigate("/");
-      
+      navigate("/goodbye");
+        
     } catch (error: any) {
-      console.error("Erreur suppression compte:", error);
+      console.error("[account-deletion] Erreur complète:", error);
       toast({ 
-        title: "Erreur", 
-        description: "Impossible de supprimer le compte. Contactez le support.",
+        title: "Erreur de suppression", 
+        description: `Impossible de supprimer le compte: ${error.message}. Veuillez contacter le support.`,
         variant: "destructive" 
       });
     } finally {
@@ -500,7 +459,7 @@ const Profile = () => {
         }
       />
       
-      <div className="p-4 space-y-6 pb-20">
+      <div className="p-4 space-y-6 main-content">
         {/* User info */}
         <Card className="shadow-card">
           <CardContent className="p-6">
@@ -765,9 +724,10 @@ const Profile = () => {
             onClick={handleDeleteAccount}
             disabled={loading}
           >
-            Supprimer mon compte
+            {loading ? "Suppression en cours..." : "Supprimer mon compte"}
           </Button>
         </div>
+
       </div>
     </div>
   );

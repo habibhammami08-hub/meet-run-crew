@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Shield, ArrowRight, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
@@ -132,30 +132,32 @@ const Home = () => {
                 </Button>
               </>
             ) : (
-              <>
-                <Button variant="sportOutline" onClick={() => navigate("/auth")}>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => navigate("/auth")} className="text-primary font-semibold">
                   Se connecter
                 </Button>
-                <Button variant="sport" onClick={() => navigate("/auth")}>
+                <Button variant="sport" onClick={() => navigate("/auth?mode=signup")}>
                   S'inscrire
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="relative h-[50vh] overflow-hidden">
+      {/* Main content avec padding pour la navigation fixe */}
+      <div className="main-content">
+        {/* Hero Section */}
+        <div className="relative h-[50vh] overflow-hidden">
         <img 
           src={heroImage} 
           alt="MeetRun - Running collectif" 
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
           <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
-          <p className="text-lg opacity-90 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
+          <p className="text-lg font-bold opacity-95 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
               <>
@@ -191,7 +193,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 min-w-8 min-h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                <div className="w-20 h-8 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
                   1
                 </div>
                 <div>
@@ -205,7 +207,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 min-w-8 min-h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                <div className="w-20 h-8 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
                   2
                 </div>
                 <div>
@@ -219,7 +221,7 @@ const Home = () => {
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
-                <div className="w-8 h-8 min-w-8 min-h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                <div className="w-20 h-8 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
                   3
                 </div>
                 <div>
@@ -256,7 +258,7 @@ const Home = () => {
                   <p className="text-sport-gray mb-3 text-sm sm:text-base">
                     Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
                   </p>
-                  <div className="text-xl sm:text-2xl font-bold text-primary whitespace-nowrap">9,99 €/mois</div>
+                  <div className="text-2xl font-bold text-primary whitespace-nowrap">9,99 €/mois</div>
                 </div>
                 <Button 
                   variant="sport" 
@@ -364,7 +366,8 @@ const Home = () => {
             </CardContent>
           </Card>
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

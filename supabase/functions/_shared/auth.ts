@@ -25,7 +25,12 @@ export async function createSupabaseClient(serviceRole = false): Promise<Supabas
     throw new AuthError('Supabase configuration missing', 'CONFIG_ERROR', 500);
   }
 
-  return createClient(supabaseUrl, supabaseKey);
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
 }
 
 export async function authenticateUser(
@@ -51,6 +56,7 @@ export async function authenticateUser(
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (error) {
+      console.error('Token validation error:', error);
       throw new AuthError('Token validation failed', 'TOKEN_INVALID');
     }
     
@@ -72,7 +78,12 @@ export async function authenticateUser(
         .eq('id', user.id)
         .single();
 
-      if (profileError || !profile) {
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        throw new AuthError('User profile not found', 'PROFILE_NOT_FOUND');
+      }
+
+      if (!profile) {
         throw new AuthError('User profile not found', 'PROFILE_NOT_FOUND');
       }
 
@@ -84,6 +95,7 @@ export async function authenticateUser(
     if (error instanceof AuthError) {
       throw error;
     }
+    console.error('Authentication error:', error);
     throw new AuthError('Authentication failed', 'AUTH_FAILED');
   }
 }

@@ -1,5 +1,6 @@
 project_id = "qnupinrsetomnsdchhfa"
 
+# Correction: Standardisation des noms de fonctions
 [functions.create-payment]
 verify_jwt = true
 
@@ -15,5 +16,24 @@ verify_jwt = true
 [functions.stripe-webhook]
 verify_jwt = false
 
+# Correction: Nom de fonction standardisé
 [functions.delete-account]
 verify_jwt = true
+
+# Configuration des timeouts et limites
+[functions]
+timeout = 30
+memory = 512
+
+# Variables d'environnement requises
+[env]
+STRIPE_SECRET_KEY = "sk_..."
+STRIPE_WEBHOOK_SECRET = "whsec_..."
+STRIPE_PRICE_MONTHLY_EUR = "price_..."
+APP_BASE_URL = "https://meetrun.app"
+
+# Configuration CORS
+[cors]
+allowed_origins = ["https://meetrun.app", "http://localhost:3000"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+allowed_headers = ["authorization", "x-client-info", "apikey", "content-type"]

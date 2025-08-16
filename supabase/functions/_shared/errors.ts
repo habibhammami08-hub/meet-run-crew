@@ -1,5 +1,5 @@
 export enum ErrorCode {
-  // Auth errors
+  // Authentication errors
   MISSING_AUTH_HEADER = 'MISSING_AUTH_HEADER',
   INVALID_AUTH_FORMAT = 'INVALID_AUTH_FORMAT',
   INVALID_TOKEN = 'INVALID_TOKEN',
@@ -9,47 +9,23 @@ export enum ErrorCode {
   PROFILE_NOT_FOUND = 'PROFILE_NOT_FOUND',
   AUTH_FAILED = 'AUTH_FAILED',
 
-  // Validation errors
+  // Request errors
   INVALID_REQUEST_METHOD = 'INVALID_REQUEST_METHOD',
   INVALID_PAYLOAD = 'INVALID_PAYLOAD',
-  MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
   INVALID_FIELD_VALUE = 'INVALID_FIELD_VALUE',
+  MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
 
   // Business logic errors
   SESSION_NOT_FOUND = 'SESSION_NOT_FOUND',
-  ALREADY_ENROLLED = 'ALREADY_ENROLLED',
   SESSION_FULL = 'SESSION_FULL',
-  CUSTOMER_NOT_FOUND = 'CUSTOMER_NOT_FOUND',
+  ALREADY_ENROLLED = 'ALREADY_ENROLLED',
+  CANNOT_ENROLL_OWN_SESSION = 'CANNOT_ENROLL_OWN_SESSION',
 
-  // External service errors
-  STRIPE_ERROR = 'STRIPE_ERROR',
+  // System errors
+  CONFIG_ERROR = 'CONFIG_ERROR',
   DATABASE_ERROR = 'DATABASE_ERROR',
-  
-  // Generic errors
-  INTERNAL_ERROR = 'INTERNAL_ERROR',
-  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
-  CONFIG_ERROR = 'CONFIG_ERROR'
-}
-
-export interface ErrorResponse {
-  error: string;
-  code: ErrorCode;
-  timestamp: string;
-  request_id?: string;
-}
-
-export interface LogEntry {
-  timestamp: string;
-  level: 'info' | 'warn' | 'error';
-  function_name: string;
-  user_id?: string;
-  action: string;
-  success: boolean;
-  error_code?: ErrorCode;
-  error_message?: string;
-  duration_ms?: number;
-  metadata?: Record<string, any>;
-  request_id?: string;
+  STRIPE_ERROR = 'STRIPE_ERROR',
+  INTERNAL_ERROR = 'INTERNAL_ERROR'
 }
 
 export class AppError extends Error {
@@ -64,94 +40,82 @@ export class AppError extends Error {
   }
 }
 
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+};
+
 export function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-export function logEvent(entry: Omit<LogEntry, 'timestamp'>): void {
-  const logEntry: LogEntry = {
-    ...entry,
-    timestamp: new Date().toISOString()
-  };
-  
-  console.log(JSON.stringify(logEntry));
 }
 
 export function createErrorResponse(
   error: unknown,
   requestId: string,
-  corsHeaders: Record<string, string>
+  headers: Record<string, string> = corsHeaders
 ): Response {
-  let errorResponse: ErrorResponse;
-  let status = 500;
-
   if (error instanceof AppError) {
-    status = error.status;
-    errorResponse = {
-      error: error.userMessage || getPublicErrorMessage(error.code),
-      code: error.code,
-      timestamp: new Date().toISOString(),
-      request_id: requestId
-    };
-  } else if (error instanceof Error) {
-    // Log the actual error but don't expose it
-    console.error('Unexpected error:', error);
-    errorResponse = {
-      error: 'An unexpected error occurred',
-      code: ErrorCode.INTERNAL_ERROR,
-      timestamp: new Date().toISOString(),
-      request_id: requestId
-    };
-  } else {
-    console.error('Unknown error type:', error);
-    errorResponse = {
-      error: 'Service unavailable',
-      code: ErrorCode.SERVICE_UNAVAILABLE,
-      timestamp: new Date().toISOString(),
-      request_id: requestId
-    };
+    return new Response(
+      JSON.stringify({
+        error: {
+          code: error.code,
+          message: error.userMessage || error.message,
+          request_id: requestId
+        }
+      }),
+      {
+        status: error.status,
+        headers: { ...headers, 'Content-Type': 'application/json' }
+      }
+    );
   }
 
-  return new Response(JSON.stringify(errorResponse), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
+  // Generic error response
+  const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+  
+  return new Response(
+    JSON.stringify({
+      error: {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Internal server error',
+        request_id: requestId
+      }
+    }),
+    {
+      status: 500,
+      headers: { ...headers, 'Content-Type': 'application/json' }
+    }
+  );
 }
 
-function getPublicErrorMessage(code: ErrorCode): string {
-  const messages: Record<ErrorCode, string> = {
-    [ErrorCode.MISSING_AUTH_HEADER]: 'Authentication required',
-    [ErrorCode.INVALID_AUTH_FORMAT]: 'Invalid authentication format',
-    [ErrorCode.INVALID_TOKEN]: 'Invalid access token',
-    [ErrorCode.TOKEN_INVALID]: 'Access token expired or invalid',
-    [ErrorCode.USER_NOT_FOUND]: 'User account not found',
-    [ErrorCode.EMAIL_NOT_VERIFIED]: 'Email verification required',
-    [ErrorCode.PROFILE_NOT_FOUND]: 'User profile not found',
-    [ErrorCode.AUTH_FAILED]: 'Authentication failed',
-    
-    [ErrorCode.INVALID_REQUEST_METHOD]: 'Invalid request method',
-    [ErrorCode.INVALID_PAYLOAD]: 'Invalid request data',
-    [ErrorCode.MISSING_REQUIRED_FIELD]: 'Required field missing',
-    [ErrorCode.INVALID_FIELD_VALUE]: 'Invalid field value',
-    
-    [ErrorCode.SESSION_NOT_FOUND]: 'Session not found',
-    [ErrorCode.ALREADY_ENROLLED]: 'Already enrolled in this session',
-    [ErrorCode.SESSION_FULL]: 'Session is full',
-    [ErrorCode.CUSTOMER_NOT_FOUND]: 'Customer account not found',
-    
-    [ErrorCode.STRIPE_ERROR]: 'Payment service temporarily unavailable',
-    [ErrorCode.DATABASE_ERROR]: 'Database service temporarily unavailable',
-    
-    [ErrorCode.INTERNAL_ERROR]: 'Internal server error',
-    [ErrorCode.SERVICE_UNAVAILABLE]: 'Service temporarily unavailable',
-    [ErrorCode.CONFIG_ERROR]: 'Service configuration error'
+interface LogEventData {
+  level: 'info' | 'warn' | 'error';
+  function_name: string;
+  user_id?: string;
+  action: string;
+  success: boolean;
+  error_code?: ErrorCode;
+  error_message?: string;
+  duration_ms?: number;
+  metadata?: any;
+  request_id: string;
+}
+
+export function logEvent(data: LogEventData): void {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [${data.function_name.toUpperCase()}] ${data.action}`;
+  
+  const logData = {
+    timestamp,
+    ...data
   };
 
-  return messages[code] || 'An error occurred';
+  if (data.level === 'error') {
+    console.error(logMessage, logData);
+  } else if (data.level === 'warn') {
+    console.warn(logMessage, logData);
+  } else {
+    console.log(logMessage, logData);
+  }
 }
-
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
-};
