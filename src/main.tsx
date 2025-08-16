@@ -18,6 +18,14 @@ if (import.meta.env.DEV) {
       console.log('[RUNTIME] ENV_STATUS.win =', ENV_STATUS.win);
     }, 100);
   });
+
+  // Filet global pour capter les erreurs silencieuses
+  window.addEventListener("error", (e) => {
+    console.error("[global] window.error", e.error || e.message || e);
+  });
+  window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
+    console.error("[global] unhandledrejection", e.reason);
+  });
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

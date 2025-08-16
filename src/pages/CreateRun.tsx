@@ -186,10 +186,15 @@ export default function CreateRun() {
   }
 
   async function onSubmit() {
-    if (!supabase) { 
-      console.error("[create] no supabase client"); 
-      alert("Configuration Supabase manquante."); 
-      return; 
+    if (!supabase) {
+      console.error("[create] supabase client is null");
+      alert("Configuration Supabase manquante (variables d'environnement).");
+      return;
+    }
+    if (!supabase.auth) {
+      console.error("[create] supabase.auth is undefined");
+      alert("Module d'authentification indisponible. Rechargez la page.");
+      return;
     }
     
     setIsSaving(true);
@@ -223,13 +228,27 @@ export default function CreateRun() {
         return;
       }
 
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      console.info("[create] getUser ->", { userId: user?.id, authErr });
-      if (authErr) throw authErr;
-      if (!user) { 
-        console.warn("[create] stop: not logged in"); 
-        alert("Vous devez être connecté."); 
-        return; 
+      console.info("[create] about to call supabase.auth.getUser()");
+      let user = null as null | { id: string };
+      try {
+        const res = await supabase.auth.getUser();
+        console.info("[create] getUser() raw:", res);
+        if (res?.error) {
+          console.error("[create] getUser error:", res.error);
+          alert("Erreur d'authentification : " + (res.error.message || "inconnue"));
+          return;
+        }
+        user = res?.data?.user || null;
+      } catch (e) {
+        console.error("[create] getUser threw:", e);
+        alert("Impossible de récupérer la session utilisateur. Veuillez vous reconnecter.");
+        return;
+      }
+
+      if (!user) {
+        console.warn("[create] stop: no user after getUser()");
+        alert("Vous devez être connecté pour créer une session.");
+        return;
       }
 
       if (!start) { 

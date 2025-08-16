@@ -86,6 +86,13 @@ export const ensureUserProfile = async () => {
   return created;
 };
 
+// Helper de vérification client
+export function assertSupabaseOrThrow() {
+  const c = getSupabase ? getSupabase() : null;
+  if (!c) throw new Error("Supabase client indisponible (env manquantes ?)");
+  return c;
+}
+
 // Hook profile creation to auth state changes
 const client = getSupabase();
 if (client) {
