@@ -126,11 +126,15 @@ export default function CreateRun() {
       if (description?.trim()) payload.description = description.trim();
 
       console.info("[create] inserting payload", payload);
-      const { data, error } = await supabase.from("sessions").insert(payload).select("id").single();
-      if (error) { console.error("[sessions.insert] error", error); alert("Création impossible : " + (error.message || error.details || "erreur inconnue")); return; }
+      const { data, error } = await supabase.from("sessions").insert(payload).select("id,title,scheduled_at").single();
+      if (error) { 
+        console.error("[sessions.insert] error", error); 
+        alert("Création impossible : " + (error.message || error.details || "erreur inconnue")); 
+        return; 
+      }
 
-      console.info("[create] insert OK", data);
-      alert("Session créée 🎉");
+      console.info("[create] insert SUCCESS", data);
+      alert("Session créée 🎉 ID: " + data.id);
       // Reset + retour carte
       setStart(null); setEnd(null); setWaypoints([]); setDirResult(null);
       setTitle(""); setDateTime(""); setIntensityState("course modérée"); setSessionTypeState("mixed"); setMaxParticipantsState(10); setDescription("");

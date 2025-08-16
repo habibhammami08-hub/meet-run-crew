@@ -66,7 +66,15 @@ export default function MapPage() {
         .order("scheduled_at", { ascending: true })
         .limit(500);
 
-      if (error) throw error;
+      if (error) {
+        console.error("[map] fetch sessions error", error);
+        throw error;
+      }
+      
+      console.info("[map] fetched sessions count:", data?.length || 0);
+      if (data && data.length > 0) {
+        console.info("[map] sample session:", data[0]);
+      }
       setSessions(data ?? []);
     } catch (e) {
       console.error("[map] load error", e);
@@ -81,12 +89,12 @@ export default function MapPage() {
   useEffect(() => {
     if (!supabase) return;
     const ch = supabase.channel("sessions-map")
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => {
-        if (import.meta.env.DEV) console.log("[map] realtime ping → refetch");
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, (payload: any) => {
+        console.log("[map] realtime event received:", payload.eventType, payload.new?.id || 'no-id');
         fetchGateAndSessions();
       })
       .subscribe(status => {
-        if (import.meta.env.DEV) console.log("🛰️ Realtime sessions:", status);
+        console.log("🛰️ Realtime sessions status:", status);
       });
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -115,15 +123,21 @@ export default function MapPage() {
           zoom={12}
           options={{ mapTypeControl:false, streetViewControl:false, fullscreenControl:false }}
         >
-          {sessions.map(s => {
-            const start = { lat: s.start_lat, lng: s.start_lng };
-            const startShown = hasSub ? start : jitter(start.lat, start.lng, 800);
-            const showPolyline = hasSub && s.route_polyline;
-            const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
+            {sessions.map(s => {
+              const start = { lat: s.start_lat, lng: s.start_lng };
+              const startShown = hasSub ? start : jitter(start.lat, start.lng, 800);
+              const showPolyline = hasSub && s.route_polyline;
+              const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
 
-            return (
-              <div key={s.id}>
-                <MarkerF position={startShown} title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`} />
+              return (
+                <div key={s.id}>
+                  <MarkerF 
+                    position={startShown} 
+                    title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
+                    onClick={() => {
+                      console.log("[map] marker clicked:", s.id, s.title);
+                    }}
+                  />
                 {showPolyline && path.length > 1 && (
                   <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />
                 )}
