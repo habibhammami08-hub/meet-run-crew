@@ -31,6 +31,11 @@ export default function CreateRun() {
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   // Form state
+  const [title, setTitle] = useState("");
+  const [dateTime, setDateTime] = useState("");
+  const [intensityState, setIntensityState] = useState("course modérée");
+  const [sessionTypeState, setSessionTypeState] = useState("mixed");
+  const [maxParticipantsState, setMaxParticipantsState] = useState(10);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -138,147 +143,175 @@ export default function CreateRun() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const onSubmit = async () => {
+  function disabledReason() {
+    if (isSaving) return "Sauvegarde en cours…";
+    if (!start) return "Définissez un point de départ";
+    if (!end) return "Définissez un point d'arrivée";
+    if (!dirResult) return "Calculez l'itinéraire (Directions)";
+    if (!title?.trim()) return "Indiquez un titre";
+    if (!dateTime) return "Choisissez date & heure";
+    return "";
+  }
+
+  async function onSubmit() {
     if (!supabase) { 
-      console.error("[create] No supabase client");
+      console.error("[create] no supabase client"); 
       alert("Configuration Supabase manquante."); 
       return; 
     }
-
+    
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      console.info("[create] Submit clicked", { 
-        start, 
-        end, 
-        hasDir: !!dirResult, 
-        formData,
-        title: formData.title,
-        scheduled_at: formData.scheduled_at 
+      console.info("[create] submit", { 
+        title, 
+        dateTime, 
+        hasStart: !!start, 
+        hasEnd: !!end, 
+        hasDir: !!dirResult,
+        intensityState,
+        sessionTypeState,
+        maxParticipantsState
       });
 
-      // Auth pour RLS
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr) {
-        console.error("[create] Auth error", authErr);
-        throw authErr;
-      }
+      console.info("[create] getUser ->", { userId: user?.id, authErr });
+      if (authErr) throw authErr;
       if (!user) { 
-        console.error("[create] No user");
+        console.warn("[create] stop: not logged in"); 
         alert("Vous devez être connecté."); 
         return; 
       }
-      console.info("[create] User authenticated", user.id);
 
-      // Préconditions
-      if (!start || !end) { 
-        console.error("[create] Missing start/end", { start, end });
-        alert("Sélectionnez un départ et une arrivée."); 
+      if (!start) { 
+        console.warn("[create] stop: no start"); 
+        alert("Définissez un point de départ"); 
+        return; 
+      }
+      if (!end) { 
+        console.warn("[create] stop: no end"); 
+        alert("Définissez un point d'arrivée"); 
         return; 
       }
       if (!dirResult) { 
-        console.error("[create] Missing directions");
-        alert("Calculez l'itinéraire avant de créer la session."); 
+        console.warn("[create] stop: no dirResult"); 
+        alert("Calculez l'itinéraire"); 
         return; 
       }
-      if (!formData.title?.trim()) { 
-        console.error("[create] Missing title");
-        alert("Indiquez un titre."); 
+      if (!title?.trim()) { 
+        console.warn("[create] stop: no title"); 
+        alert("Indiquez un titre"); 
         return; 
       }
-      if (!formData.scheduled_at) { 
-        console.error("[create] Missing scheduled_at");
-        alert("Choisissez la date et l'heure."); 
-        return; 
-      }
-      if (!formData.intensity) { 
-        console.error("[create] Missing intensity");
-        alert("Choisissez l'intensité."); 
-        return; 
-      }
-      if (!formData.session_type) { 
-        console.error("[create] Missing session_type");
-        alert("Choisissez le type de session."); 
+      if (!dateTime) { 
+        console.warn("[create] stop: no dateTime"); 
+        alert("Choisissez date & heure"); 
         return; 
       }
 
-      console.info("[create] All preconditions OK");
-
-      // Distance / polyline
       const route = dirResult.routes?.[0];
-      const legs = route?.legs ?? [];
-      const meters = legs.reduce((s, l) => s + (l.distance?.value ?? 0), 0);
-      const polyline = route?.overview_polyline?.toString?.() ?? (route?.overview_polyline as any)?.points ?? "";
+      if (!route) { 
+        console.warn("[create] stop: no route in dirResult"); 
+        alert("Itinéraire invalide"); 
+        return; 
+      }
+      
+      const legs = route.legs ?? [];
+      const meters = legs.reduce((s,l)=> s+(l.distance?.value ?? 0), 0);
+      const polyline = route.overview_polyline?.toString?.() ?? (route.overview_polyline as any)?.points ?? "";
       const startAddr = legs[0]?.start_address ?? null;
-      const endAddr = legs[legs.length - 1]?.end_address ?? null;
+      const endAddr = legs[legs.length-1]?.end_address ?? null;
+      const scheduledIso = new Date(dateTime).toISOString();
 
-      console.info("[create] Route data", { meters, polyline: polyline.length, startAddr, endAddr });
+      console.info("[create] computed", { 
+        meters, 
+        polylineLen: polyline?.length || 0, 
+        scheduledIso,
+        startAddr,
+        endAddr
+      });
 
-      // scheduled_at depuis l'input datetime-local (TZ locale)
-      const scheduledIso = new Date(formData.scheduled_at).toISOString();
-
-      // Payload conforme schéma/RLS
       const payload = {
         host_id: user.id,
-        title: formData.title.trim(),
-        description: formData.description || null,
+        title: title.trim(),
         scheduled_at: scheduledIso,
-        start_lat: start.lat, 
-        start_lng: start.lng,
-        end_lat: end.lat, 
-        end_lng: end.lng,
+        start_lat: Number(start.lat), 
+        start_lng: Number(start.lng),
+        end_lat: Number(end.lat), 
+        end_lng: Number(end.lng),
         distance_km: meters / 1000,
         route_distance_m: meters,
         route_polyline: polyline,
         start_place: startAddr, 
         end_place: endAddr,
-        intensity: uiToDbIntensity(formData.intensity),
-        session_type: ["mixed","women","men"].includes(formData.session_type) ? formData.session_type : "mixed",
-        max_participants: Number(formData.max_participants) || 10,
+        intensity: uiToDbIntensity(intensityState),
+        session_type: ["mixed","women","men"].includes(sessionTypeState) ? sessionTypeState : "mixed",
+        max_participants: Math.min(20, Math.max(2, Number(maxParticipantsState) || 10)),
         status: "published",
       };
 
-      console.info("[create] Inserting session", payload);
+      console.info("[create] inserting payload", payload);
 
-      const { data, error } = await supabase.from("sessions").insert(payload).select();
+      const { data, error } = await supabase.from("sessions").insert(payload).select("id").single();
       if (error) {
-        console.error("[sessions.insert] ERROR", { payload, error });
-        alert("Création impossible : " + (error.message || "erreur inconnue"));
+        console.error("[sessions.insert] error", error);
+        alert("Création impossible : " + (error.message || error.details || "erreur inconnue"));
         return;
       }
 
-      console.info("[create] Insert OK", data);
-      toast({
-        title: "Session créée 🎉",
-        description: "Votre session de course a été créée avec succès"
-      });
+      console.info("[create] insert OK", data);
+      alert("Session créée 🎉");
       
-      // Reset minimal et navigation
+      // Reset
       setStart(null);
       setEnd(null);
       setWaypoints([]);
       setDirResult(null);
       setDistanceKm(null);
-      setFormData({
-        title: "",
-        description: "",
-        scheduled_at: "",
-        intensity: "",
-        session_type: "",
-        max_participants: 10
-      });
-      navigate("/");
+      setTitle("");
+      setDateTime("");
+      setIntensityState("course modérée");
+      setSessionTypeState("mixed");
+      setMaxParticipantsState(10);
+      
     } catch (e: any) {
-      console.error("[create] Fatal error", e);
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la création. Vérifiez les champs et réessayez.",
-        variant: "destructive"
-      });
+      console.error("[create] fatal", e);
+      alert("Erreur lors de la création. Vérifiez les champs et réessayez.");
     } finally {
-      console.info("[create] Finally - setting saving to false");
       setIsSaving(false);
     }
-  };
+  }
+
+  async function testInsertMinimal() {
+    if (!supabase) return alert("No supabase");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return alert("Connectez-vous");
+
+    const nowIso = new Date().toISOString();
+    const test = {
+      host_id: user.id,
+      title: "TEST DEBUG " + new Date().toLocaleString(),
+      scheduled_at: nowIso,
+      start_lat: 48.8566, 
+      start_lng: 2.3522,
+      end_lat: 48.8584, 
+      end_lng: 2.2945,
+      distance_km: 5,
+      route_distance_m: 5000,
+      route_polyline: "",
+      start_place: "Paris",
+      end_place: "Paris",
+      intensity: "medium",
+      session_type: "mixed",
+      max_participants: 10,
+      status: "published",
+    };
+
+    console.log("[testInsertMinimal] payload", test);
+    const { data, error } = await supabase.from("sessions").insert(test).select("id").single();
+    console.log("[testInsertMinimal] result", { data, error });
+    if (error) alert("Insert test KO: " + (error.message || error.details));
+    else alert("Insert test OK: " + data?.id);
+  }
 
   if (!user) return null;
 
@@ -307,8 +340,8 @@ export default function CreateRun() {
                     <Label htmlFor="title">Titre *</Label>
                     <Input
                       id="title"
-                      value={formData.title}
-                      onChange={(e) => handleInputChange("title", e.target.value)}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
                       placeholder="Ex: Course matinale au parc"
                     />
                   </div>
@@ -394,8 +427,8 @@ export default function CreateRun() {
                     <Input
                       id="scheduled_at"
                       type="datetime-local"
-                      value={formData.scheduled_at}
-                      onChange={(e) => handleInputChange("scheduled_at", e.target.value)}
+                      value={dateTime}
+                      onChange={(e) => setDateTime(e.target.value)}
                     />
                   </div>
                 </CardContent>
@@ -412,7 +445,7 @@ export default function CreateRun() {
                 <CardContent className="space-y-4">
                   <div>
                     <Label>Intensité *</Label>
-                    <Select value={formData.intensity} onValueChange={(value) => handleInputChange("intensity", value)}>
+                    <Select value={intensityState} onValueChange={(value) => setIntensityState(value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez l'intensité" />
                       </SelectTrigger>
@@ -425,7 +458,7 @@ export default function CreateRun() {
                   </div>
                   <div>
                     <Label>Type de session *</Label>
-                    <Select value={formData.session_type} onValueChange={(value) => handleInputChange("session_type", value)}>
+                    <Select value={sessionTypeState} onValueChange={(value) => setSessionTypeState(value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez le type" />
                       </SelectTrigger>
@@ -453,8 +486,8 @@ export default function CreateRun() {
                     <Input
                       id="max_participants"
                       type="number"
-                      value={formData.max_participants}
-                      onChange={(e) => handleInputChange("max_participants", parseInt(e.target.value))}
+                      value={maxParticipantsState}
+                      onChange={(e) => setMaxParticipantsState(parseInt(e.target.value) || 10)}
                       min="2"
                       max="50"
                     />
@@ -465,13 +498,36 @@ export default function CreateRun() {
               <Button
                 type="button"
                 onClick={onSubmit}
-                disabled={isSaving || !start || !end || !dirResult || !formData.title?.trim() || !formData.scheduled_at || !formData.intensity || !formData.session_type}
+                disabled={!!disabledReason()}
                 className="w-full"
                 size="lg"
               >
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSaving ? "Création en cours..." : "Créer la session"}
               </Button>
+              
+              {disabledReason() && (
+                <p className="text-xs text-amber-600 mt-1">⚠️ {disabledReason()}</p>
+              )}
+              
+              <Button type="button" variant="outline" className="w-full mt-2" onClick={testInsertMinimal}>
+                Insertion de test (Supabase)
+              </Button>
+              
+              {/* Debug panel */}
+              <div className="mt-4 p-3 rounded-lg border text-xs bg-muted/30">
+                <div className="font-medium mb-1">[Debug CreateRun]</div>
+                <div>start: {start ? `${start.lat.toFixed(5)},${start.lng.toFixed(5)}` : "—"}</div>
+                <div>end: {end ? `${end.lat.toFixed(5)},${end.lng.toFixed(5)}` : "—"}</div>
+                <div>hasDirResult: {String(!!dirResult)}</div>
+                <div>title: {title || "—"}</div>
+                <div>dateTime: {dateTime || "—"}</div>
+                <div>distanceKm: {distanceKm?.toFixed?.(2) ?? "—"}</div>
+                <div>user: {user?.id?.slice?.(0,8) ?? "—"}</div>
+                <div>intensity: {intensityState}</div>
+                <div>sessionType: {sessionTypeState}</div>
+                <div>maxParticipants: {maxParticipantsState}</div>
+              </div>
             </div>
 
             {/* Map Section */}
