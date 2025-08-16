@@ -11,10 +11,12 @@ import LocationPicker from "@/components/LocationPicker";
 import { Calendar, Clock, MapPin, Users, TrendingUp, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useFormValidation } from "@/hooks/useFormValidation";
 import { useToast } from "@/hooks/use-toast";
 
 const CreateRun = () => {
   const { user } = useAuth();
+  const { validateSessionForm, getFirstError } = useFormValidation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -87,86 +89,22 @@ const CreateRun = () => {
     }));
   };
 
-  // CORRECTION: Validation stricte et complète des données
+  // Use centralized validation
   const validateFormData = () => {
-    const errors: string[] = [];
+    const errors = validateSessionForm({
+      title: formData.title,
+      date: formData.date,
+      time: formData.time,
+      area_hint: formData.area_hint,
+      distance_km: formData.distance_km,
+      intensity: formData.intensity,
+      type: formData.type,
+      max_participants: formData.max_participants,
+      description: formData.description,
+      selectedLocations,
+    });
 
-    // Validation des champs obligatoires
-    if (!formData.title?.trim()) errors.push("Le titre est obligatoire");
-    if (!formData.date) errors.push("La date est obligatoire");
-    if (!formData.time) errors.push("L'heure est obligatoire");
-    if (!formData.area_hint?.trim()) errors.push("La description du lieu est obligatoire");
-    if (!formData.distance_km) errors.push("La distance est obligatoire");
-    if (!formData.intensity) errors.push("L'intensité est obligatoire");
-    if (!formData.type) errors.push("Le type de course est obligatoire");
-    if (!formData.max_participants) errors.push("Le nombre de participants est obligatoire");
-    if (!selectedLocations.start) errors.push("Le point de départ est obligatoire");
-    if (!selectedLocations.end) errors.push("Le point d'arrivée est obligatoire");
-
-    // Validation de la date/heure
-    if (formData.date && formData.time) {
-      const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
-      if (isNaN(sessionDateTime.getTime())) {
-        errors.push("Date/heure invalide");
-      } else {
-        const now = new Date();
-        const minDate = new Date(now.getTime() + 30 * 60 * 1000); // Minimum 30 minutes dans le futur
-        const maxDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // Maximum 90 jours
-        
-        if (sessionDateTime <= minDate) {
-          errors.push("La session doit être au minimum 30 minutes dans le futur");
-        }
-        if (sessionDateTime > maxDate) {
-          errors.push("La session ne peut pas être programmée plus de 90 jours à l'avance");
-        }
-      }
-    }
-
-    // Validation des coordonnées de départ avec les nouvelles limites strictes
-    if (selectedLocations.start) {
-      const { lat, lng } = selectedLocations.start;
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        errors.push("Coordonnées de départ invalides");
-      }
-      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-        errors.push("Coordonnées de départ hors limites (-90/90 pour lat, -180/180 pour lng)");
-      }
-    }
-
-    // Validation des coordonnées d'arrivée avec les nouvelles limites strictes  
-    if (selectedLocations.end) {
-      const { lat, lng } = selectedLocations.end;
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        errors.push("Coordonnées d'arrivée invalides");
-      }
-      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-        errors.push("Coordonnées d'arrivée hors limites (-90/90 pour lat, -180/180 pour lng)");
-      }
-    }
-
-    // Validation stricte de la distance (range 0.1 à 50 km)
-    const distance = Number(formData.distance_km);
-    if (!Number.isFinite(distance) || distance < 0.1 || distance > 50) {
-      errors.push("La distance doit être entre 0.1 et 50 km");
-    }
-
-    // Validation stricte du nombre de participants (range 2 à 20)
-    const maxParticipants = Number(formData.max_participants);
-    if (!Number.isInteger(maxParticipants) || maxParticipants < 2 || maxParticipants > 20) {
-      errors.push("Le nombre de participants doit être entre 2 et 20");
-    }
-
-    // Validation stricte de l'intensité
-    if (!['walking', 'low', 'medium', 'high'].includes(formData.intensity)) {
-      errors.push("L'intensité doit être spécifiée (walking, low, medium, high)");
-    }
-
-    // Validation stricte du type de session
-    if (!['mixed', 'women_only', 'men_only'].includes(formData.type)) {
-      errors.push("Le type de session doit être spécifié (mixed, women_only, men_only)");
-    }
-
-    return errors;
+    return getFirstError(errors);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -177,10 +115,10 @@ const CreateRun = () => {
     setLoading(true);
 
     try {
-      // CORRECTION: Validation stricte avant soumission
-      const validationErrors = validateFormData();
-      if (validationErrors.length > 0) {
-        throw new Error(validationErrors[0]);
+      // Use centralized validation
+      const validationError = validateFormData();
+      if (validationError) {
+        throw new Error(validationError);
       }
 
       // CORRECTION: Construction sécurisée de la date
