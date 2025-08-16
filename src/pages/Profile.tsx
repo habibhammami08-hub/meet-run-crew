@@ -363,48 +363,6 @@ const Profile = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!user) return;
-    
-    const confirmation = prompt(
-      "Cette action est irréversible. Tapez 'SUPPRIMER' pour confirmer la suppression de votre compte :"
-    );
-    
-    if (confirmation !== 'SUPPRIMER') {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      const res = await deleteMyAccount();
-      
-      if (res.ok) {
-        toast({
-          title: "Compte supprimé",
-          description: "Votre compte et toutes vos données ont été supprimés.",
-        });
-        navigate("/");
-      } else {
-        toast({ 
-          title: "Erreur de suppression", 
-          description: res.error || "Suppression impossible",
-          variant: "destructive" 
-        });
-        console.error("[delete] Error:", res.error);
-      }
-        
-    } catch (error: any) {
-      console.error("[delete] Exception:", error);
-      toast({ 
-        title: "Erreur de suppression", 
-        description: `Impossible de supprimer le compte: ${error.message}`,
-        variant: "destructive" 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Si pas connecté, affichage écran d'accueil auth
   if (!user) {
@@ -705,15 +663,7 @@ const Profile = () => {
             {loading ? "Déconnexion..." : "Se déconnecter"}
           </Button>
           
-          <Button 
-            variant="ghost" 
-            size="lg" 
-            className="w-full text-destructive"
-            onClick={handleDeleteAccount}
-            disabled={loading}
-          >
-            {loading ? "Suppression en cours..." : "Supprimer mon compte"}
-          </Button>
+          <AccountDeletionComponent />
         </div>
 
       </div>
