@@ -10,20 +10,18 @@ const Navigation = () => {
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   
   return (
-    <nav className="fixed-navigation">
-      <div className="flex justify-around items-center max-w-md mx-auto py-2">
+    <nav className="bg-white border-t border-border px-4 py-2">
+      <div className="flex justify-around items-center max-w-md mx-auto">
         <Link to="/">
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-all duration-200 rounded-lg ${
-              isActive('/') && location.pathname === '/' 
-                ? 'text-primary bg-primary/10 border border-primary/20' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+              isActive('/') ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
             <Home size={20} />
-            <span className="text-xs font-medium">Accueil</span>
+            <span className="text-xs">Accueil</span>
           </Button>
         </Link>
         
@@ -31,14 +29,12 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-all duration-200 rounded-lg ${
-              isActive('/map') 
-                ? 'text-primary bg-primary/10 border border-primary/20' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+              isActive('/map') ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
             <MapPin size={20} />
-            <span className="text-xs font-medium">Carte</span>
+            <span className="text-xs">Carte</span>
           </Button>
         </Link>
         
@@ -46,16 +42,14 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative transition-all duration-200 rounded-lg ${
-              isActive('/subscription') 
-                ? 'text-primary bg-primary/10 border border-primary/20' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 relative ${
+              isActive('/subscription') ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
             <Crown size={20} />
-            <span className="text-xs font-medium">Abonnement</span>
+            <span className="text-xs">Abonnement</span>
             {user && hasActiveSubscription && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
             )}
           </Button>
         </Link>
@@ -64,7 +58,7 @@ const Navigation = () => {
           <Button 
             variant="sport" 
             size="sm" 
-            className="rounded-full w-12 h-12 p-0 shadow-sport hover:shadow-hover transition-sport transform hover:scale-105"
+            className="rounded-full w-12 h-12 p-0"
           >
             <Plus size={24} />
           </Button>
@@ -74,14 +68,12 @@ const Navigation = () => {
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 transition-all duration-200 rounded-lg ${
-              isActive('/profile') 
-                ? 'text-primary bg-primary/10 border border-primary/20' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${
+              isActive('/profile') ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
             <User size={20} />
-            <span className="text-xs font-medium">Profil</span>
+            <span className="text-xs">Profil</span>
           </Button>
         </Link>
       </div>

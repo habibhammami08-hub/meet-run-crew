@@ -131,7 +131,7 @@ const Subscription = () => {
     <div className="min-h-screen bg-background">
       <Header title="Abonnement MeetRun" />
       
-      <div className="p-4 space-y-6 main-content pt-20">
+      <div className="p-4 space-y-6 pb-20 pt-20">
         {/* Hero pour non connectés */}
         <Card className="shadow-card border-primary/20">
           <CardHeader>
@@ -242,7 +242,7 @@ const Subscription = () => {
     <div className="min-h-screen bg-background">
       <Header title="Mon abonnement" />
       
-      <div className="p-4 space-y-6 main-content pt-20">
+      <div className="p-4 space-y-6 pb-20 pt-20">
         {/* Current Status */}
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">

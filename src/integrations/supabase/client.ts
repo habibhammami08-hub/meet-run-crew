@@ -2,50 +2,46 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Environment variables with secure fallbacks
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://qnupinrsetomnsdchhfa.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg";
+// Configuration directe pour Lovable (les variables VITE_* ne sont pas supportées)
+const SUPABASE_URL = "https://qnupinrsetomnsdchhfa.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFudXBpbnJzZXRvbW5zZGNoaGZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5OTQ0OTUsImV4cCI6MjA3MDU3MDQ5NX0.vAK-xeUxQeQy1lUz9SlzRsVTEFiyJj_HIbnP-xlLThg";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
+    storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
+    detectSessionInUrl: true
   },
   realtime: {
-    params: { 
-      eventsPerSecond: 10 
-    },
-  },
+    params: {
+      eventsPerSecond: 10
+    }
+  }
 });
 
-// Connection check utility
+// Fonction utilitaire pour vérifier la connexion
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   try {
     const { data, error } = await supabase.from('profiles').select('count').limit(1);
     if (error) throw error;
-    if (import.meta.env.DEV) {
-      console.log("[supabase] Connection established");
-    }
+    console.log("[supabase] Connexion établie");
     return true;
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[supabase] Connection error:", error);
-    }
+    console.error("[supabase] Erreur de connexion:", error);
     return false;
   }
 };
 
-// User profile management utility
+// Fonction pour créer/assurer un profil utilisateur
 export const ensureUserProfile = async (user: any) => {
   if (!user) return null;
   
   try {
-    // Check if profile exists
+    // Vérifier si le profil existe
     const { data: existingProfile, error: selectError } = await supabase
       .from('profiles')
       .select('id')
@@ -57,7 +53,7 @@ export const ensureUserProfile = async (user: any) => {
     }
 
     if (!existingProfile) {
-      // Create profile with secure upsert
+      // Créer le profil avec upsert sécurisé
       const { data, error } = await supabase
         .from('profiles')
         .upsert({
@@ -74,23 +70,17 @@ export const ensureUserProfile = async (user: any) => {
         .single();
 
       if (error) {
-        if (import.meta.env.DEV) {
-          console.error("[profile] Creation error:", error);
-        }
+        console.error("[profile] Erreur création:", error);
         throw error;
       }
 
-      if (import.meta.env.DEV) {
-        console.log("[profile] Profile created:", data);
-      }
+      console.log("[profile] Profil créé:", data);
       return data;
     }
 
     return existingProfile;
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[profile] ensureUserProfile error:", error);
-    }
+    console.error("[profile] Erreur ensureUserProfile:", error);
     throw error;
   }
 };

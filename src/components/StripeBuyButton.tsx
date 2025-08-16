@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { logger } from "@/utils/logger";
 
 declare global {
   namespace JSX {
@@ -17,9 +16,6 @@ interface StripeBuyButtonProps {
   onCancel?: () => void;
 }
 
-// Environment variable for Stripe public key
-const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || "pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc";
-
 const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
   useEffect(() => {
     // Vérifier si le script existe déjà
@@ -31,23 +27,23 @@ const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
       script.src = 'https://js.stripe.com/v3/buy-button.js';
       script.async = true;
       script.onload = () => {
-        logger.debug("Stripe Buy Button script loaded");
+        console.log("[stripe] Buy Button script chargé");
       };
       script.onerror = () => {
-        logger.error("Error loading Stripe Buy Button script");
+        console.error("[stripe] Erreur chargement Buy Button script");
       };
-      document.head.appendChild(script);
+      document.body.appendChild(script);
     }
 
-    // Listen for success/cancel events if callbacks are provided
+    // Écouter les événements de succès/annulation si des callbacks sont fournis
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== 'https://js.stripe.com') return;
       
       if (event.data?.type === 'stripe_checkout_session_complete') {
-        logger.debug("Stripe checkout completed:", event.data);
+        console.log("[stripe] Checkout complété:", event.data);
         onSuccess?.();
       } else if (event.data?.type === 'stripe_checkout_session_cancel') {
-        logger.debug("Stripe checkout cancelled:", event.data);
+        console.log("[stripe] Checkout annulé:", event.data);
         onCancel?.();
       }
     };
@@ -68,7 +64,7 @@ const StripeBuyButton = ({ onSuccess, onCancel }: StripeBuyButtonProps) => {
     <div className="stripe-buy-button-container w-full">
       <stripe-buy-button
         buy-button-id="buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"
-        publishable-key={STRIPE_PUBLIC_KEY}
+        publishable-key="pk_live_51L4ftdKP4tLYoLjrVwqm62fAaf0nSId8MHrgaCBvgIrTYybjRMpNTYluRbN57delFbimulCyODAD8G0QaxEaLz5T00Uey2dOSc"
       />
     </div>
   );

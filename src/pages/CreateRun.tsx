@@ -70,17 +70,6 @@ const CreateRun = () => {
   };
 
   const handleLocationSelect = (lat: number, lng: number, type: 'start' | 'end') => {
-    // CORRECTION: Validation des coordonnées
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || 
-        Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-      toast({
-        title: "Coordonnées invalides",
-        description: "Les coordonnées sélectionnées ne sont pas valides",
-        variant: "destructive",
-      });
-      return;
-    }
-
     console.log(`Sélection ${type}:`, { lat, lng });
     setSelectedLocations(prev => ({
       ...prev,
@@ -88,11 +77,10 @@ const CreateRun = () => {
     }));
   };
 
-  // CORRECTION: Validation stricte et complète des données
+  // Validation stricte des données
   const validateFormData = () => {
     const errors: string[] = [];
 
-    // Validation des champs obligatoires
     if (!formData.title?.trim()) errors.push("Le titre est obligatoire");
     if (!formData.date) errors.push("La date est obligatoire");
     if (!formData.time) errors.push("L'heure est obligatoire");
@@ -102,7 +90,7 @@ const CreateRun = () => {
     if (!formData.type) errors.push("Le type de course est obligatoire");
     if (!formData.max_participants) errors.push("Le nombre de participants est obligatoire");
     
-    // CORRECTION: Point de départ ET d'arrivée obligatoires
+    // CORRECTION: Point d'arrivée maintenant OBLIGATOIRE
     if (!selectedLocations.start) {
       errors.push("Le point de départ est obligatoire");
     }
@@ -115,17 +103,8 @@ const CreateRun = () => {
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
       if (isNaN(sessionDateTime.getTime())) {
         errors.push("Date/heure invalide");
-      } else {
-        const now = new Date();
-        const minDate = new Date(now.getTime() + 30 * 60 * 1000); // Minimum 30 minutes dans le futur
-        const maxDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // Maximum 90 jours
-        
-        if (sessionDateTime <= minDate) {
-          errors.push("La session doit être au minimum 30 minutes dans le futur");
-        }
-        if (sessionDateTime > maxDate) {
-          errors.push("La session ne peut pas être programmée plus de 90 jours à l'avance");
-        }
+      } else if (sessionDateTime <= new Date()) {
+        errors.push("La session doit être dans le futur");
       }
     }
 
@@ -135,7 +114,7 @@ const CreateRun = () => {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         errors.push("Coordonnées de départ invalides");
       }
-      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         errors.push("Coordonnées de départ hors limites");
       }
     }
@@ -145,31 +124,9 @@ const CreateRun = () => {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         errors.push("Coordonnées d'arrivée invalides");
       }
-      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         errors.push("Coordonnées d'arrivée hors limites");
       }
-    }
-
-    // CORRECTION: Validation de la distance
-    const distance = Number(formData.distance_km);
-    if (!Number.isFinite(distance) || distance <= 0 || distance > 50) {
-      errors.push("La distance doit être entre 0.1 et 50 km");
-    }
-
-    // CORRECTION: Validation du nombre de participants
-    const maxParticipants = Number(formData.max_participants);
-    if (!Number.isInteger(maxParticipants) || maxParticipants < 2 || maxParticipants > 20) {
-      errors.push("Le nombre de participants doit être entre 2 et 20");
-    }
-
-    // CORRECTION: Validation de l'intensité
-    if (!['walking', 'low', 'medium', 'high'].includes(formData.intensity)) {
-      errors.push("L'intensité doit être spécifiée (walking, low, medium, high)");
-    }
-
-    // CORRECTION: Validation du type
-    if (!['mixed', 'women_only', 'men_only'].includes(formData.type)) {
-      errors.push("Le type de session doit être spécifié");
     }
 
     return errors;
@@ -177,62 +134,39 @@ const CreateRun = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (loading) return; // Empêcher les soumissions multiples
-    
     setLoading(true);
 
     try {
-      // CORRECTION: Validation stricte avant soumission
+      // Validation stricte
       const validationErrors = validateFormData();
       if (validationErrors.length > 0) {
         throw new Error(validationErrors[0]);
       }
 
-      // CORRECTION: Construction sécurisée de la date
+      // Construction sécurisée de la date
       const sessionDateTime = new Date(`${formData.date}T${formData.time}`);
-      if (isNaN(sessionDateTime.getTime())) {
-        throw new Error("Date/heure invalide");
-      }
       
-      // CORRECTION: Validation finale des locations
-      if (!selectedLocations.start || !selectedLocations.end) {
-        throw new Error("Les points de départ et d'arrivée sont obligatoires");
-      }
-
-      // CORRECTION: Construction du payload avec validation de chaque champ
+      // Construction du payload avec validation
       const payload = {
         host_id: user.id,
-        title: formData.title.trim().substring(0, 100), // Limiter la longueur
-        date: sessionDateTime.toISOString(), // Required by database
-        scheduled_at: sessionDateTime.toISOString(),
+        title: formData.title.trim(),
+        date: sessionDateTime.toISOString(),
         distance_km: Number(formData.distance_km),
-        intensity: formData.intensity as 'walking' | 'low' | 'medium' | 'high',
-        type: formData.type, // Required by database
-        session_type: formData.type as 'mixed' | 'women_only' | 'men_only',
+        intensity: formData.intensity,
+        type: formData.type,
         max_participants: Number(formData.max_participants),
-        min_participants: 2,
-        start_lat: Number(selectedLocations.start.lat),
-        start_lng: Number(selectedLocations.start.lng),
-        end_lat: Number(selectedLocations.end.lat),
-        end_lng: Number(selectedLocations.end.lng),
-        location_hint: formData.area_hint.trim().substring(0, 500), // Limiter la longueur
-        blur_radius_m: 1000,
-        price_cents: 0,
-        host_fee_cents: 0,
-        duration_minutes: 60,
-        status: 'published' as const
+        start_lat: Number(selectedLocations.start!.lat),
+        start_lng: Number(selectedLocations.start!.lng),
+        // CORRECTION: Toujours inclure les coordonnées d'arrivée (maintenant obligatoires)
+        end_lat: Number(selectedLocations.end!.lat),
+        end_lng: Number(selectedLocations.end!.lng),
+        area_hint: formData.area_hint.trim(),
+        blur_radius_m: 1000, // Rayon de flou par défaut
+        price_cents: 0, // Maintenant inclus dans l'abonnement
+        host_payout_cents: 0, // Plus de paiement direct
       };
 
-      // CORRECTION: Validation finale du payload
-      const requiredFields = ['host_id', 'title', 'scheduled_at', 'distance_km', 'intensity', 'session_type', 'max_participants', 'start_lat', 'start_lng'];
-      for (const field of requiredFields) {
-        if (payload[field as keyof typeof payload] === undefined || payload[field as keyof typeof payload] === null) {
-          throw new Error(`Champ requis manquant: ${field}`);
-        }
-      }
-
-      console.log("[sessions] Création avec payload validé:", payload);
+      console.log("[sessions] Création avec payload:", payload);
 
       const { data, error } = await supabase
         .from("sessions")
@@ -242,15 +176,7 @@ const CreateRun = () => {
 
       if (error) {
         console.error("[sessions] Erreur création:", error);
-        
-        // CORRECTION: Messages d'erreur plus spécifiques
-        if (error.code === '23505') {
-          throw new Error("Une session similaire existe déjà");
-        } else if (error.code === '23503') {
-          throw new Error("Référence invalide (profil utilisateur)");
-        } else {
-          throw new Error(`Impossible de créer la session: ${error.message}`);
-        }
+        throw new Error(`Impossible de créer la session: ${error.message}`);
       }
 
       if (!data) {
@@ -264,13 +190,8 @@ const CreateRun = () => {
         description: "Votre session apparaît maintenant sur la carte.",
       });
 
-      // CORRECTION: Navigation sécurisée
-      try {
-        navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
-      } catch (navError) {
-        console.error("Erreur navigation:", navError);
-        navigate("/map");
-      }
+      // Navigation vers la carte avec la nouvelle session
+      navigate(`/map?lat=${selectedLocations.start.lat}&lng=${selectedLocations.start.lng}&sessionId=${data.id}`);
       
     } catch (error: any) {
       console.error("[sessions] Erreur:", error);
@@ -288,7 +209,7 @@ const CreateRun = () => {
     <div className="min-h-screen bg-background">
       <Header title="Créer une session" />
       
-      <form onSubmit={handleSubmit} className="p-4 space-y-6 main-content">
+      <form onSubmit={handleSubmit} className="p-4 space-y-6 pb-20">
         {/* Basic Info */}
         <Card className="shadow-card">
           <CardHeader>

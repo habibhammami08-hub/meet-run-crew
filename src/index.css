@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import Leaflet CSS */
-@import 'leaflet/dist/leaflet.css';
-
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -135,8 +132,6 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground font-sans;
-    /* CORRECTION: Éviter le défilement horizontal sur mobile */
-    overflow-x: hidden;
   }
 
   /* Custom sport utilities */
@@ -176,132 +171,5 @@ All colors MUST be HSL.
 
   .animate-pulse-sport {
     animation: pulse-sport 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  /* Navigation fixe - styles de base */
-
-  /* CORRECTION: Styles spécifiques pour Leaflet */
-  .leaflet-container {
-    height: 100%;
-    width: 100%;
-    background: #f8f9fa;
-  }
-
-  .leaflet-popup-content-wrapper {
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  .leaflet-popup-content {
-    margin: 8px 12px;
-    font-family: inherit;
-  }
-
-  .leaflet-control-zoom a {
-    background-color: white;
-    color: #333;
-    border: 1px solid #ccc;
-  }
-
-  .leaflet-control-zoom a:hover {
-    background-color: #f4f4f4;
-  }
-
-  /* Corrections pour les marqueurs personnalisés */
-  .custom-marker,
-  .custom-cluster-icon,
-  .user-location-marker,
-  .session-start-marker,
-  .session-end-marker {
-    border: none !important;
-    background: transparent !important;
-  }
-
-  /* Styles pour les popups de clusters */
-  .cluster-popup {
-    max-width: 300px;
-  }
-
-  .cluster-popup ul {
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .cluster-popup .btn-open-session {
-    transition: all 0.2s ease;
-  }
-
-  .cluster-popup .btn-open-session:hover {
-    background-color: #047857 !important;
-    transform: translateY(-1px);
-  }
-
-  /* CORRECTION: Améliorer le padding pour mobile */
-  .main-content {
-    padding-bottom: 85px; /* Augmenter pour mobile */
-  }
-
-  /* Navigation plus stable */
-  .fixed-navigation {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 9999;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-top: 1px solid hsl(var(--border));
-    box-shadow: 0 -4px 20px -2px hsl(210 40% 8% / 0.15);
-  }
-
-  /* Responsive pour mobile */
-  @media (max-width: 768px) {
-    .fixed-navigation {
-      padding: 8px 16px;
-    }
-    
-    .main-content {
-      padding-bottom: 90px; /* Plus d'espace sur mobile */
-    }
-  }
-
-  /* CORRECTION: S'assurer que les cartes flottantes ne passent pas sous la navigation */
-  .floating-card {
-    max-height: calc(100vh - 200px);
-    overflow-y: auto;
-  }
-
-  .floating-filters {
-    bottom: 95px; /* Positionnement au-dessus de la navigation améliorée */
-  }
-
-  /* Optimisation images */
-  img {
-    loading: lazy;
-  }
-
-  /* Avatar optimisés */
-  .avatar-img {
-    object-fit: cover;
-    aspect-ratio: 1;
-  }
-
-  /* Focus visible pour navigation clavier */
-  button:focus-visible,
-  input:focus-visible,
-  select:focus-visible {
-    outline: 2px solid hsl(var(--primary));
-    outline-offset: 2px;
-  }
-
-  /* Amélioration pour les écrans très petits */
-  @media (max-height: 600px) {
-    .floating-card {
-      max-height: calc(100vh - 140px);
-    }
-    
-    .floating-filters {
-      bottom: 70px;
-    }
   }
 }

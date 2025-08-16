@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone } from "lucide-react";
 
@@ -18,7 +18,6 @@ const Auth = () => {
   const { toast } = useToast();
   
   const returnTo = searchParams.get('returnTo') || '/map';
-  const mode = searchParams.get('mode') || 'signin';
 
   // Redirect authenticated users
   useEffect(() => {
@@ -106,7 +105,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-sport flex items-center justify-center p-4 main-content">
+    <div className="min-h-screen bg-gradient-sport flex items-center justify-center p-4 pb-20">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-sport-black">MeetRun</CardTitle>
@@ -115,7 +114,7 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         
-        <Tabs defaultValue={mode} className="w-full">
+        <Tabs defaultValue="signin" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mx-6">
             <TabsTrigger value="signin">Connexion</TabsTrigger>
             <TabsTrigger value="signup">Inscription</TabsTrigger>

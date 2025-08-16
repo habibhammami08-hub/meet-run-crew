@@ -17,10 +17,10 @@ export interface UseGeolocationReturn {
   hasAsked: boolean;
 }
 
-// CORRECTION: Par défaut sur Paris au lieu de Wellington  
+// CORRECTION: Par défaut sur Marseille au lieu de Wellington
 const DEFAULT_COORDS = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
+  latitude: 43.2965, // Marseille
+  longitude: 5.3698,
   accuracy: 10000 // Précision faible pour indiquer que c'est une position par défaut
 };
 
@@ -30,144 +30,102 @@ export const useGeolocation = (): UseGeolocationReturn => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasAsked, setHasAsked] = useState(false);
-  const [watchId, setWatchId] = useState<number | null>(null);
 
-  // CORRECTION: Check permission status avec gestion d'erreur
+  // Check permission status
   const checkPermission = useCallback(async () => {
-    if (!('permissions' in navigator)) {
-      console.log('Permission API not supported');
-      return;
-    }
+    if (!('permissions' in navigator)) return;
     
     try {
       const result = await navigator.permissions.query({ name: 'geolocation' });
       setPermission(result.state as GeolocationPermission);
       
-      const handlePermissionChange = () => {
+      result.addEventListener('change', () => {
         setPermission(result.state as GeolocationPermission);
-      };
-      
-      result.addEventListener('change', handlePermissionChange);
-      
-      // Cleanup function
-      return () => {
-        result.removeEventListener('change', handlePermissionChange);
-      };
+      });
     } catch (err) {
-      console.log('Permission API error:', err);
+      console.log('Permission API not supported');
     }
   }, []);
 
-  // CORRECTION: Fonction pour arrêter le watching
-  const stopWatching = useCallback(() => {
-    if (watchId !== null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchId);
-      setWatchId(null);
-    }
-  }, [watchId]);
-
-  // CORRECTION: Request geolocation avec options améliorées et validation
+  // CORRECTION: Request geolocation automatiquement au démarrage
   const requestLocation = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      const errorMsg = 'La géolocalisation n\'est pas supportée par ce navigateur';
-      setError(errorMsg);
+      setError('La géolocalisation n\'est pas supportée par ce navigateur');
       setPosition(DEFAULT_COORDS);
       setPermission('denied');
       return;
     }
 
-    // Arrêter le watching précédent s'il existe
-    stopWatching();
-
     setIsLoading(true);
     setError(null);
     setHasAsked(true);
 
-    const options: PositionOptions = {
-      enableHighAccuracy: false, // CORRECTION: Plus conservateur pour la stabilité
-      timeout: 15000, // 15 secondes
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 15000, // Timeout plus long
       maximumAge: 300000 // Cache 5 minutes
     };
 
-    const handleSuccess = (pos: globalThis.GeolocationPosition) => {
-      const newPosition = {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: pos.coords.accuracy
-      };
-      
-      // CORRECTION: Validation des coordonnées reçues
-      if (!Number.isFinite(newPosition.latitude) || 
-          !Number.isFinite(newPosition.longitude) ||
-          Math.abs(newPosition.latitude) > 90 ||
-          Math.abs(newPosition.longitude) > 180) {
-        console.error('[geolocation] Coordonnées invalides:', newPosition);
-        setError('Coordonnées invalides reçues');
-        setPosition(DEFAULT_COORDS);
-        setPermission('denied');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const newPosition = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy
+        };
+        
+        console.log('[geolocation] Position obtenue:', newPosition);
+        setPosition(newPosition);
+        setPermission('granted');
         setIsLoading(false);
-        return;
-      }
-      
-      console.log('[geolocation] Position obtenue:', newPosition);
-      setPosition(newPosition);
-      setPermission('granted');
-      setIsLoading(false);
-      setError(null);
-    };
+        setError(null);
+      },
+      (err) => {
+        let errorMessage = '';
+        
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            errorMessage = 'Géolocalisation refusée par l\'utilisateur';
+            setPermission('denied');
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errorMessage = 'Position indisponible';
+            setPermission('denied');
+            break;
+          case err.TIMEOUT:
+            errorMessage = 'Délai dépassé pour obtenir la position';
+            setPermission('denied');
+            break;
+          default:
+            errorMessage = 'Erreur de géolocalisation inconnue';
+            setPermission('denied');
+            break;
+        }
+        
+        console.log('[geolocation] Erreur:', errorMessage);
+        setError(errorMessage);
+        setIsLoading(false);
+        
+        // CORRECTION: Utiliser la position par défaut en cas d'erreur
+        setPosition(DEFAULT_COORDS);
+      },
+      options
+    );
+  }, []);
 
-    const handleError = (err: GeolocationPositionError) => {
-      let errorMessage = '';
-      
-      switch (err.code) {
-        case err.PERMISSION_DENIED:
-          errorMessage = 'Géolocalisation refusée par l\'utilisateur';
-          setPermission('denied');
-          break;
-        case err.POSITION_UNAVAILABLE:
-          errorMessage = 'Position indisponible';
-          setPermission('denied');
-          break;
-        case err.TIMEOUT:
-          errorMessage = 'Délai dépassé pour obtenir la position';
-          // Ne pas changer la permission pour timeout
-          break;
-        default:
-          errorMessage = 'Erreur de géolocalisation inconnue';
-          setPermission('denied');
-          break;
-      }
-      
-      console.log('[geolocation] Erreur:', errorMessage, err);
-      setError(errorMessage);
-      setIsLoading(false);
-      
-      // CORRECTION: Utiliser la position par défaut en cas d'erreur
-      setPosition(DEFAULT_COORDS);
-    };
-
-    // CORRECTION: Utiliser getCurrentPosition au lieu de watchPosition pour plus de stabilité
-    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, options);
-  }, [stopWatching]);
-
-  // CORRECTION: Initialisation et nettoyage
+  // CORRECTION: Demander automatiquement la géolocalisation au premier rendu
   useEffect(() => {
     checkPermission();
     
-    // CORRECTION: Ne pas faire de request automatique au montage
-    // L'utilisateur doit explicitement demander la géolocalisation
-    
-    return () => {
-      stopWatching();
-    };
-  }, [checkPermission, stopWatching]);
+    // Demander la géolocalisation automatiquement après un court délai
+    const timer = setTimeout(() => {
+      if (!hasAsked && !position) {
+        requestLocation();
+      }
+    }, 1000);
 
-  // CORRECTION: Nettoyer le watching quand le composant se démonte
-  useEffect(() => {
-    return () => {
-      stopWatching();
-    };
-  }, [stopWatching]);
+    return () => clearTimeout(timer);
+  }, [checkPermission, requestLocation, hasAsked, position]);
 
   return {
     position,
