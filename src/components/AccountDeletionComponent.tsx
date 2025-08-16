@@ -35,7 +35,7 @@ const AccountDeletionComponent: React.FC = () => {
           title: "Compte supprimé", 
           description: "Votre compte et vos données ont été supprimés." 
         });
-        window.location.replace("/goodbye");
+        window.location.replace("/account-deleted");
       } else {
         toast({ 
           title: "Erreur", 

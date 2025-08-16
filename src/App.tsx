@@ -21,6 +21,7 @@ const Subscription = lazy(() => import("./pages/Subscription"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCancel = lazy(() => import("./pages/SubscriptionCancel"));
 const Goodbye = lazy(() => import("./pages/Goodbye"));
+const AccountDeleted = lazy(() => import("./pages/AccountDeleted"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading component
@@ -69,6 +70,7 @@ const App = () => {
                     <Route path="/subscription/success" element={<SubscriptionSuccess />} />
                     <Route path="/subscription/cancel" element={<SubscriptionCancel />} />
                     <Route path="/goodbye" element={<Goodbye />} />
+                    <Route path="/account-deleted" element={<AccountDeleted />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
