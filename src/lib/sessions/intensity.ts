@@ -1,9 +1,10 @@
 export type DbIntensity = 'low' | 'medium' | 'high';
 
 export function uiToDbIntensity(label: string): DbIntensity {
-  switch (label) {
+  switch ((label || '').toLowerCase()) {
     case 'marche': return 'low';
-    case 'course modérée': return 'medium';
+    case 'course modérée':
+    case 'course modere': return 'medium';
     case 'course intensive': return 'high';
     default: return 'medium';
   }

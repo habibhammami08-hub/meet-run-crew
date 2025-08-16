@@ -232,7 +232,7 @@ export default function CreateRun() {
         start_place: startAddr, 
         end_place: endAddr,
         intensity: uiToDbIntensity(formData.intensity),
-        session_type: formData.session_type,
+        session_type: ["mixed","women","men"].includes(formData.session_type) ? formData.session_type : "mixed",
         max_participants: Number(formData.max_participants) || 10,
         status: "published",
       };
@@ -431,8 +431,8 @@ export default function CreateRun() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="mixed">Mixte</SelectItem>
-                        <SelectItem value="men_only">Hommes uniquement</SelectItem>
-                        <SelectItem value="women_only">Femmes uniquement</SelectItem>
+                        <SelectItem value="men">Hommes uniquement</SelectItem>
+                        <SelectItem value="women">Femmes uniquement</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
