@@ -1,19 +1,19 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-/** True si les variables sont présentes au build */
-export const ENV_READY = Boolean(URL && ANON);
-
-/** Client lazy (n'instancie que si OK) */
 let _client: SupabaseClient<Database> | null = null;
 
 export function getSupabase(): SupabaseClient<Database> | null {
-  if (!ENV_READY) return null;
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  
+  if (!url || !anon) {
+    console.error('Missing Supabase environment variables: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY');
+    return null;
+  }
+  
   if (!_client) {
-    _client = createClient<Database>(URL!, ANON!, {
+    _client = createClient<Database>(url, anon, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -27,11 +27,15 @@ export function getSupabase(): SupabaseClient<Database> | null {
       },
     });
   }
+  
   return _client;
 }
 
 // Export par défaut pour la compatibilité
 export const supabase = getSupabase();
+
+// Environment check utility
+export const ENV_READY = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 // Connection check utility
 export const checkSupabaseConnection = async (): Promise<boolean> => {
