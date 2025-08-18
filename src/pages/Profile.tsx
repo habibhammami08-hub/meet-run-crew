@@ -52,19 +52,16 @@ export default function ProfilePage() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("id, full_name, age, city, sport_level, avatar_url, sessions_hosted, sessions_joined, total_km, total_distance_hosted_km")
+          .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
           .eq("id", user.id)
           .single();
 
         if (!error && data) {
-          setProfile({
-            ...data,
-            sport_level: (data.sport_level as any) || null
-          });
+          setProfile(data);
           setFullName(data.full_name || "");
           setAge(data.age ?? "");
           setCity(data.city || "");
-          setSportLevel((data.sport_level as any) || "Occasionnel");
+          setSportLevel("Occasionnel"); // Default value since sport_level no longer exists
         }
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -113,7 +110,7 @@ export default function ProfilePage() {
           full_name: fullName,
           age: age === "" ? null : Number(age),
           city,
-          sport_level: sportLevel,
+          // sport_level removed from new schema
           avatar_url: avatarUrl,
         })
         .eq("id", user.id);
@@ -132,7 +129,7 @@ export default function ProfilePage() {
         full_name: fullName,
         age: age === "" ? null : Number(age),
         city,
-        sport_level: sportLevel,
+        // sport_level removed from new schema
         avatar_url: avatarUrl,
       });
       
@@ -210,8 +207,8 @@ export default function ProfilePage() {
               <div className="text-xl font-bold text-primary">{profile.sessions_joined || 0}</div>
             </div>
             <div>
-              <div className="text-muted-foreground">Km organisés</div>
-              <div className="text-xl font-bold text-primary">{(profile.total_distance_hosted_km || 0).toFixed(1)} km</div>
+              <div className="text-muted-foreground">Total km</div>
+              <div className="text-xl font-bold text-primary">{(profile.total_km || 0).toFixed(1)} km</div>
             </div>
             <div>
               <div className="text-muted-foreground">Km parcourus</div>
@@ -246,7 +243,7 @@ export default function ProfilePage() {
                 {profile.city || "Ville inconnue"}
               </p>
               <p className="text-muted-foreground">
-                Niveau : {profile.sport_level || "Occasionnel"}
+                Niveau : Occasionnel
               </p>
             </div>
           </div>
@@ -328,7 +325,7 @@ export default function ProfilePage() {
                     setFullName(profile.full_name || "");
                     setAge(profile.age ?? "");
                     setCity(profile.city || "");
-                    setSportLevel((profile.sport_level as any) || "Occasionnel");
+                    setSportLevel("Occasionnel");
                   }}
                 >
                   Annuler
