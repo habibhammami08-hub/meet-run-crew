@@ -2,6 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { LocationInput } from "@/components/ui/location-input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Users, Zap, Timer, Route, Calendar } from "lucide-react";
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -18,12 +27,13 @@ export default function CreateRun() {
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [dateTime, setDateTime] = useState("");
   const [intensityState, setIntensityState] = useState("course modérée");
   const [sessionTypeState, setSessionTypeState] = useState<"mixed"|"women"|"men">("mixed");
   const [maxParticipantsState, setMaxParticipantsState] = useState<number>(10);
-  const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -61,9 +71,20 @@ export default function CreateRun() {
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
     const lat = e.latLng?.lat(), lng = e.latLng?.lng();
     if (lat == null || lng == null) return;
-    if (!start) setStart({ lat, lng });
-    else if (!end) setEnd({ lat, lng });
-    else setWaypoints(prev => [...prev, { lat, lng }]);
+    
+    if (isSelectingLocation === "start") {
+      setStart({ lat, lng });
+      setIsSelectingLocation(null);
+    } else if (isSelectingLocation === "end") {
+      setEnd({ lat, lng });
+      setIsSelectingLocation(null);
+    } else if (!start) {
+      setStart({ lat, lng });
+    } else if (!end) {
+      setEnd({ lat, lng });
+    } else {
+      setWaypoints(prev => [...prev, { lat, lng }]);
+    }
   };
 
   async function calcRoute(origin?: Pt | null, dest?: Pt | null, wps?: Pt[]) {
@@ -201,7 +222,7 @@ export default function CreateRun() {
       alert("Session créée 🎉 ID: " + data.id);
       // Reset + retour carte
       setStart(null); setEnd(null); setWaypoints([]); setDirResult(null);
-      setTitle(""); setDateTime(""); setIntensityState("course modérée"); setSessionTypeState("mixed"); setMaxParticipantsState(10); setDescription("");
+      setTitle(""); setDescription(""); setDateTime(""); setIntensityState("course modérée"); setSessionTypeState("mixed"); setMaxParticipantsState(10);
       if (typeof window !== "undefined") window.location.assign("/");
     } catch (e: any) {
       console.error("[create] fatal", e);
@@ -222,103 +243,367 @@ export default function CreateRun() {
   }
 
   return (
-    <div className="p-4 space-y-6">
-      {/* Formulaire */}
-      <div className="rounded-2xl border shadow-sm p-4">
-        <h1 className="text-xl font-semibold mb-2">Créer une session</h1>
-        <p className="text-sm text-muted-foreground mb-4">
-          Cliquez sur la carte pour placer le <b>départ</b>, puis l'<b>arrivée</b>, et ajoutez des points intermédiaires si besoin.
-        </p>
-
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">Titre</label>
-            <input className="w-full rounded-xl border px-3 py-2" value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="Sortie running du matin" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Date & heure</label>
-            <input className="w-full rounded-xl border px-3 py-2" type="datetime-local" value={dateTime} onChange={(e)=>setDateTime(e.target.value)} />
-          </div>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 max-w-4xl">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent mb-3">
+            Créer une nouvelle session
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            Organisez votre prochaine sortie running en quelques clics
+          </p>
         </div>
-      </div>
 
-      {/* Carte - placée après date/heure sur mobile */}
-      <div className="rounded-2xl overflow-hidden border shadow-sm">
-        <GoogleMap
-          mapContainerStyle={mapContainerStyle}
-          zoom={13}
-          center={start ?? center}
-          options={{ mapTypeControl:false, streetViewControl:false, fullscreenControl:false }}
-          onClick={handleMapClick}
-        >
-          {start && <MarkerF position={start} />}
-          {end && <MarkerF position={end} />}
-          {start && end && dirResult && (
-            <DirectionsRenderer
-              directions={dirResult}
-              options={{ draggable: true, suppressMarkers: true }}
-              onDirectionsChanged={() => {
-                console.log("[directions] Route changed via drag");
-              }}
-            />
-          )}
-        </GoogleMap>
-      </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Formulaire principal */}
+          <div className="space-y-6">
+            {/* Informations générales */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Informations générales
+                </CardTitle>
+                <CardDescription>
+                  Définissez les détails de votre session
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Titre de la session *
+                  </label>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="ex: Course matinale au parc"
+                    className="h-12 text-base"
+                  />
+                </div>
 
-      {/* Suite du formulaire */}
-      <div className="rounded-2xl border shadow-sm p-4">
-        <div className="grid grid-cols-1 gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Intensité</label>
-              <select className="w-full rounded-xl border px-3 py-2" value={intensityState} onChange={(e)=>setIntensityState(e.target.value)}>
-                <option>marche</option>
-                <option>course modérée</option>
-                <option>course intensive</option>
-              </select>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Description
+                  </label>
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
+                    className="min-h-[100px] text-base"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Date et heure *
+                  </label>
+                  <DateTimePicker
+                    value={dateTime}
+                    onChange={setDateTime}
+                    placeholder="Choisir la date et l'heure"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Parcours */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Route className="h-5 w-5 text-primary" />
+                  Définir le parcours
+                </CardTitle>
+                <CardDescription>
+                  {isSelectingLocation 
+                    ? `Cliquez sur la carte pour placer le point ${isSelectingLocation === 'start' ? 'de départ' : "d'arrivée"}`
+                    : "Sélectionnez vos points de départ et d'arrivée"
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Point de départ *
+                  </label>
+                  <LocationInput
+                    value={start}
+                    onChange={setStart}
+                    placeholder="Saisissez l'adresse de départ"
+                    icon="start"
+                    onMapSelect={() => setIsSelectingLocation("start")}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Point d'arrivée *
+                  </label>
+                  <LocationInput
+                    value={end}
+                    onChange={setEnd}
+                    placeholder="Saisissez l'adresse d'arrivée"
+                    icon="end"
+                    onMapSelect={() => setIsSelectingLocation("end")}
+                  />
+                </div>
+
+                {distanceKm && (
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="text-sm">
+                      Distance calculée: <strong>{distanceKm.toFixed(2)} km</strong>
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Paramètres */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  Paramètres de la session
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Intensité
+                    </label>
+                    <Select value={intensityState} onValueChange={setIntensityState}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="marche">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">Facile</Badge>
+                            Marche
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="course modérée">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Modéré</Badge>
+                            Course modérée
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="course intensive">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-red-100 text-red-800">Intense</Badge>
+                            Course intensive
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Type de session
+                    </label>
+                    <Select value={sessionTypeState} onValueChange={(value: any) => setSessionTypeState(value)}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mixed">Mixte</SelectItem>
+                        <SelectItem value="women">Femmes uniquement</SelectItem>
+                        <SelectItem value="men">Hommes uniquement</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Nombre maximum de participants
+                  </label>
+                  <Input
+                    type="number"
+                    min={3}
+                    max={20}
+                    value={maxParticipantsState}
+                    onChange={(e) => setMaxParticipantsState(Number(e.target.value || 10))}
+                    className="h-12"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Actions */}
+            <div className="space-y-4">
+              {waypoints.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setWaypoints([]);
+                    if (start && end) calcRoute(start, end, []);
+                  }}
+                  className="w-full"
+                >
+                  Supprimer les points intermédiaires ({waypoints.length})
+                </Button>
+              )}
+
+              <Button
+                type="button"
+                onClick={onSubmit}
+                disabled={!!disabledReason()}
+                className="w-full h-12 text-base font-medium gradient-primary"
+                size="lg"
+              >
+                {isSaving ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                    Création en cours...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Timer className="h-4 w-4" />
+                    Créer la session
+                  </div>
+                )}
+              </Button>
+
+              {!!disabledReason() && (
+                <p className="text-sm text-muted-foreground text-center bg-muted/50 p-3 rounded-lg">
+                  {disabledReason()}
+                </p>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Type de session</label>
-              <select className="w-full rounded-xl border px-3 py-2" value={sessionTypeState} onChange={(e)=>setSessionTypeState(e.target.value as any)}>
-                <option value="mixed">mixte</option>
-                <option value="women">femmes</option>
-                <option value="men">hommes</option>
-              </select>
-            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Participants max</label>
-            <input className="w-full rounded-xl border px-3 py-2" type="number" min={3} max={20} value={maxParticipantsState}
-              onChange={(e)=>setMaxParticipantsState(Number(e.target.value || 10))} />
+          {/* Carte interactive */}
+          <div className="lg:sticky lg:top-6">
+            <Card className="shadow-card overflow-hidden">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-primary" />
+                  Carte interactive
+                </CardTitle>
+                <CardDescription>
+                  {isSelectingLocation 
+                    ? `Mode sélection: ${isSelectingLocation === 'start' ? 'Point de départ' : "Point d'arrivée"}`
+                    : "Cliquez pour ajouter des points intermédiaires"
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="relative">
+                  <GoogleMap
+                    mapContainerStyle={{ width: "100%", height: "500px" }}
+                    zoom={13}
+                    center={start ?? center}
+                    options={{ 
+                      mapTypeControl: false, 
+                      streetViewControl: false, 
+                      fullscreenControl: false,
+                      styles: [
+                        {
+                          featureType: "poi",
+                          elementType: "labels",
+                          stylers: [{ visibility: "off" }]
+                        }
+                      ]
+                    }}
+                    onClick={handleMapClick}
+                  >
+                    {start && (
+                      <MarkerF 
+                        position={start}
+                        icon={{
+                          url: "data:image/svg+xml;base64," + btoa(`
+                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/>
+                              <circle cx="16" cy="15" r="6" fill="white"/>
+                              <path d="M16 9L18 13H14L16 9Z" fill="#16a34a"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(32, 40),
+                          anchor: new google.maps.Point(16, 40)
+                        }}
+                      />
+                    )}
+                    {end && (
+                      <MarkerF 
+                        position={end}
+                        icon={{
+                          url: "data:image/svg+xml;base64," + btoa(`
+                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
+                              <circle cx="16" cy="15" r="6" fill="white"/>
+                              <circle cx="16" cy="15" r="3" fill="#dc2626"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(32, 40),
+                          anchor: new google.maps.Point(16, 40)
+                        }}
+                      />
+                    )}
+                    {waypoints.map((waypoint, index) => (
+                      <MarkerF 
+                        key={index}
+                        position={waypoint}
+                        icon={{
+                          url: "data:image/svg+xml;base64," + btoa(`
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="2"/>
+                              <circle cx="12" cy="12" r="4" fill="white"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(24, 24),
+                          anchor: new google.maps.Point(12, 12)
+                        }}
+                      />
+                    ))}
+                    {start && end && dirResult && (
+                      <DirectionsRenderer
+                        directions={dirResult}
+                        options={{ 
+                          draggable: true, 
+                          suppressMarkers: true,
+                          polylineOptions: {
+                            strokeColor: "#3b82f6",
+                            strokeWeight: 4,
+                            strokeOpacity: 0.8
+                          }
+                        }}
+                        onDirectionsChanged={() => {
+                          console.log("[directions] Route changed via drag");
+                        }}
+                      />
+                    )}
+                  </GoogleMap>
+                  
+                  {isSelectingLocation && (
+                    <div className="absolute top-4 left-4 right-4 bg-primary text-primary-foreground p-3 rounded-lg shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          {isSelectingLocation === 'start' 
+                            ? '📍 Cliquez pour placer le départ' 
+                            : '🏁 Cliquez pour placer l\'arrivée'
+                          }
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsSelectingLocation(null)}
+                          className="text-primary-foreground hover:bg-primary-foreground/20"
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Description (optionnel)</label>
-            <textarea className="w-full rounded-xl border px-3 py-2 min-h-[100px]" value={description}
-              onChange={(e)=>setDescription(e.target.value)} placeholder="Détails pratiques, niveau visé, équipements, etc." />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Distance: {distanceKm ? <b>{distanceKm.toFixed(2)} km</b> : "—"} (calculée depuis l'itinéraire)
-            </div>
-            <button type="button" className="rounded-xl px-4 py-2 border hover:bg-accent"
-              onClick={()=>{ setWaypoints([]); if (start && end) calcRoute(start, end, []); }}>
-              Réinitialiser waypoints
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="rounded-xl px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            disabled={!!disabledReason()}
-            onClick={onSubmit}
-          >
-            {isSaving ? "Enregistrement..." : "Créer la session"}
-          </button>
-          {!!disabledReason() && <p className="text-xs text-amber-600">⚠️ {disabledReason()}</p>}
         </div>
       </div>
     </div>
