@@ -16,19 +16,19 @@ export type Database = {
     Tables: {
       deleted_users: {
         Row: {
-          deleted_at: string
+          deleted_at: string | null
           deletion_reason: string | null
           email: string
           id: string
         }
         Insert: {
-          deleted_at?: string
+          deleted_at?: string | null
           deletion_reason?: string | null
           email: string
           id: string
         }
         Update: {
-          deleted_at?: string
+          deleted_at?: string | null
           deletion_reason?: string | null
           email?: string
           id?: string
@@ -45,7 +45,6 @@ export type Database = {
           status: string | null
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
-          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -57,7 +56,6 @@ export type Database = {
           status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
-          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -69,7 +67,6 @@ export type Database = {
           status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
-          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -107,14 +104,11 @@ export type Database = {
           gender: string | null
           id: string
           phone: string | null
-          role: string | null
           sessions_hosted: number | null
           sessions_joined: number | null
-          sport_level: string | null
           stripe_customer_id: string | null
           sub_current_period_end: string | null
           sub_status: string | null
-          total_distance_hosted_km: number | null
           total_km: number | null
           updated_at: string | null
         }
@@ -128,14 +122,11 @@ export type Database = {
           gender?: string | null
           id: string
           phone?: string | null
-          role?: string | null
           sessions_hosted?: number | null
           sessions_joined?: number | null
-          sport_level?: string | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
-          total_distance_hosted_km?: number | null
           total_km?: number | null
           updated_at?: string | null
         }
@@ -149,14 +140,11 @@ export type Database = {
           gender?: string | null
           id?: string
           phone?: string | null
-          role?: string | null
           sessions_hosted?: number | null
           sessions_joined?: number | null
-          sport_level?: string | null
           stripe_customer_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
-          total_distance_hosted_km?: number | null
           total_km?: number | null
           updated_at?: string | null
         }
@@ -168,6 +156,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           distance_km: number
+          duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
           end_place: string | null
@@ -196,6 +185,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           distance_km: number
+          duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
           end_place?: string | null
@@ -224,6 +214,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           distance_km?: number
+          duration_minutes?: number | null
           end_lat?: number | null
           end_lng?: number | null
           end_place?: string | null
@@ -257,68 +248,17 @@ export type Database = {
           },
         ]
       }
-      subscribers: {
-        Row: {
-          created_at: string | null
-          email: string
-          id: string
-          stripe_customer_id: string | null
-          subscribed: boolean | null
-          subscription_end: string | null
-          subscription_tier: string | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          email: string
-          id?: string
-          stripe_customer_id?: string | null
-          subscribed?: boolean | null
-          subscription_end?: string | null
-          subscription_tier?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          email?: string
-          id?: string
-          stripe_customer_id?: string | null
-          subscribed?: boolean | null
-          subscription_end?: string | null
-          subscription_tier?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscribers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
-      deletion_stats: {
-        Row: {
-          deleted_last_24h: number | null
-          deleted_last_30d: number | null
-          deleted_last_7d: number | null
-          total_deleted_users: number | null
-        }
-        Relationships: []
-      }
       sessions_with_details: {
         Row: {
           available_spots: number | null
+          blur_radius_m: number | null
           created_at: string | null
           current_enrollments: number | null
           description: string | null
           distance_km: number | null
+          duration_minutes: number | null
           end_lat: number | null
           end_lng: number | null
           end_place: string | null
@@ -356,25 +296,13 @@ export type Database = {
       }
     }
     Functions: {
-      app_delete_account: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      cleanup_old_deleted_users: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      get_available_spots: {
+        Args: { session_id: string }
+        Returns: number
       }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
-      }
-      is_user_deleted: {
-        Args: { check_email: string }
-        Returns: boolean
-      }
-      mark_enrollment_completed: {
-        Args: { p_session_id: string; p_user_id: string }
-        Returns: undefined
       }
     }
     Enums: {
