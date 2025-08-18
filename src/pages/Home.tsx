@@ -8,6 +8,8 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
+import { useSessionsRealtime, useEnrollmentsRealtime } from "@/hooks/useRealtime";
+import { logger } from "@/utils/logger";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -24,6 +26,33 @@ const Home = () => {
       fetchUserActivity();
     }
   }, [user]);
+
+  // Écouter les mises à jour de profil
+  useEffect(() => {
+    const handleProfileRefresh = () => {
+      if (user) {
+        fetchUserActivity();
+      }
+    };
+
+    window.addEventListener('profileRefresh', handleProfileRefresh);
+    return () => window.removeEventListener('profileRefresh', handleProfileRefresh);
+  }, [user]);
+
+  // Mise à jour temps réel des sessions et inscriptions
+  useSessionsRealtime((payload) => {
+    logger.debug('[Home] Session realtime update:', payload);
+    if (user) {
+      fetchUserActivity();
+    }
+  });
+
+  useEnrollmentsRealtime(user?.id, (payload) => {
+    logger.debug('[Home] Enrollment realtime update:', payload);
+    if (user) {
+      fetchUserActivity();
+    }
+  });
 
   const fetchUserActivity = async () => {
     if (!user) return;

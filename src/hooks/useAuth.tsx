@@ -156,10 +156,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Fonction pour rafraîchir l'abonnement
+  // Fonction pour rafraîchir l'abonnement et le profil
   const refreshSubscription = useCallback(async () => {
     if (user) {
       await fetchSubscriptionStatus(user.id);
+      // Également déclencher un refresh du profil si d'autres composants l'écoutent
+      window.dispatchEvent(new CustomEvent('profileRefresh', { detail: { userId: user.id } }));
     }
   }, [user, fetchSubscriptionStatus]);
 
