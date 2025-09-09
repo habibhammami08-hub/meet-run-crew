@@ -269,7 +269,7 @@ const SessionDetails = () => {
                     {hasActiveSubscription ? (
                       <>Inclus avec l'abonnement</>
                     ) : (
-                      <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+                      <>4,50 € <span className="text-muted-foreground">(inclus avec l'abonnement)</span></>
                     )}
                   </div>
                 </div>
@@ -329,7 +329,6 @@ const SessionDetails = () => {
                         <div className="space-y-2">
                           <div className="text-sm font-medium text-center">Abonnement</div>
                           <Button 
-                            variant="outline" 
                             size="lg" 
                             className="w-full"
                             onClick={() => {
@@ -400,7 +399,7 @@ const SessionDetails = () => {
                   <span className="font-medium">Départ:</span>
                   {canSeeExactLocation 
                     ? session.location_hint || session.start_place || "Coordonnées exactes disponibles"
-                    : `Zone approximative (${session.blur_radius_m || 1000}m) - Abonnez-vous pour voir le lieu exact`
+                    : `${session.start_place || session.location_hint || "Zone"} (approximatif ${session.blur_radius_m || 1000}m) - Abonnez-vous pour voir le lieu exact`
                   }
                 </div>
                 {(session.end_lat && session.end_lng) && (
