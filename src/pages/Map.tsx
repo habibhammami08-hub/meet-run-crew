@@ -77,12 +77,29 @@ function MapPageInner() {
   // Mémoriser l'icône pour éviter les re-créations
   const customIcon = useMemo(() => createCustomMarkerIcon(hasSub), [hasSub]);
 
-  // Geoloc initiale  
+  // Geoloc initiale avec options mobiles optimisées
   useEffect(() => {  
     if (navigator.geolocation) {  
-      navigator.geolocation.getCurrentPosition(p => {  
-        setCenter({ lat: p.coords.latitude, lng: p.coords.longitude });  
-      });  
+      console.log("[map] Requesting user location for mobile...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userPos = { 
+            lat: position.coords.latitude, 
+            lng: position.coords.longitude 
+          };
+          console.log("[map] User location found:", userPos);
+          setCenter(userPos);
+        },
+        (error) => {
+          console.warn("[map] Geolocation error:", error);
+          // Garder Paris par défaut si erreur
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 minutes
+        }
+      );  
     }  
   }, []);
 
@@ -172,7 +189,11 @@ function MapPageInner() {
     };  
   }, []);
 
-  const mapContainerStyle = useMemo(() => ({ width: "100%", height: "calc(100vh - 120px)" }), []);  
+  const mapContainerStyle = useMemo(() => ({ 
+    width: "100%", 
+    height: "calc(100vh - 120px)",
+    touchAction: "pan-x pan-y" // Permet le déplacement avec un doigt
+  }), []);
   const pathFromPolyline = (p?: string | null): LatLng[] => {  
     if (!p) return [];  
     try { return polyline.decode(p).map(([lat, lng]) => ({ lat, lng })); } catch { return []; }  
@@ -189,13 +210,30 @@ function MapPageInner() {
         )}  
       </div>
 
-      <div className="rounded-2xl overflow-hidden border mx-4">  
+      <div className="rounded-2xl overflow-hidden border mx-4" style={{ touchAction: "pan-x pan-y" }}>  
         <GoogleMap  
           mapContainerStyle={mapContainerStyle}  
           center={center}  
           zoom={12}  
-          options={{ mapTypeControl:false, streetViewControl:false, fullscreenControl:false }}  
-        >  
+          options={{ 
+            mapTypeControl: false, 
+            streetViewControl: false, 
+            fullscreenControl: false,
+            // Options mobiles optimisées
+            gestureHandling: "greedy", // Permet navigation avec 1 doigt
+            zoomControl: true,
+            scaleControl: true,
+            rotateControl: false,
+            // Style mobile-friendly
+            styles: [
+              {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [{ visibility: "off" }] // Masque les POI pour une carte plus claire
+              }
+            ]
+          }}  
+        >
             {sessions.map(s => {  
               console.log("[map] Rendering session marker:", s.id, s.title);
               const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
