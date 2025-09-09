@@ -5,6 +5,7 @@ import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
 import { MapErrorBoundary } from "@/components/MapErrorBoundary"; // Ajout du boundary
+import { MapPin } from "lucide-react";
 
 type LatLng = { lat: number; lng: number; };  
 type SessionRow = {  
@@ -46,6 +47,30 @@ function MapPageInner() {
   const [hasSub, setHasSub] = useState<boolean>(false);  
   const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<string | null>(null);
+
+  // Créer une icône personnalisée moderne pour les marqueurs
+  const createCustomMarkerIcon = (isSubscribed: boolean) => {
+    const size = 40;
+    const color = isSubscribed ? '#059669' : '#10b981'; // Vert plus foncé pour abonnés, plus clair pour non-abonnés
+    const iconColor = 'white';
+    
+    // Créer un SVG avec icône de course
+    const svg = `
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="3" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.3))"/>
+        <g transform="translate(${size/2-8}, ${size/2-8})">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="10" r="3" fill="none" stroke="${iconColor}" stroke-width="2"/>
+        </g>
+      </svg>
+    `;
+    
+    return {
+      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(size, size),
+      anchor: new google.maps.Point(size/2, size/2),
+    };
+  };
 
   // Geoloc initiale  
   useEffect(() => {  
@@ -178,14 +203,23 @@ function MapPageInner() {
                 <div key={s.id}>  
                   <MarkerF   
                     position={startShown}   
-                    title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}  
+                    title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
+                    icon={createCustomMarkerIcon(hasSub)}
                     onClick={() => {
                       console.log("[map] Marker clicked:", s.id);
                       navigate(`/session/${s.id}`);
                     }}  
                   />  
                 {showPolyline && path.length > 1 && (  
-                  <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />  
+                  <Polyline 
+                    path={path} 
+                    options={{ 
+                      clickable: false, 
+                      strokeOpacity: 0.9, 
+                      strokeWeight: 4,
+                      strokeColor: '#059669' // Couleur verte MeetRun
+                    }} 
+                  />  
                 )}  
               </div>  
             );  
