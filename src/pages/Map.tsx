@@ -50,27 +50,33 @@ function MapPageInner() {
 
   // Créer une icône personnalisée moderne pour les marqueurs
   const createCustomMarkerIcon = (isSubscribed: boolean) => {
-    const size = 40;
-    const color = isSubscribed ? '#059669' : '#10b981'; // Vert plus foncé pour abonnés, plus clair pour non-abonnés
-    const iconColor = 'white';
+    const size = 24;
+    const color = isSubscribed ? '#059669' : '#10b981';
     
-    // Créer un SVG avec icône de course
-    const svg = `
-      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="3" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.3))"/>
-        <g transform="translate(${size/2-8}, ${size/2-8})">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="12" cy="10" r="3" fill="none" stroke="${iconColor}" stroke-width="2"/>
-        </g>
-      </svg>
-    `;
+    // SVG ultra-simple
+    const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="white" stroke-width="2"/>
+      <circle cx="${size/2}" cy="${size/2}" r="3" fill="white"/>
+    </svg>`;
     
-    return {
-      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-      scaledSize: new google.maps.Size(size, size),
-      anchor: new google.maps.Point(size/2, size/2),
-    };
+    console.log("[map] Creating custom icon, color:", color);
+    
+    if (typeof window !== 'undefined' && window.google) {
+      return {
+        url: 'data:image/svg+xml,' + encodeURIComponent(svg),
+        scaledSize: new window.google.maps.Size(size, size),
+        anchor: new window.google.maps.Point(size/2, size/2),
+      };
+    } else {
+      // Fallback simple pour le développement
+      return {
+        url: 'data:image/svg+xml,' + encodeURIComponent(svg),
+      };
+    }
   };
+
+  // Mémoriser l'icône pour éviter les re-créations
+  const customIcon = useMemo(() => createCustomMarkerIcon(hasSub), [hasSub]);
 
   // Geoloc initiale  
   useEffect(() => {  
@@ -204,7 +210,7 @@ function MapPageInner() {
                   <MarkerF   
                     position={startShown}   
                     title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
-                    icon={createCustomMarkerIcon(hasSub)}
+                    icon={customIcon}
                     onClick={() => {
                       console.log("[map] Marker clicked:", s.id);
                       navigate(`/session/${s.id}`);
