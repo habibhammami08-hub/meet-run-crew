@@ -23,7 +23,6 @@ type Profile = {
 };
 
 export default function ProfilePage() {
-  const supabase = getSupabase();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -40,51 +39,67 @@ export default function ProfilePage() {
 
   useEffect(() => {
     (async () => {
-      if (!supabase) return;
+      const supabase = getSupabase();
+      if (!supabase) {
+        console.log("No supabase client");
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
+      console.log("Loading profile...");
       
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { 
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) { 
+          console.log("No authenticated user");
           setLoading(false); 
           return; 
         }
 
+        console.log("Fetching profile for user:", authUser.id);
         const { data, error } = await supabase
           .from("profiles")
           .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
-          .eq("id", user.id)
-          .single();
+          .eq("id", authUser.id)
+          .maybeSingle();
 
-        if (!error && data) {
+        if (error) {
+          console.error("Profile fetch error:", error);
+        } else if (data) {
+          console.log("Profile loaded:", data);
           setProfile(data);
           setFullName(data.full_name || "");
           setAge(data.age ?? "");
           setCity(data.city || "");
-          setSportLevel("Occasionnel"); // Default value since sport_level no longer exists
+          setSportLevel("Occasionnel");
+        } else {
+          console.log("No profile found for user");
         }
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
         setLoading(false);
+        console.log("Profile loading finished");
       }
     })();
-  }, [supabase]);
+  }, [user?.id]);
 
   async function handleSave() {
+    const supabase = getSupabase();
     if (!supabase || !profile) return;
     
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
 
       let avatarUrl = profile.avatar_url || null;
 
       // Upload avatar si nouveau fichier
       if (avatarFile) {
         const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `avatars/${user.id}/avatar.${ext}`;
+        const path = `avatars/${authUser.id}/avatar.${ext}`;
 
         // Upload avec upsert
         const { error: uploadError } = await supabase.storage
@@ -113,7 +128,7 @@ export default function ProfilePage() {
           // sport_level removed from new schema
           avatar_url: avatarUrl,
         })
-        .eq("id", user.id);
+        .eq("id", authUser.id);
 
       if (error) {
         toast({
