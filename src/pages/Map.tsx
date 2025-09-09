@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
-import MapErrorBoundary from "@/components/MapErrorBoundary"; // Ajout du boundary
+import { MapErrorBoundary } from "@/components/MapErrorBoundary"; // Ajout du boundary
 
 type LatLng = { lat: number; lng: number; };  
 type SessionRow = {  
