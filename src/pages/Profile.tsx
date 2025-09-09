@@ -8,6 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import AccountDeletionComponent from "@/components/AccountDeletionComponent";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, MapPin, Trash2, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 type Profile = {
   id: string;
@@ -22,13 +26,28 @@ type Profile = {
   total_distance_hosted_km?: number;
 };
 
+type Session = {
+  id: string;
+  title: string;
+  scheduled_at: string;
+  start_place?: string;
+  distance_km?: number;
+  intensity?: string;
+  max_participants: number;
+  current_participants: number;
+  status: string;
+};
+
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [mySessions, setMySessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   // form state
   const [fullName, setFullName] = useState("");
@@ -84,6 +103,105 @@ export default function ProfilePage() {
       }
     })();
   }, [user?.id]);
+
+  const fetchMySessions = async () => {
+    const supabase = getSupabase();
+    if (!supabase || !user) return;
+
+    try {
+      console.log("[Profile] Fetching user's sessions...");
+      const { data: sessions, error } = await supabase
+        .from('sessions')
+        .select(`
+          id,
+          title,
+          scheduled_at,
+          start_place,
+          distance_km,
+          intensity,
+          max_participants,
+          status
+        `)
+        .eq('host_id', user.id)
+        .order('scheduled_at', { ascending: false });
+
+      if (error) {
+        console.error('[Profile] Error fetching sessions:', error);
+        return;
+      }
+
+      // Get participant counts for each session
+      const sessionsWithCounts = await Promise.all(
+        (sessions || []).map(async (session) => {
+          const { count } = await supabase
+            .from('enrollments')
+            .select('*', { count: 'exact' })
+            .eq('session_id', session.id)
+            .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+
+          return {
+            ...session,
+            current_participants: (count || 0) + 1 // +1 pour l'organisateur
+          };
+        })
+      );
+
+      console.log("[Profile] User sessions loaded:", sessionsWithCounts);
+      setMySessions(sessionsWithCounts);
+    } catch (error) {
+      console.error('[Profile] Error fetching sessions:', error);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    setDeletingSession(sessionId);
+    try {
+      console.log("[Profile] Deleting session:", sessionId);
+      
+      // Delete enrollments first
+      const { error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('session_id', sessionId);
+
+      if (enrollmentsError) {
+        console.error('[Profile] Error deleting enrollments:', enrollmentsError);
+        throw enrollmentsError;
+      }
+
+      // Then delete the session
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId)
+        .eq('host_id', user?.id); // Security: only delete own sessions
+
+      if (sessionError) {
+        console.error('[Profile] Error deleting session:', sessionError);
+        throw sessionError;
+      }
+
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès."
+      });
+
+      // Refresh sessions list
+      await fetchMySessions();
+    } catch (error: any) {
+      console.error('[Profile] Delete error:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la session: " + error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingSession(null);
+    }
+  };
 
   async function handleSave() {
     const supabase = getSupabase();
@@ -351,6 +469,115 @@ export default function ProfilePage() {
             <Button onClick={() => setEditing(true)}>
               Modifier mon profil
             </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mes sessions organisées */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Mes sessions organisées</h2>
+          {mySessions.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">Aucune session créée</p>
+              <Button onClick={() => navigate('/create')}>
+                Créer ma première session
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {mySessions.map((session) => (
+                <div key={session.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold">{session.title}</h3>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+                        <span className="flex items-center gap-1">
+                          <Calendar size={14} />
+                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        {session.start_place && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={14} />
+                            {session.start_place}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Users size={14} />
+                          {session.current_participants}/{session.max_participants}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
+                        {session.status === 'published' ? 'Publiée' : session.status}
+                      </Badge>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={deletingSession === session.id}
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Êtes-vous sûr de vouloir supprimer "{session.title}" ? 
+                              Cette action est irréversible et tous les participants inscrits seront automatiquement désinscrits.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteSession(session.id)}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Supprimer
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 flex-wrap">
+                    {session.distance_km && (
+                      <Badge variant="secondary">{session.distance_km} km</Badge>
+                    )}
+                    {session.intensity && (
+                      <Badge variant="outline">{session.intensity}</Badge>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/session/${session.id}`)}
+                    >
+                      Voir détails
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/session/${session.id}/edit`)}
+                    >
+                      Modifier
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

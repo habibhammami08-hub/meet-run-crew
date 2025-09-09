@@ -1,22 +1,25 @@
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { MapPin, Calendar, Clock, Users, Share2 } from "lucide-react";
+import { MapPin, Calendar, Clock, Users, Share2, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import StripeBuyButton from "@/components/StripeBuyButton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const SessionDetails = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [session, setSession] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   
@@ -148,6 +151,55 @@ const SessionDetails = () => {
     }
   };
 
+  const handleDeleteSession = async () => {
+    if (!session || !user || session.host_id !== user.id) return;
+
+    setIsDeleting(true);
+    try {
+      console.log("[SessionDetails] Deleting session:", session.id);
+      
+      // Delete enrollments first
+      const { error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('session_id', session.id);
+
+      if (enrollmentsError) {
+        console.error('[SessionDetails] Error deleting enrollments:', enrollmentsError);
+        throw enrollmentsError;
+      }
+
+      // Then delete the session
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', session.id)
+        .eq('host_id', user.id); // Security: only delete own sessions
+
+      if (sessionError) {
+        console.error('[SessionDetails] Error deleting session:', sessionError);
+        throw sessionError;
+      }
+
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès."
+      });
+
+      // Redirect to profile or home
+      navigate('/profile');
+    } catch (error: any) {
+      console.error('[SessionDetails] Delete error:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la session: " + error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!session) {
     return (
       <div className="min-h-screen bg-background">
@@ -181,14 +233,43 @@ const SessionDetails = () => {
                   }
                 </p>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground">Tarif</div>
-                <div>
-                  {hasActiveSubscription ? (
-                    <>Inclus avec l'abonnement</>
-                  ) : (
-                    <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
-                  )}
+              <div className="flex items-center gap-2">
+                {isHost && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={isDeleting}>
+                        <Trash2 size={16} />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Êtes-vous sûr de vouloir supprimer cette session ? 
+                          Cette action est irréversible et tous les participants inscrits seront automatiquement désinscrits.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteSession}
+                          className="bg-destructive hover:bg-destructive/90"
+                        >
+                          Supprimer
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                <div className="text-right">
+                  <div className="text-sm text-muted-foreground">Tarif</div>
+                  <div>
+                    {hasActiveSubscription ? (
+                      <>Inclus avec l'abonnement</>
+                    ) : (
+                      <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
