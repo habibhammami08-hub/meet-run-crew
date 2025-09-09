@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import StripeBuyButton from "@/components/StripeBuyButton";
+import StripeSessionButton from "@/components/StripeSessionButton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const SessionDetails = () => {
@@ -307,9 +308,57 @@ const SessionDetails = () => {
                   {isLoading ? "Inscription en cours..." : "Rejoindre maintenant"}
                 </Button>
               ) : (
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground text-center">Accès illimité à toutes les courses</div>
-                  <StripeBuyButton />
+                <div className="space-y-4">
+                  {!user ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-center">Paiement unique</div>
+                          <Button 
+                            size="lg" 
+                            className="w-full"
+                            onClick={() => {
+                              const currentPath = `/session/${id}`;
+                              window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+                            }}
+                          >
+                            Rejoindre pour 4,50 €
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-center">Abonnement</div>
+                          <Button 
+                            variant="outline" 
+                            size="lg" 
+                            className="w-full"
+                            onClick={() => {
+                              const currentPath = `/session/${id}`;
+                              window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+                            }}
+                          >
+                            S'abonner (illimité)
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground text-center">Connectez-vous pour continuer</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-center">Paiement unique</div>
+                          <StripeSessionButton />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-center">Abonnement illimité</div>
+                          <StripeBuyButton />
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground text-center">
+                        Paiement unique de 4,50 € ou abonnement pour un accès illimité
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             ) : isEnrolled ? (
