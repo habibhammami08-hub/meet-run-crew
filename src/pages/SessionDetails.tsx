@@ -45,11 +45,12 @@ const SessionDetails = () => {
   }, [searchParams, toast]);
 
   const fetchSessionDetails = async () => {
+    console.log("[SessionDetails] Fetching session details for ID:", id);
     const { data: sessionData, error } = await supabase
       .from('sessions')
       .select(`
         *,
-        profiles:host_id (id, full_name, age, gender, avatar_url, city, sport_level)
+        profiles:host_id (id, full_name, age, gender, avatar_url, city)
       `)
       .eq('id', id)
       .maybeSingle();
@@ -65,26 +66,32 @@ const SessionDetails = () => {
     }
 
     if (sessionData) {
+      console.log("[SessionDetails] Session loaded:", sessionData);
       setSession(sessionData);
     }
 
     // Fetch participants (both paid and subscription-based)
-    const { data: participantsData } = await supabase
+    console.log("[SessionDetails] Fetching participants for session:", id);
+    const { data: participantsData, error: participantsError } = await supabase
       .from('enrollments')
       .select(`
         *,
-        profiles!enrollments_user_id_fkey (id, full_name, age, gender, avatar_url, city, sport_level)
+        profiles:user_id (id, full_name, age, gender, avatar_url, city)
       `)
       .eq('session_id', id)
-      .in('status', ['paid', 'included_by_subscription']);
+      .in('status', ['paid', 'included_by_subscription', 'confirmed']);
 
-    if (participantsData) {
+    if (participantsError) {
+      console.error('Error fetching participants:', participantsError);
+    } else if (participantsData) {
+      console.log("[SessionDetails] Participants loaded:", participantsData);
       setParticipants(participantsData);
       
       // Check if current user is enrolled
       if (user) {
         const userEnrollment = participantsData.find(p => p.user_id === user.id);
         setIsEnrolled(!!userEnrollment);
+        console.log("[SessionDetails] User enrollment status:", !!userEnrollment);
       }
     }
   };
@@ -189,11 +196,11 @@ const SessionDetails = () => {
             <div className="flex items-center gap-4 text-sm text-sport-gray mb-4">
               <span className="flex items-center gap-1">
                 <Calendar size={16} />
-                {new Date(session.date).toLocaleDateString('fr-FR')}
+                {new Date(session.scheduled_at).toLocaleDateString('fr-FR')}
               </span>
               <span className="flex items-center gap-1">
                 <Clock size={16} />
-                {new Date(session.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                {new Date(session.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </span>
               <span className="flex items-center gap-1">
                 <Users size={16} />
@@ -247,7 +254,7 @@ const SessionDetails = () => {
             <p className="text-sm text-sport-gray flex items-center gap-1">
               <MapPin size={14} />
               {canSeeExactLocation 
-                ? session.area_hint || "Coordonnées exactes disponibles"
+                ? session.location_hint || session.start_place || "Coordonnées exactes disponibles"
                 : `Zone approximative (${session.blur_radius_m || 1000}m) - Abonnez-vous pour voir le lieu exact`
               }
             </p>
