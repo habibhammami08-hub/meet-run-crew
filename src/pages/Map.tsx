@@ -58,12 +58,17 @@ function MapPageInner() {
 
   // Lire abonnement + sessions  
   async function fetchGateAndSessions() {  
-    if (!supabase) return;  
+    if (!supabase) {
+      console.log("[map] No supabase client");
+      return;
+    }  
     setLoading(true);  
     setError(null);
+    console.log("[map] Fetching sessions...");
     try {  
       const { data: { user } } = await supabase.auth.getUser();  
       if (user) {  
+        console.log("[map] User authenticated:", user.id);
         const { data: prof } = await supabase  
           .from("profiles")  
           .select("sub_status, sub_current_period_end")  
@@ -72,22 +77,34 @@ function MapPageInner() {
         const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
         setHasSub(!!active);  
+        console.log("[map] Subscription active:", !!active);
       } else {  
+        console.log("[map] No authenticated user");
         setHasSub(false);  
       }
 
+      // Requête plus permissive pour récupérer toutes les sessions futures
+      const cutoffDate = new Date();
+      cutoffDate.setHours(0, 0, 0, 0); // Début d'aujourd'hui
+      
+      console.log("[map] Fetching sessions from:", cutoffDate.toISOString());
+      
       const { data, error } = await supabase  
         .from("sessions")  
         .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m")  
-        .gte("scheduled_at", new Date(Date.now() - 1000*60*60*24).toISOString()) // d'hier → futur  
+        .gte("scheduled_at", cutoffDate.toISOString())
+        .eq("status", "published") // Seulement les sessions publiées
         .order("scheduled_at", { ascending: true })  
         .limit(500);
 
       if (error) {  
+        console.error("[map] Fetch sessions error:", error);
         setError("Erreur lors du chargement des sessions. Veuillez réessayer.");
-        console.error("[map] fetch sessions error", error);  
         throw error;  
       }
+
+      console.log("[map] Raw sessions data:", data?.length || 0, "sessions");
+      console.log("[map] Sessions details:", data);
 
       const mappedSessions = (data ?? []).map((s) => ({  
         ...s,  
@@ -95,10 +112,11 @@ function MapPageInner() {
         location_lng: s.start_lng,  
       }));
 
+      console.log("[map] Mapped sessions:", mappedSessions.length, "sessions");
       setSessions(mappedSessions);  
     } catch (e) {  
+      console.error("[map] Load error:", e);
       setError("Une erreur inattendue est survenue lors du chargement des données.");
-      console.error("[map] load error", e);  
     } finally {  
       setLoading(false);  
     }
@@ -109,12 +127,19 @@ function MapPageInner() {
   // Realtime  
   useEffect(() => {  
     if (!supabase) return;  
+    console.log("[map] Setting up realtime listener");
     const ch = supabase.channel("sessions-map")  
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, (payload: any) => {  
+        console.log("[map] Realtime session update:", payload);
         fetchGateAndSessions();  
       })  
-      .subscribe();  
-    return () => { supabase.removeChannel(ch); };  
+      .subscribe((status) => {
+        console.log("[map] Realtime channel status:", status);
+      });  
+    return () => { 
+      console.log("[map] Cleaning up realtime channel");
+      supabase.removeChannel(ch); 
+    };  
   }, []);
 
   const mapContainerStyle = useMemo(() => ({ width: "100%", height: "calc(100vh - 120px)" }), []);  
@@ -142,6 +167,7 @@ function MapPageInner() {
           options={{ mapTypeControl:false, streetViewControl:false, fullscreenControl:false }}  
         >  
             {sessions.map(s => {  
+              console.log("[map] Rendering session marker:", s.id, s.title);
               const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
               const radius = s.blur_radius_m ?? 1000;  
               const startShown = hasSub ? start : jitterDeterministic(start.lat, start.lng, radius, s.id);  
@@ -153,7 +179,10 @@ function MapPageInner() {
                   <MarkerF   
                     position={startShown}   
                     title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}  
-                    onClick={() => navigate(`/session/${s.id}`)}  
+                    onClick={() => {
+                      console.log("[map] Marker clicked:", s.id);
+                      navigate(`/session/${s.id}`);
+                    }}  
                   />  
                 {showPolyline && path.length > 1 && (  
                   <Polyline path={path} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4 }} />  
