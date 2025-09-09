@@ -10,6 +10,7 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import StripeBuyButton from "@/components/StripeBuyButton";
 import StripeSessionButton from "@/components/StripeSessionButton";
+import SessionDetailMap from "@/components/SessionDetailMap";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const SessionDetails = () => {
@@ -380,14 +381,37 @@ const SessionDetails = () => {
         {/* Location */}
         <Card className="shadow-card">
           <CardContent className="p-6">
-            <h3 className="font-semibold mb-3">Lieu de rendez-vous</h3>
-            <p className="text-sm text-sport-gray flex items-center gap-1">
-              <MapPin size={14} />
-              {canSeeExactLocation 
-                ? session.location_hint || session.start_place || "Coordonnées exactes disponibles"
-                : `Zone approximative (${session.blur_radius_m || 1000}m) - Abonnez-vous pour voir le lieu exact`
-              }
-            </p>
+            <h3 className="font-semibold mb-3">Parcours</h3>
+            <div className="space-y-4">
+              <SessionDetailMap
+                startLat={session.start_lat}
+                startLng={session.start_lng}
+                endLat={session.end_lat}
+                endLng={session.end_lng}
+                startPlace={session.start_place}
+                endPlace={session.end_place}
+                canSeeExactLocation={canSeeExactLocation}
+                blurRadiusM={session.blur_radius_m}
+                className="h-64"
+              />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-sport-gray">
+                  <MapPin size={14} className="text-green-500" />
+                  <span className="font-medium">Départ:</span>
+                  {canSeeExactLocation 
+                    ? session.location_hint || session.start_place || "Coordonnées exactes disponibles"
+                    : `Zone approximative (${session.blur_radius_m || 1000}m) - Abonnez-vous pour voir le lieu exact`
+                  }
+                </div>
+                {(session.end_lat && session.end_lng) && (
+                  <div className="flex items-center gap-2 text-sm text-sport-gray">
+                    <MapPin size={14} className="text-red-500" />
+                    <span className="font-medium">Arrivée:</span>
+                    {session.end_place || "Point d'arrivée"}
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
