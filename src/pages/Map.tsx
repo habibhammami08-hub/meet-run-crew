@@ -50,16 +50,15 @@ function MapPageInner() {
 
   // Créer une icône personnalisée moderne pour les marqueurs
   const createCustomMarkerIcon = (isSubscribed: boolean) => {
-    const size = 24;
-    const color = isSubscribed ? '#059669' : '#10b981';
+    const size = 12; // Plus petit
+    const color = isSubscribed ? '#065f46' : '#047857'; // Vert beaucoup plus foncé
     
-    // SVG ultra-simple
+    // SVG très simple et petit
     const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="white" stroke-width="2"/>
-      <circle cx="${size/2}" cy="${size/2}" r="3" fill="white"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="white" stroke-width="1"/>
     </svg>`;
     
-    console.log("[map] Creating custom icon, color:", color);
+    console.log("[map] Creating custom icon, color:", color, "size:", size);
     
     if (typeof window !== 'undefined' && window.google) {
       return {
