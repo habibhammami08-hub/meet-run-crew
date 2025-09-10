@@ -61,24 +61,40 @@ export default function ProfilePage() {
     if (!supabase || !user) return;
 
     try {
-      console.log("[Profile] Updating profile statistics...");
+      console.log("[Profile] Updating profile statistics using RPC...");
       
-      // Compter le nombre de sessions organisées par l'utilisateur
-      const { count: sessionsCount, error: countError } = await supabase
-        .from('sessions')
-        .select('*', { count: 'exact' })
-        .eq('host_id', user.id);
+      // Utiliser la fonction RPC pour calculer les stats de manière cohérente
+      const { data: statsRaw, error: rpcError } = await supabase
+        .rpc('get_user_stats', { target_user_id: user.id });
 
-      if (countError) {
-        console.error('[Profile] Error counting sessions:', countError);
+      if (rpcError) {
+        console.error('[Profile] Error getting user stats:', rpcError);
         return;
       }
+
+      if (!statsRaw) {
+        console.error('[Profile] No stats returned from RPC');
+        return;
+      }
+
+      // Type assertion pour les stats
+      const stats = statsRaw as {
+        sessions_hosted: number;
+        sessions_joined: number;
+        total_km_hosted: number;
+        total_km_joined: number;
+        total_km: number;
+      };
+
+      console.log("[Profile] Stats calculated from RPC:", stats);
 
       // Mettre à jour les statistiques dans le profil
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
-          sessions_hosted: sessionsCount || 0,
+          sessions_hosted: stats.sessions_hosted || 0,
+          sessions_joined: stats.sessions_joined || 0,
+          total_km: stats.total_km || 0,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
@@ -88,7 +104,11 @@ export default function ProfilePage() {
         return;
       }
 
-      console.log("[Profile] Profile stats updated:", { sessions_hosted: sessionsCount });
+      console.log("[Profile] Profile stats updated:", {
+        sessions_hosted: stats.sessions_hosted,
+        sessions_joined: stats.sessions_joined,
+        total_km: stats.total_km
+      });
       
       // Rafraîchir le profil côté client
       await refreshProfile();
@@ -141,6 +161,32 @@ export default function ProfilePage() {
         }
 
         console.log("Fetching profile for user:", authUser.id);
+        
+        // Mettre à jour les stats d'abord avec l'utilisateur authentifié
+        console.log("[Profile] Updating profile statistics using RPC...");
+        const { data: statsRaw, error: rpcError } = await supabase
+          .rpc('get_user_stats', { target_user_id: authUser.id });
+
+        if (!rpcError && statsRaw) {
+          const stats = statsRaw as {
+            sessions_hosted: number;
+            sessions_joined: number;
+            total_km_hosted: number;
+            total_km_joined: number;
+            total_km: number;
+          };
+
+          await supabase
+            .from('profiles')
+            .update({ 
+              sessions_hosted: stats.sessions_hosted || 0,
+              sessions_joined: stats.sessions_joined || 0,
+              total_km: stats.total_km || 0,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', authUser.id);
+        }
+        
         const { data, error } = await supabase
           .from("profiles")
           .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
@@ -190,6 +236,8 @@ export default function ProfilePage() {
           status
         `)
         .eq('host_id', user.id)
+        .in('status', ['published', 'active']) // Même filtre que dans get_user_stats
+        .not('scheduled_at', 'is', null) // Exclure les sessions sans date
         .order('scheduled_at', { ascending: false });
 
       if (error) {

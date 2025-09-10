@@ -300,6 +300,10 @@ export type Database = {
         Args: { session_id: string }
         Returns: number
       }
+      get_user_stats: {
+        Args: { target_user_id?: string }
+        Returns: Json
+      }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
