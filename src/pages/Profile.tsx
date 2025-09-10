@@ -164,27 +164,39 @@ export default function ProfilePage() {
         
         // Mettre à jour les stats d'abord avec l'utilisateur authentifié
         console.log("[Profile] Updating profile statistics using RPC...");
-        const { data: statsRaw, error: rpcError } = await supabase
-          .rpc('get_user_stats', { target_user_id: authUser.id });
+        try {
+          const { data: statsRaw, error: rpcError } = await supabase
+            .rpc('get_user_stats', { target_user_id: authUser.id });
 
-        if (!rpcError && statsRaw) {
-          const stats = statsRaw as {
-            sessions_hosted: number;
-            sessions_joined: number;
-            total_km_hosted: number;
-            total_km_joined: number;
-            total_km: number;
-          };
+          if (rpcError) {
+            console.error('[Profile] RPC error:', rpcError);
+          } else if (statsRaw) {
+            const stats = statsRaw as {
+              sessions_hosted: number;
+              sessions_joined: number;
+              total_km_hosted: number;
+              total_km_joined: number;
+              total_km: number;
+            };
 
-          await supabase
-            .from('profiles')
-            .update({ 
-              sessions_hosted: stats.sessions_hosted || 0,
-              sessions_joined: stats.sessions_joined || 0,
-              total_km: stats.total_km || 0,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', authUser.id);
+            console.log("[Profile] Stats from RPC:", stats);
+            
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ 
+                sessions_hosted: stats.sessions_hosted || 0,
+                sessions_joined: stats.sessions_joined || 0,
+                total_km: stats.total_km || 0,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', authUser.id);
+
+            if (updateError) {
+              console.error('[Profile] Update error:', updateError);
+            }
+          }
+        } catch (statsError) {
+          console.error('[Profile] Stats update failed:', statsError);
         }
         
         const { data, error } = await supabase

@@ -20,7 +20,8 @@ export const useRealtime = ({ table, filter, onUpdate, onInsert, onDelete }: Use
       return;
     }
 
-    const channelName = `realtime-${table}-${Date.now()}`;
+    // Utiliser un nom de channel stable pour éviter les reconnexions multiples
+    const channelName = `realtime-${table}${filter ? `-${filter}` : ''}`;
     logger.debug(`[realtime] Setting up channel: ${channelName}`);
 
     const channel = supabase
@@ -59,7 +60,7 @@ export const useRealtime = ({ table, filter, onUpdate, onInsert, onDelete }: Use
       supabase.removeChannel(channel);
       setIsConnected(false);
     };
-  }, [supabase, table, filter, onUpdate, onInsert, onDelete]);
+  }, [supabase, table, filter]);
 
   return { isConnected };
 };
