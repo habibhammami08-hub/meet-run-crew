@@ -61,13 +61,12 @@ serve(async (req) => {
       .from('sessions')
       .select('id, title, scheduled_at')
       .eq('host_id', userId)
-      .in('status', ['published', 'active'])
+      .eq('status', 'published')
       .gte('scheduled_at', new Date().toISOString());
 
     if (futureSessionsError) {
-      console.error('Error checking future sessions:', futureSessionsError);
       throw new AppError(
-        'Impossible de vérifier vos sessions futures',
+        'Failed to check future sessions',
         ErrorCode.DATABASE_ERROR,
         500
       );
@@ -75,7 +74,7 @@ serve(async (req) => {
 
     if (futureSessions && futureSessions.length > 0) {
       throw new AppError(
-        `Suppression impossible. Vous organisez ${futureSessions.length} session(s) à venir. Veuillez d'abord les annuler ou les reporter.`,
+        `Cannot delete account. You have ${futureSessions.length} upcoming session(s).`,
         ErrorCode.INVALID_FIELD_VALUE,
         400,
         `Impossible de supprimer le compte. Vous organisez ${futureSessions.length} session(s) à venir.`
