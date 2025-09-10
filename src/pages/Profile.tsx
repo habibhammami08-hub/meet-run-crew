@@ -56,6 +56,70 @@ export default function ProfilePage() {
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
+  const updateProfileStats = async () => {
+    const supabase = getSupabase();
+    if (!supabase || !user) return;
+
+    try {
+      console.log("[Profile] Updating profile statistics...");
+      
+      // Compter le nombre de sessions organisées par l'utilisateur
+      const { count: sessionsCount, error: countError } = await supabase
+        .from('sessions')
+        .select('*', { count: 'exact' })
+        .eq('host_id', user.id);
+
+      if (countError) {
+        console.error('[Profile] Error counting sessions:', countError);
+        return;
+      }
+
+      // Mettre à jour les statistiques dans le profil
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          sessions_hosted: sessionsCount || 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('[Profile] Error updating profile stats:', updateError);
+        return;
+      }
+
+      console.log("[Profile] Profile stats updated:", { sessions_hosted: sessionsCount });
+      
+      // Rafraîchir le profil côté client
+      await refreshProfile();
+    } catch (error) {
+      console.error('[Profile] Error updating profile stats:', error);
+    }
+  };
+
+  const refreshProfile = async () => {
+    const supabase = getSupabase();
+    if (!supabase || !user) return;
+
+    try {
+      console.log("Refreshing profile for user:", user.id);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Profile refresh error:", error);
+      } else if (data) {
+        console.log("Profile refreshed:", data);
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error("Error refreshing profile:", error);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const supabase = getSupabase();
@@ -95,6 +159,9 @@ export default function ProfilePage() {
         } else {
           console.log("No profile found for user");
         }
+
+        // Charger les sessions de l'utilisateur
+        await fetchMySessions();
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
@@ -189,6 +256,9 @@ export default function ProfilePage() {
         description: "La session a été supprimée avec succès."
       });
 
+      // Recalculer et mettre à jour les statistiques du profil
+      await updateProfileStats();
+      
       // Refresh sessions list
       await fetchMySessions();
     } catch (error: any) {
