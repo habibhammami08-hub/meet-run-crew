@@ -180,7 +180,7 @@ const Subscription = () => {
               </div>
               
               <Button 
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate(`/auth?returnTo=${encodeURIComponent('/subscription')}`)}
                 variant="default"
                 size="lg"
                 className="w-full"

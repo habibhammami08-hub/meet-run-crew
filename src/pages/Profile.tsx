@@ -382,7 +382,7 @@ export default function ProfilePage() {
           <CardContent className="p-6">
             <div className="text-center">
               <p className="mb-4">Merci de vous connecter.</p>
-              <Button onClick={() => window.location.href = '/auth'}>
+              <Button onClick={() => window.location.href = '/auth?returnTo=/profile'}>
                 Se connecter
               </Button>
             </div>

@@ -238,7 +238,7 @@ export default function CreateRun() {
   }
   if (userReady === "none") {
     return <div className="p-4 text-sm">
-      Merci de vous connecter pour créer une session. <a href="/auth" className="underline">Se connecter</a>
+      Merci de vous connecter pour créer une session. <a href={`/auth?returnTo=${encodeURIComponent('/create')}`} className="underline">Se connecter</a>
     </div>;
   }
 
