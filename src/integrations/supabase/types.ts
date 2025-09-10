@@ -296,6 +296,14 @@ export type Database = {
       }
     }
     Functions: {
+      app_delete_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      app_delete_user_data: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       get_available_spots: {
         Args: { session_id: string }
         Returns: number

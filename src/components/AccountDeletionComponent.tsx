@@ -8,13 +8,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteMyAccount } from "@/utils/deleteAccount";
 import { logger } from "@/utils/logger";
+import { useNavigate } from "react-router-dom";
 
 const AccountDeletionComponent: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmationText, setConfirmationText] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleConfirmDelete = async () => {
     if (confirmationText !== 'SUPPRIMER') {
@@ -28,40 +30,61 @@ const AccountDeletionComponent: React.FC = () => {
 
     try {
       setIsDeleting(true);
-      logger.info("Starting account deletion process...");
+      logger.info("Début du processus de suppression de compte...");
       
       const res = await deleteMyAccount();
-      logger.info("Account deletion result:", res);
+      logger.info("Résultat de la suppression:", res);
       
       if (res.ok) {
+        // Afficher le message de succès
         toast({ 
-          title: "Compte supprimé", 
-          description: "Votre compte et vos données ont été supprimés." 
+          title: "Compte supprimé avec succès", 
+          description: "Votre compte et toutes vos données ont été supprimés définitivement. Au revoir 👋" 
         });
-        // Fermer le dialog avant la redirection pour éviter les problèmes d'accessibilité
+        
+        // Fermer le dialog
         setShowConfirmDialog(false);
+        
+        // Déconnexion explicite via useAuth pour nettoyer l'état React
+        try {
+          await signOut();
+        } catch (signOutError) {
+          console.warn("SignOut error (non-fatal):", signOutError);
+        }
+        
+        // Redirection immédiate vers la page d'accueil
         setTimeout(() => {
-          window.location.replace("/account-deleted");
-        }, 1000);
+          navigate("/", { replace: true });
+          // Force un reload pour s'assurer que tout l'état est nettoyé
+          window.location.reload();
+        }, 1500);
       } else {
+        // Gestion des erreurs avec codes spécifiques
+        const errorMessage = res.error || "Une erreur inconnue est survenue";
+        
         toast({ 
-          title: "Erreur", 
-          description: res.error || "Suppression impossible", 
+          title: "Erreur de suppression", 
+          description: errorMessage,
           variant: "destructive" 
         });
-        logger.error("Account deletion error:", res.error);
+        
+        logger.error("Erreur de suppression de compte:", res.error);
         setShowConfirmDialog(false);
       }
     } catch (e: any) {
-      logger.error("Account deletion exception:", e);
+      logger.error("Exception lors de la suppression:", e);
+      
+      const errorMsg = e?.message || "Une erreur technique est survenue";
       toast({ 
-        title: "Erreur", 
-        description: e?.message || "Suppression impossible", 
+        title: "Erreur technique", 
+        description: `${errorMsg}. Veuillez réessayer ou contacter le support.`,
         variant: "destructive" 
       });
+      
       setShowConfirmDialog(false);
     } finally {
       setIsDeleting(false);
+      setConfirmationText(''); // Reset le champ de confirmation
     }
   };
 
