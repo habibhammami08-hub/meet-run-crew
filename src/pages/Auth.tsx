@@ -178,22 +178,19 @@ const Auth = () => {
       <div className="relative z-10 w-full max-w-md">
         {/* Hero Section */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="p-3 bg-gradient-to-br from-primary to-primary/80 rounded-xl shadow-xl">
-              <Users className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <div className="flex items-center justify-center mb-4">
+            <h1 className="text-3xl font-bold text-primary">
               MeetRun
             </h1>
           </div>
           
           <div className="space-y-2 mb-6">
             <h2 className="text-xl font-semibold text-foreground">
-              Rejoignez une grande communauté de runners
+              {mode === 'signin' 
+                ? 'Connectez-vous pour créer vos sessions et rejoindre d\'autres runners près de chez vous' 
+                : 'Inscrivez-vous pour rejoindre une communauté de runners près de chez vous'
+              }
             </h2>
-            <p className="text-muted-foreground">
-              Connectez-vous pour partager vos sessions et progresser ensemble
-            </p>
           </div>
 
           {/* Stats inspirantes */}
@@ -219,14 +216,8 @@ const Auth = () => {
         <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center pb-6">
             <CardTitle className="text-2xl font-bold text-foreground">
-              {mode === 'signin' ? 'Bon retour parmi nous !' : 'Créez votre compte en un clic'}
+              {mode === 'signin' ? 'Connexion' : 'Inscription'}
             </CardTitle>
-            <CardDescription>
-              {mode === 'signin' 
-                ? 'Reconnectez-vous pour découvrir les nouveautés' 
-                : 'Découvrez qui court près de chez vous'
-              }
-            </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-6">
