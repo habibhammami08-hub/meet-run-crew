@@ -35,6 +35,27 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     };
   }
 
+  private handleModuleLoadError = () => {
+    console.log('🔄 Module loading error detected, reloading page...');
+    
+    // Nettoyer le cache avant rechargement
+    try {
+      if (typeof window !== 'undefined' && 'caches' in window && window.caches) {
+        window.caches.keys().then((names: string[]) => {
+          const deletePromises = names.map(name => window.caches.delete(name));
+          return Promise.all(deletePromises);
+        }).finally(() => {
+          (window as any).location.reload();
+        });
+      } else {
+        (window as any).location.reload();
+      }
+    } catch (e) {
+      // Fallback si le nettoyage du cache échoue
+      (window as any).location.reload();
+    }
+  };
+
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // CORRECTION: Logging sécurisé avec informations contextuelles
     const errorDetails = {
@@ -49,6 +70,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     };
 
     console.error('🚨 ErrorBoundary caught error:', errorDetails);
+    
+    // CORRECTION: Détecter les erreurs de module lazy loading et recharger automatiquement
+    if (error.message.includes('Failed to fetch dynamically imported module') || 
+        error.message.includes('Loading chunk') ||
+        error.message.includes('ChunkLoadError')) {
+      this.handleModuleLoadError();
+      return;
+    }
     
     // CORRECTION: Sauvegarder l'erreur dans localStorage pour debugging
     try {

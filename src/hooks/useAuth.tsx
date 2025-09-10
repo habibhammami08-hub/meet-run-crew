@@ -243,6 +243,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let mounted = true;
     let authSubscription: any = null;
+    let sessionCheckInterval: NodeJS.Timeout | null = null;
+
+    // CORRECTION: Surveillance périodique de la session (toutes les 5 minutes)
+    const startSessionMonitoring = () => {
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
+      }
+      
+      sessionCheckInterval = setInterval(async () => {
+        if (!mounted || !supabase) return;
+        
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            logger.warn("Session check error:", error);
+            return;
+          }
+          
+          // Vérifier si la session est proche de l'expiration (dans les 10 prochaines minutes)
+          if (session?.expires_at) {
+            const expiresAt = new Date(session.expires_at * 1000);
+            const now = new Date();
+            const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+            
+            if (expiresAt < tenMinutesFromNow) {
+              logger.info("Session proche de l'expiration, tentative de renouvellement");
+              try {
+                await supabase.auth.refreshSession();
+                logger.info("Session renouvelée avec succès");
+              } catch (refreshError) {
+                logger.error("Erreur lors du renouvellement de session:", refreshError);
+              }
+            }
+          }
+        } catch (error) {
+          logger.error("Erreur lors de la vérification de session:", error);
+        }
+      }, 5 * 60 * 1000); // Vérifier toutes les 5 minutes
+    };
 
     // CORRECTION: Nettoyer l'URL des fragments OAuth AVANT d'écouter les auth events
     if (window.location.search.includes('access_token') || window.location.hash.includes('access_token')) {
@@ -263,6 +303,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Utilisateur connecté avec session valide
           setSession(session);
           setUser(session.user);
+          
+          // Démarrer la surveillance de session uniquement si connecté
+          startSessionMonitoring();
           
           // Ne pas recréer le profil si suppression ou déconnexion en cours
           if (!localStorage.getItem('deletion_in_progress') && 
@@ -301,6 +344,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setSubscriptionStatus(null);
           setSubscriptionEnd(null);
           setLoading(false);
+          
+          // Arrêter la surveillance de session si déconnecté
+          if (sessionCheckInterval) {
+            clearInterval(sessionCheckInterval);
+            sessionCheckInterval = null;
+          }
         }
       } catch (error) {
         logger.error("Error in auth state change handler:", error);
@@ -360,6 +409,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       mounted = false;
+      
+      // Nettoyer l'interval de surveillance de session
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
+      }
+      
       if (authSubscription) {
         try {
           authSubscription.unsubscribe();

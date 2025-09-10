@@ -11,19 +11,36 @@ import { EnvironmentFallback } from "@/components/EnvironmentFallback";
 import AppLayout from "./components/AppLayout";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 
-// Lazy load pages for better performance
-const Home = lazy(() => import("./pages/Home"));
-const Map = lazy(() => import("./pages/Map"));
-const SessionDetails = lazy(() => import("./pages/SessionDetails"));
-const CreateRun = lazy(() => import("./pages/CreateRun"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Auth = lazy(() => import("./pages/Auth"));
-const Subscription = lazy(() => import("./pages/Subscription"));
-const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
-const SubscriptionCancel = lazy(() => import("./pages/SubscriptionCancel"));
-const Goodbye = lazy(() => import("./pages/Goodbye"));
-const AccountDeleted = lazy(() => import("./pages/AccountDeleted"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+// Lazy load pages with retry logic for better performance and reliability
+const createRetryLazy = (importFn: () => Promise<any>, componentName: string) => 
+  lazy(() => 
+    importFn().catch(error => {
+      console.error(`Failed to load ${componentName}:`, error);
+      
+      // Si c'est une erreur de chunk loading, recharger la page
+      if (error.message?.includes('Failed to fetch dynamically imported module') ||
+          error.message?.includes('Loading chunk') ||
+          error.name === 'ChunkLoadError') {
+        console.log(`🔄 Chunk load error for ${componentName}, reloading...`);
+        window.location.reload();
+      }
+      
+      throw error;
+    })
+  );
+
+const Home = createRetryLazy(() => import("./pages/Home"), "Home");
+const Map = createRetryLazy(() => import("./pages/Map"), "Map");
+const SessionDetails = createRetryLazy(() => import("./pages/SessionDetails"), "SessionDetails");
+const CreateRun = createRetryLazy(() => import("./pages/CreateRun"), "CreateRun");
+const Profile = createRetryLazy(() => import("./pages/Profile"), "Profile");
+const Auth = createRetryLazy(() => import("./pages/Auth"), "Auth");
+const Subscription = createRetryLazy(() => import("./pages/Subscription"), "Subscription");
+const SubscriptionSuccess = createRetryLazy(() => import("./pages/SubscriptionSuccess"), "SubscriptionSuccess");
+const SubscriptionCancel = createRetryLazy(() => import("./pages/SubscriptionCancel"), "SubscriptionCancel");
+const Goodbye = createRetryLazy(() => import("./pages/Goodbye"), "Goodbye");
+const AccountDeleted = createRetryLazy(() => import("./pages/AccountDeleted"), "AccountDeleted");
+const NotFound = createRetryLazy(() => import("./pages/NotFound"), "NotFound");
 
 // Loading component
 const LoadingSpinner = () => (
