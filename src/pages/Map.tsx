@@ -170,17 +170,6 @@ function MapPageInner() {
   }
 
   useEffect(() => { fetchGateAndSessions(); }, []);
-  
-  // Écouter les événements de création de session
-  useEffect(() => {
-    const handleSessionCreated = () => {
-      console.log("[map] Session created event received, refreshing sessions");
-      fetchGateAndSessions();
-    };
-
-    window.addEventListener('sessionCreated', handleSessionCreated);
-    return () => window.removeEventListener('sessionCreated', handleSessionCreated);
-  }, []);
 
   // Realtime  
   useEffect(() => {  

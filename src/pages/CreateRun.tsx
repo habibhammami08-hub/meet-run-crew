@@ -192,11 +192,32 @@ export default function CreateRun() {
 
       console.info("[create] insert SUCCESS", data);
       
-      // Déclencher simplement l'événement de refresh - le profil se chargera de calculer les stats
-      window.dispatchEvent(new CustomEvent('profileRefresh', { detail: { userId: currentUser.id } }));
-      
-      // Déclencher l'événement de refresh de la carte pour que les nouvelles sessions apparaissent
-      window.dispatchEvent(new CustomEvent('sessionCreated', { detail: { sessionId: data.id } }));
+      // Forcer la mise à jour du profil après création de session
+      if (supabase) {
+        try {
+          // Récupérer le profil actuel pour incrémenter sessions_hosted
+          const { data: currentProfile } = await supabase
+            .from('profiles')
+            .select('sessions_hosted')
+            .eq('id', currentUser.id)
+            .single();
+          
+          if (currentProfile) {
+            await supabase
+              .from('profiles')
+              .update({ 
+                sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', currentUser.id);
+          }
+          
+          // Déclencher l'événement de refresh du profil
+          window.dispatchEvent(new CustomEvent('profileRefresh', { detail: { userId: currentUser.id } }));
+        } catch (profileError) {
+          console.warn("[create] Failed to update profile stats:", profileError);
+        }
+      }
       
       alert("Session créée 🎉 ID: " + data.id);
       // Reset + retour carte
