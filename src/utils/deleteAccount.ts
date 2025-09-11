@@ -1,47 +1,80 @@
-import { getSupabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
-type DeleteResult = { ok: boolean; error?: string };
+interface DeleteAccountResponse {
+  success: boolean;
+  message: string;
+  deleted_data?: {
+    sessions: number;
+    enrollments: number;
+    profile: boolean;
+  };
+  subscription_info?: {
+    had_active_subscription: boolean;
+    renewal_cancelled: boolean;
+    expires_at?: string;
+  };
+  error?: string;
+}
 
-export async function deleteMyAccount(): Promise<DeleteResult> {
-  const supabase = getSupabase();
-  if (!supabase) return { ok: false, error: 'Supabase indisponible (env manquante)' };
+interface CanDeleteResponse {
+  can_delete: boolean;
+  reason?: string;
+  message?: string;
+  future_sessions_with_participants?: number;
+  active_enrollments_count?: number;
+}
 
-  // 1) Session pour que supabase-js envoie bien le JWT (Authorization: Bearer ...)
-  const { data: { session }, error: sErr } = await supabase.auth.getSession();
-  if (sErr || !session) return { ok: false, error: 'Session invalide' };
+export async function deleteMyAccount(): Promise<DeleteAccountResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke('delete-account2', {
+      method: 'POST'
+    });
 
-  // 2) Appel edge function EXISTANTE (nom exact)
-  const { data, error } = await supabase.functions.invoke('delete-account2', {
-    body: { confirm: true },
-  });
+    if (error) {
+      console.error('Edge Function error:', error);
+      return {
+        success: false,
+        error: error.message || 'Erreur lors de l\'appel à la fonction de suppression'
+      };
+    }
 
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.log('[delete] edge response:', { data, error });
+    if (data?.success) {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (storageError) {
+        console.warn('Erreur lors du nettoyage du stockage local:', storageError);
+      }
+    }
+
+    return data;
+
+  } catch (error) {
+    console.error('Erreur lors de la suppression du compte:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erreur inattendue"
+    };
   }
+}
 
-  // 3) Gestion des cas de succès les plus courants sans imposer un format précis
-  if (error) return { ok: false, error: error.message || 'Erreur edge' };
+export async function canDeleteAccount(): Promise<CanDeleteResponse> {
+  try {
+    const { data, error } = await supabase.rpc('can_delete_account');
 
-  const normalized =
-    // cas 204 → data === null
-    data === null ||
-    // cas simple "ok"
-    data === 'ok' ||
-    // cas { status: 'ok' }
-    (typeof data === 'object' && data !== null && (data.status === 'ok' || data.status === 'OK')) ||
-    // cas { success: true }
-    (typeof data === 'object' && data !== null && (data.success === true)) ||
-    // cas { message: 'deleted' } / 'success'
-    (typeof data === 'object' && data !== null && typeof (data as any).message === 'string' &&
-      /deleted|success|done|removed/i.test((data as any).message));
+    if (error) {
+      console.error('Error checking deletion eligibility:', error);
+      throw error;
+    }
 
-  if (normalized) {
-    // 4) Déconnexion locale pour nettoyer l'UI
-    await supabase.auth.signOut();
-    return { ok: true };
+    return data;
+
+  } catch (error) {
+    console.error('Erreur lors de la vérification:', error);
+    return {
+      can_delete: false,
+      reason: 'verification_failed',
+      message: 'Impossible de vérifier l\'éligibilité à la suppression'
+    };
   }
-
-  // Si on arrive ici: payload inattendu → remonter l'info pour ajustement si besoin
-  return { ok: false, error: 'Suppression non confirmée (payload inattendu)' };
 }
