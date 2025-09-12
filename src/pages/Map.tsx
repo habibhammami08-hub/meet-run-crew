@@ -1,4 +1,4 @@
-// src/pages/Map.tsx - Version propre et finale
+// src/pages/Map.tsx - Version propre et finale (nearestSessions réactif + compteur supprimé)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +23,7 @@ type SessionRow = {
   end_lng: number | null;
   distance_km: number | null;
   route_polyline: string | null;
-  intensity: string | null; // "low" | "medium" | "high" (DB)
+  intensity: string | null; // "low" | "medium" | "high"
   session_type: string | null;
   blur_radius_m?: number | null;
   location_lat?: number;
@@ -72,7 +72,6 @@ function MapPageInner() {
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [nearestSessions, setNearestSessions] = useState<SessionRow[]>([]);
   const [hasSub, setHasSub] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -162,7 +161,7 @@ function MapPageInner() {
 
         if (signal.aborted || !mountedRef.current) return;
 
-        const active = prof?.sub_status && ["active", "trialing"].includes(prof.sub_status)
+        const active = prof?.sub_status && ["active", "trialing"].includes(prof?.sub_status)
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();
         setHasSub(!!active);
       } else {
@@ -201,13 +200,6 @@ function MapPageInner() {
 
       if (!signal.aborted && mountedRef.current) {
         setSessions(mappedSessions);
-
-        const nearby = mappedSessions
-          .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= 25)
-          .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-          .slice(0, 6);
-
-        setNearestSessions(nearby);
       }
     } catch {
       if (mountedRef.current) {
@@ -248,6 +240,23 @@ function MapPageInner() {
 
     return filtered;
   }, [sessions, userLocation, filterRadius, filterIntensity]);
+
+  // Sessions “près de vous” réactives aux filtres
+  const nearestSessions = useMemo(() => {
+    if (!filteredSessions.length) return [];
+
+    // S'il n'y a pas de géoloc, proposer les 6 premières (déjà filtrées)
+    if (!userLocation) {
+      return filteredSessions.slice(0, 6);
+    }
+
+    const capKm = filterRadius === "all" ? 25 : parseInt(filterRadius, 10);
+
+    return filteredSessions
+      .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= capKm)
+      .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
+      .slice(0, 6);
+  }, [filteredSessions, userLocation, filterRadius]);
 
   // Chargement initial et lorsqu'on obtient la géoloc
   useEffect(() => {
@@ -324,9 +333,6 @@ function MapPageInner() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Sessions Running</h1>
-                <p className="text-sm text-gray-500">
-                  {sessions.length} sessions disponibles
-                </p>
               </div>
             </div>
 
