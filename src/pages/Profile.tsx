@@ -58,12 +58,24 @@ export default function ProfilePage() {
 
   const supabase = getSupabase();
 
-  // Redirection simplifiée
+  // Redirection immédiate si pas d'utilisateur
   useEffect(() => {
-    if (!user && !loading) {
+    if (user === null) {
+      // Utilisateur non connecté, redirection immédiate
       navigate('/auth?returnTo=/profile');
+      return;
     }
-  }, [user, loading, navigate]);
+    
+    if (user === undefined) {
+      // En cours de chargement de l'auth, on attend
+      return;
+    }
+    
+    // Utilisateur connecté, on peut charger le profil
+    if (user && loading) {
+      loadProfile(user.id);
+    }
+  }, [user, navigate]);
 
   // Fonction de chargement des sessions simplifiée
   const fetchMySessions = useCallback(async (userId: string) => {
@@ -240,13 +252,6 @@ export default function ProfilePage() {
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
-  // Effect principal simplifié
-  useEffect(() => {
-    if (user?.id) {
-      loadProfile(user.id);
-    }
-  }, [user?.id, loadProfile]);
-
   // Fonction de suppression améliorée
   const handleDeleteSession = async (sessionId: string) => {
     if (!supabase || !user?.id) return;
@@ -364,6 +369,26 @@ export default function ProfilePage() {
     }
   }
 
+  // Si l'utilisateur n'est pas connecté, on ne render rien (redirection en cours)
+  if (user === null) {
+    return null;
+  }
+
+  // Si on est en cours de chargement de l'auth
+  if (user === undefined) {
+    return (
+      <div className="container mx-auto p-4 space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p>Vérification de votre authentification...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Si on est en cours de chargement du profil
   if (loading) {
     return (
       <div className="container mx-auto p-4 space-y-6">
