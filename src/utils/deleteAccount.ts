@@ -26,10 +26,27 @@ interface CanDeleteResponse {
 
 export async function deleteMyAccount(): Promise<DeleteAccountResponse> {
   try {
-    const { data, error } = await supabase.rpc('app_delete_account');
+    // Récupérer le token d'authentification
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      return {
+        success: false,
+        message: 'Non authentifié',
+        error: 'Token d\'authentification manquant'
+      };
+    }
+
+    // Appeler l'edge function au lieu du RPC direct
+    const { data, error } = await supabase.functions.invoke('delete-account2', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
 
     if (error) {
-      console.error('RPC error:', error);
+      console.error('Edge function error:', error);
       return {
         success: false,
         message: 'Erreur lors de la suppression du compte',
@@ -37,9 +54,10 @@ export async function deleteMyAccount(): Promise<DeleteAccountResponse> {
       };
     }
 
-    const result = data as unknown as DeleteAccountResponse;
+    const result = data as DeleteAccountResponse;
     
     if (result?.success) {
+      // Nettoyer le stockage local seulement en cas de succès
       try {
         localStorage.clear();
         sessionStorage.clear();
