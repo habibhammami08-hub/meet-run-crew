@@ -22,7 +22,7 @@ type SessionRow = {
   blur_radius_m?: number | null;  
   location_lat?: number;  
   location_lng?: number;  
-  host_id?: string; // ✅ Ajout pour identifier le créateur
+  host_id?: string;
 };
 
 // Brouillage déterministe et cohérent par session
@@ -47,14 +47,19 @@ function MapPageInner() {
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [sessions, setSessions] = useState<SessionRow[]>([]);  
   const [hasSub, setHasSub] = useState<boolean>(false);  
-  const [currentUser, setCurrentUser] = useState<any>(null); // ✅ Ajout état utilisateur
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Amélioration - Icône différentiée pour ses propres sessions
+  // Refs pour éviter les appels multiples et gérer le debounce
+  const isFetchingRef = useRef(false);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Icône différentiée pour ses propres sessions
   const createCustomMarkerIcon = (isOwnSession: boolean, isSubscribed: boolean) => {
-    const size = isOwnSession ? 16 : 12; // Plus gros pour ses propres sessions
-    const color = isOwnSession ? '#dc2626' : (isSubscribed ? '#065f46' : '#047857'); // Rouge pour ses sessions
+    const size = isOwnSession ? 16 : 12;
+    const color = isOwnSession ? '#dc2626' : (isSubscribed ? '#065f46' : '#047857');
     
     const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
       <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="white" stroke-width="1"/>
@@ -99,19 +104,33 @@ function MapPageInner() {
     }  
   }, []);
 
-  // ✅ CORRECTION PRINCIPALE - Requête de sessions améliorée
+  // Fonction de fetch avec debounce et AbortController
   async function fetchGateAndSessions() {  
-    if (!supabase) {
-      console.log("[map] No supabase client");
+    if (!supabase || isFetchingRef.current) {
+      console.log("[map] Fetch already in progress or no supabase client");
       return;
-    }  
+    }
+    
+    // Annuler la requête précédente si elle existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Créer un nouveau controller
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
+    isFetchingRef.current = true;
     setLoading(true);  
     setError(null);
     console.log("[map] Fetching sessions...");
     
     try {  
-      // ✅ Récupération utilisateur
+      // Récupération utilisateur
       const { data: { user } } = await supabase.auth.getUser();  
+      
+      if (signal.aborted) return;
+      
       setCurrentUser(user);
       
       if (user) {  
@@ -120,7 +139,10 @@ function MapPageInner() {
           .from("profiles")  
           .select("sub_status, sub_current_period_end")  
           .eq("id", user.id)  
-          .maybeSingle();  
+          .maybeSingle();
+          
+        if (signal.aborted) return;
+        
         const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
         setHasSub(!!active);  
@@ -130,19 +152,23 @@ function MapPageInner() {
         setHasSub(false);  
       }
 
-      // ✅ CORRECTION - Requête plus inclusive pour les sessions
+      if (signal.aborted) return;
+
+      // Fenêtre de temps plus large pour inclure les sessions récentes
       const now = new Date();
-      const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000); // Inclut les sessions des 2 dernières heures
+      const cutoffDate = new Date(now.getTime() - 4 * 60 * 60 * 1000); // 4 heures au lieu de 2
       
       console.log("[map] Fetching sessions from:", cutoffDate.toISOString());
       
       const { data, error } = await supabase  
         .from("sessions")  
-        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id") // ✅ Ajout host_id
-        .gte("scheduled_at", cutoffDate.toISOString()) // ✅ Fenêtre plus large
+        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id")
+        .gte("scheduled_at", cutoffDate.toISOString())
         .eq("status", "published")
         .order("scheduled_at", { ascending: true })  
         .limit(500);
+
+      if (signal.aborted) return;
 
       if (error) {  
         console.error("[map] Fetch sessions error:", error);
@@ -158,36 +184,49 @@ function MapPageInner() {
         location_lng: s.start_lng,  
       }));
 
-      console.log("[map] Mapped sessions:", mappedSessions.length, "sessions");
-      setSessions(mappedSessions);  
-    } catch (e) {  
-      console.error("[map] Load error:", e);
-      setError("Une erreur inattendue est survenue lors du chargement des données.");
+      if (!signal.aborted) {
+        console.log("[map] Mapped sessions:", mappedSessions.length, "sessions");
+        setSessions(mappedSessions);
+      }
+    } catch (e: any) {
+      if (e.name === 'AbortError') {
+        console.log("[map] Request aborted");
+      } else {
+        console.error("[map] Load error:", e);
+        if (!signal.aborted) {
+          setError("Une erreur inattendue est survenue lors du chargement des données.");
+        }
+      }
     } finally {  
-      setLoading(false);  
+      if (!signal.aborted) {
+        setLoading(false);
+      }
+      isFetchingRef.current = false;
     }
   }
 
+  // Fonction de refresh avec debounce
+  const debouncedRefresh = () => {
+    clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(() => {
+      fetchGateAndSessions();
+    }, 2000); // Debounce de 2 secondes
+  };
+
+  // Chargement initial
   useEffect(() => { 
     fetchGateAndSessions(); 
   }, []);
 
-  // Realtime avec debounce
+  // Realtime avec debounce amélioré
   useEffect(() => {  
     if (!supabase) return;  
     console.log("[map] Setting up realtime listener");
     
-    let timeoutId: NodeJS.Timeout;
-    
     const ch = supabase.channel("sessions-map")  
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, (payload: any) => {  
         console.log("[map] Realtime session update:", payload);
-        
-        // ✅ Debounce pour éviter les appels multiples
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          fetchGateAndSessions();
-        }, 1000);
+        debouncedRefresh();
       })  
       .subscribe((status) => {
         console.log("[map] Realtime channel status:", status);
@@ -195,9 +234,22 @@ function MapPageInner() {
     
     return () => { 
       console.log("[map] Cleaning up realtime channel");
-      clearTimeout(timeoutId);
+      clearTimeout(debounceTimeoutRef.current);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       supabase.removeChannel(ch); 
     };  
+  }, []);
+
+  // Cleanup général
+  useEffect(() => {
+    return () => {
+      clearTimeout(debounceTimeoutRef.current);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const mapContainerStyle = useMemo(() => ({ 
@@ -248,13 +300,12 @@ function MapPageInner() {
             console.log("[map] Rendering session marker:", s.id, s.title);
             const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
             const radius = s.blur_radius_m ?? 1000;  
-            const isOwnSession = currentUser && s.host_id === currentUser.id; // ✅ Vérification propriétaire
-            const shouldBlur = !hasSub && !isOwnSession; // ✅ Pas de flou pour ses propres sessions
+            const isOwnSession = currentUser && s.host_id === currentUser.id;
+            const shouldBlur = !hasSub && !isOwnSession;
             const startShown = shouldBlur ? jitterDeterministic(start.lat, start.lng, radius, s.id) : start;
-            const showPolyline = (hasSub || isOwnSession) && s.route_polyline; // ✅ Polyline visible pour ses sessions
+            const showPolyline = (hasSub || isOwnSession) && s.route_polyline;
             const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
 
-            // ✅ Icône différentiée
             const markerIcon = createCustomMarkerIcon(!!isOwnSession, hasSub);
 
             return (  
@@ -275,7 +326,7 @@ function MapPageInner() {
                       clickable: false, 
                       strokeOpacity: 0.9, 
                       strokeWeight: 4,
-                      strokeColor: isOwnSession ? '#dc2626' : '#059669' // ✅ Couleur différente pour ses sessions
+                      strokeColor: isOwnSession ? '#dc2626' : '#059669'
                     }} 
                   />  
                 )}  
@@ -286,11 +337,23 @@ function MapPageInner() {
       </div>
 
       {loading && (  
-        <div className="text-center text-sm text-muted-foreground py-2">Chargement…</div>  
+        <div className="text-center text-sm text-muted-foreground py-2">
+          <div className="flex items-center justify-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+            Chargement des sessions…
+          </div>
+        </div>  
       )}  
       {error && (
         <div className="text-center text-sm text-destructive py-2">{error}</div>
       )}  
+      {!loading && sessions.length === 0 && (
+        <div className="text-center text-sm text-muted-foreground py-8">
+          <MapPin className="mx-auto h-8 w-8 mb-2 opacity-50" />
+          <p>Aucune session disponible pour le moment</p>
+          <p className="text-xs mt-1">Revenez plus tard ou créez votre propre session !</p>
+        </div>
+      )}
     </div>  
   );  
 }
