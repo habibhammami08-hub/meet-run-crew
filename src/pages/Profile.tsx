@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,10 +56,7 @@ export default function ProfilePage() {
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-  // Refs pour éviter les conditions de course
-  const isMountedRef = useRef(true);
-  const loadingRef = useRef(false);
-  const currentUserIdRef = useRef<string | null>(null);
+  const supabase = getSupabase();
 
   // Redirection simplifiée
   useEffect(() => {
@@ -68,83 +65,9 @@ export default function ProfilePage() {
     }
   }, [user, loading, navigate]);
 
-  // Fonction de mise à jour des stats simplifiée avec gestion d'erreur
-  const updateProfileStats = useCallback(async (userId: string) => {
-    const supabase = getSupabase();
-    if (!supabase || !userId) {
-      console.warn("[Profile] No supabase client or userId for stats update");
-      return;
-    }
-
-    try {
-      console.log("[Profile] Updating profile statistics for user:", userId);
-      
-      // Utilisation de la RPC avec timeout
-      const { data: statsRaw, error: rpcError } = await Promise.race([
-        supabase.rpc('get_user_stats', { target_user_id: userId }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('RPC timeout')), 10000))
-      ]) as any;
-
-      if (rpcError) {
-        console.error('[Profile] RPC error:', rpcError);
-        return null;
-      }
-
-      if (!statsRaw || !isMountedRef.current) return null;
-
-      const stats = statsRaw as {
-        sessions_hosted: number;
-        sessions_joined: number;
-        total_km_hosted: number;
-        total_km_joined: number;
-        total_km: number;
-      };
-
-      console.log("[Profile] Stats calculated:", stats);
-
-      // Mise à jour avec retry
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ 
-              sessions_hosted: stats.sessions_hosted || 0,
-              sessions_joined: stats.sessions_joined || 0,
-              total_km: stats.total_km || 0,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId);
-
-          if (!updateError) {
-            console.log("[Profile] Stats updated successfully");
-            return stats;
-          } else if (retryCount === maxRetries - 1) {
-            throw updateError;
-          }
-          retryCount++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-        } catch (error) {
-          if (retryCount === maxRetries - 1) {
-            console.error('[Profile] Error updating profile stats after retries:', error);
-            return null;
-          }
-          retryCount++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-        }
-      }
-    } catch (error) {
-      console.error('[Profile] Error in updateProfileStats:', error);
-      return null;
-    }
-  }, []);
-
   // Fonction de chargement des sessions simplifiée
   const fetchMySessions = useCallback(async (userId: string) => {
-    const supabase = getSupabase();
-    if (!supabase || !userId || !isMountedRef.current) return;
+    if (!supabase || !userId) return;
 
     try {
       console.log("[Profile] Fetching sessions for user:", userId);
@@ -171,7 +94,7 @@ export default function ProfilePage() {
         return;
       }
 
-      if (!isMountedRef.current || !sessions) return;
+      if (!sessions) return;
 
       // Compter les participants avec gestion d'erreur
       const sessionsWithCounts = await Promise.all(
@@ -197,36 +120,59 @@ export default function ProfilePage() {
         })
       );
 
-      if (isMountedRef.current) {
-        console.log("[Profile] Sessions loaded:", sessionsWithCounts.length);
-        setMySessions(sessionsWithCounts);
-      }
+      console.log("[Profile] Sessions loaded:", sessionsWithCounts.length);
+      setMySessions(sessionsWithCounts);
     } catch (error) {
       console.error('[Profile] Error fetching sessions:', error);
     }
-  }, []);
+  }, [supabase]);
 
-  // Fonction de chargement du profil complètement refactorisée
+  // Fonction de mise à jour des stats simplifiée
+  const updateProfileStats = useCallback(async (userId: string) => {
+    if (!supabase || !userId) return;
+
+    try {
+      console.log("[Profile] Updating profile statistics for user:", userId);
+      
+      // Calculer les stats localement plutôt qu'avec RPC
+      const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('*', { count: 'exact' })
+          .eq('host_id', userId)
+          .eq('status', 'published'),
+        supabase
+          .from('enrollments')
+          .select('*', { count: 'exact' })
+          .eq('user_id', userId)
+          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+      ]);
+
+      // Mise à jour simple sans retry
+      await supabase
+        .from('profiles')
+        .update({ 
+          sessions_hosted: sessionsHosted || 0,
+          sessions_joined: sessionsJoined || 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      console.log("[Profile] Stats updated successfully");
+    } catch (error) {
+      console.error('[Profile] Error updating profile stats:', error);
+    }
+  }, [supabase]);
+
+  // Fonction de chargement du profil simplifiée
   const loadProfile = useCallback(async (userId: string) => {
-    // Éviter les appels multiples
-    if (loadingRef.current || currentUserIdRef.current === userId) {
-      console.log("[Profile] Already loading or same user, skipping...");
+    if (!supabase) {
+      setLoading(false);
       return;
     }
 
-    loadingRef.current = true;
-    currentUserIdRef.current = userId;
     setLoading(true);
     
-    const supabase = getSupabase();
-    
-    if (!supabase) {
-      console.warn("[Profile] No supabase client");
-      setLoading(false);
-      loadingRef.current = false;
-      return;
-    }
-
     try {
       console.log("[Profile] Loading profile for user:", userId);
 
@@ -236,8 +182,6 @@ export default function ProfilePage() {
         .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
         .eq("id", userId)
         .maybeSingle();
-
-      if (!isMountedRef.current) return;
 
       if (profileError) {
         console.error("Profile fetch error:", profileError);
@@ -269,7 +213,7 @@ export default function ProfilePage() {
           .select()
           .single();
 
-        if (!createError && newProfile && isMountedRef.current) {
+        if (!createError && newProfile) {
           setProfile(newProfile);
           setFullName(newProfile.full_name || "");
           setAge(newProfile.age ?? "");
@@ -278,66 +222,39 @@ export default function ProfilePage() {
         }
       }
 
-      // Charger les sessions en parallèle (non bloquant)
-      Promise.all([
+      // Charger les sessions et mettre à jour les stats
+      await Promise.all([
         fetchMySessions(userId),
         updateProfileStats(userId)
-      ]).then(() => {
-        console.log("[Profile] Background operations completed");
-      }).catch(error => {
-        console.warn("[Profile] Background operations failed:", error);
-      });
+      ]);
 
     } catch (error) {
       console.error("Error loading profile:", error);
-      if (isMountedRef.current) {
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue lors du chargement",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors du chargement",
+        variant: "destructive"
+      });
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-      loadingRef.current = false;
+      setLoading(false);
     }
-  }, [user, toast, fetchMySessions, updateProfileStats]);
+  }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
   // Effect principal simplifié
   useEffect(() => {
-    console.log("[Profile] Component mounted, user:", user?.id);
-    
-    isMountedRef.current = true;
-    
-    if (!user?.id) {
-      console.log("[Profile] No user ID, skipping load");
-      setLoading(false);
-      return;
+    if (user?.id) {
+      loadProfile(user.id);
     }
-
-    // Charger une seule fois
-    loadProfile(user.id);
-
-    // Cleanup
-    return () => {
-      console.log("[Profile] Component unmounting");
-      isMountedRef.current = false;
-      currentUserIdRef.current = null;
-    };
-  }, [user?.id]);
+  }, [user?.id, loadProfile]);
 
   // Fonction de suppression améliorée
   const handleDeleteSession = async (sessionId: string) => {
-    const supabase = getSupabase();
     if (!supabase || !user?.id) return;
 
     setDeletingSession(sessionId);
     try {
       console.log("[Profile] Deleting session:", sessionId);
       
-      // Transaction atomique avec proper cleanup
       const { error: sessionError } = await supabase
         .from('sessions')
         .delete()
@@ -357,11 +274,7 @@ export default function ProfilePage() {
       await fetchMySessions(user.id);
       
       // Mise à jour des stats en arrière-plan
-      updateProfileStats(user.id).then(() => {
-        console.log("[Profile] Stats updated after deletion");
-      }).catch(error => {
-        console.warn("[Profile] Stats update failed after deletion:", error);
-      });
+      updateProfileStats(user.id);
       
     } catch (error: any) {
       console.error('[Profile] Delete error:', error);
@@ -377,7 +290,6 @@ export default function ProfilePage() {
 
   // Fonction de sauvegarde
   async function handleSave() {
-    const supabase = getSupabase();
     if (!supabase || !profile || !user?.id) return;
     
     setSaving(true);
@@ -617,7 +529,7 @@ export default function ProfilePage() {
             <div className="text-center py-8 text-muted-foreground">
               <p>Vous n'avez pas encore organisé de sessions.</p>
               <Button 
-                onClick={() => navigate('/create-run')} 
+                onClick={() => navigate('/create')} 
                 className="mt-4"
               >
                 Créer ma première session
