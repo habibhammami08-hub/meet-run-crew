@@ -66,7 +66,6 @@ function MapPageInner() {
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);  
-  const [nearestSessions, setNearestSessions] = useState<SessionRow[]>([]);
   const [hasSub, setHasSub] = useState<boolean>(false);  
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);  
