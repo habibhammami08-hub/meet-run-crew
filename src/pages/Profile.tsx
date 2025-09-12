@@ -399,21 +399,15 @@ export default function ProfilePage() {
     );
   }
 
+  // Redirection automatique vers l'authentification si pas connecté
+  useEffect(() => {
+    if (!user && !loading) {
+      navigate('/auth?returnTo=/profile');
+    }
+  }, [user, loading, navigate]);
+
   if (!user || !profile) {
-    return (
-      <div className="p-4 max-w-xl mx-auto">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="mb-4">Merci de vous connecter.</p>
-              <Button onClick={() => window.location.href = '/auth?returnTo=/profile'}>
-                Se connecter
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return null; // Redirection en cours
   }
 
   return (
