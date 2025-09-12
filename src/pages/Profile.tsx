@@ -56,19 +56,19 @@ export default function ProfilePage() {
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-  // ✅ CORRECTION - Refs pour éviter les conditions de course
+  // Refs pour éviter les conditions de course
   const isMountedRef = useRef(true);
   const loadingRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
 
-  // ✅ Redirection simplifiée
+  // Redirection simplifiée
   useEffect(() => {
     if (!user && !loading) {
       navigate('/auth?returnTo=/profile');
     }
   }, [user, loading, navigate]);
 
-  // ✅ CORRECTION - Fonction de mise à jour des stats simplifiée avec gestion d'erreur
+  // Fonction de mise à jour des stats simplifiée avec gestion d'erreur
   const updateProfileStats = useCallback(async (userId: string) => {
     const supabase = getSupabase();
     if (!supabase || !userId) {
@@ -79,7 +79,7 @@ export default function ProfilePage() {
     try {
       console.log("[Profile] Updating profile statistics for user:", userId);
       
-      // ✅ Utilisation de la RPC avec timeout
+      // Utilisation de la RPC avec timeout
       const { data: statsRaw, error: rpcError } = await Promise.race([
         supabase.rpc('get_user_stats', { target_user_id: userId }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('RPC timeout')), 10000))
@@ -102,7 +102,7 @@ export default function ProfilePage() {
 
       console.log("[Profile] Stats calculated:", stats);
 
-      // ✅ Mise à jour avec retry
+      // Mise à jour avec retry
       let retryCount = 0;
       const maxRetries = 3;
       
@@ -141,7 +141,7 @@ export default function ProfilePage() {
     }
   }, []);
 
-  // ✅ CORRECTION - Fonction de chargement des sessions simplifiée
+  // Fonction de chargement des sessions simplifiée
   const fetchMySessions = useCallback(async (userId: string) => {
     const supabase = getSupabase();
     if (!supabase || !userId || !isMountedRef.current) return;
@@ -173,7 +173,7 @@ export default function ProfilePage() {
 
       if (!isMountedRef.current || !sessions) return;
 
-      // ✅ Compter les participants avec gestion d'erreur
+      // Compter les participants avec gestion d'erreur
       const sessionsWithCounts = await Promise.all(
         sessions.map(async (session) => {
           try {
@@ -206,9 +206,9 @@ export default function ProfilePage() {
     }
   }, []);
 
-  // ✅ CORRECTION - Fonction de chargement du profil complètement refactorisée
+  // Fonction de chargement du profil complètement refactorisée
   const loadProfile = useCallback(async (userId: string) => {
-    // ✅ Éviter les appels multiples
+    // Éviter les appels multiples
     if (loadingRef.current || currentUserIdRef.current === userId) {
       console.log("[Profile] Already loading or same user, skipping...");
       return;
@@ -230,7 +230,7 @@ export default function ProfilePage() {
     try {
       console.log("[Profile] Loading profile for user:", userId);
 
-      // ✅ Charger le profil d'abord
+      // Charger le profil d'abord
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
@@ -254,7 +254,7 @@ export default function ProfilePage() {
         setCity(profileData.city || "");
         setSportLevel("Occasionnel");
       } else {
-        // ✅ Créer le profil s'il n'existe pas
+        // Créer le profil s'il n'existe pas
         console.log("No profile found, creating one...");
         const { data: newProfile, error: createError } = await supabase
           .from("profiles")
@@ -278,7 +278,7 @@ export default function ProfilePage() {
         }
       }
 
-      // ✅ Charger les sessions en parallèle (non bloquant)
+      // Charger les sessions en parallèle (non bloquant)
       Promise.all([
         fetchMySessions(userId),
         updateProfileStats(userId)
@@ -305,7 +305,7 @@ export default function ProfilePage() {
     }
   }, [user, toast, fetchMySessions, updateProfileStats]);
 
-  // ✅ CORRECTION - Effect principal simplifié
+  // Effect principal simplifié
   useEffect(() => {
     console.log("[Profile] Component mounted, user:", user?.id);
     
@@ -317,7 +317,7 @@ export default function ProfilePage() {
       return;
     }
 
-    // ✅ Charger une seule fois
+    // Charger une seule fois
     loadProfile(user.id);
 
     // Cleanup
@@ -326,9 +326,9 @@ export default function ProfilePage() {
       isMountedRef.current = false;
       currentUserIdRef.current = null;
     };
-  }, [user?.id]); // ✅ Seule dépendance nécessaire
+  }, [user?.id]);
 
-  // ✅ CORRECTION - Fonction de suppression améliorée
+  // Fonction de suppression améliorée
   const handleDeleteSession = async (sessionId: string) => {
     const supabase = getSupabase();
     if (!supabase || !user?.id) return;
@@ -337,7 +337,7 @@ export default function ProfilePage() {
     try {
       console.log("[Profile] Deleting session:", sessionId);
       
-      // ✅ Transaction atomique avec proper cleanup
+      // Transaction atomique avec proper cleanup
       const { error: sessionError } = await supabase
         .from('sessions')
         .delete()
@@ -353,10 +353,10 @@ export default function ProfilePage() {
         description: "La session a été supprimée avec succès."
       });
 
-      // ✅ Refresh optimisé - seulement les sessions
+      // Refresh optimisé - seulement les sessions
       await fetchMySessions(user.id);
       
-      // ✅ Mise à jour des stats en arrière-plan
+      // Mise à jour des stats en arrière-plan
       updateProfileStats(user.id).then(() => {
         console.log("[Profile] Stats updated after deletion");
       }).catch(error => {
@@ -375,7 +375,7 @@ export default function ProfilePage() {
     }
   };
 
-  // ✅ Fonction de sauvegarde inchangée (déjà correcte)
+  // Fonction de sauvegarde
   async function handleSave() {
     const supabase = getSupabase();
     if (!supabase || !profile || !user?.id) return;
