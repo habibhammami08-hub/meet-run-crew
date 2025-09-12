@@ -379,6 +379,9 @@ function MapPageInner() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="text-sm text-gray-600 mb-2">
+                  Debug: Filtre actuel = "{filterIntensity}"
+                </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">
                     Rayon de recherche
