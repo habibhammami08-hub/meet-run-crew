@@ -303,7 +303,10 @@ function MapPageInner() {
             const isOwnSession = currentUser && s.host_id === currentUser.id;
             const shouldBlur = !hasSub && !isOwnSession;
             const startShown = shouldBlur ? jitterDeterministic(start.lat, start.lng, radius, s.id) : start;
-            const showPolyline = (hasSub || isOwnSession) && s.route_polyline;
+            
+            // ✅ CORRECTION : On affiche les polylines SEULEMENT pour les sessions d'autres utilisateurs abonnés
+            // Pas de polyline pour ses propres sessions pour éviter la surcharge visuelle
+            const showPolyline = hasSub && s.route_polyline && !isOwnSession;
             const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
 
             const markerIcon = createCustomMarkerIcon(!!isOwnSession, hasSub);
@@ -326,7 +329,7 @@ function MapPageInner() {
                       clickable: false, 
                       strokeOpacity: 0.9, 
                       strokeWeight: 4,
-                      strokeColor: isOwnSession ? '#dc2626' : '#059669'
+                      strokeColor: '#059669' // Toujours vert pour les autres sessions
                     }} 
                   />  
                 )}  
