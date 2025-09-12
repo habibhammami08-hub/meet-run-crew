@@ -61,6 +61,13 @@ export default function ProfilePage() {
   const loadingRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
 
+  // ✅ Redirection simplifiée
+  useEffect(() => {
+    if (!user && !loading) {
+      navigate('/auth?returnTo=/profile');
+    }
+  }, [user, loading, navigate]);
+
   // ✅ CORRECTION - Fonction de mise à jour des stats simplifiée avec gestion d'erreur
   const updateProfileStats = useCallback(async (userId: string) => {
     const supabase = getSupabase();
@@ -320,13 +327,6 @@ export default function ProfilePage() {
       currentUserIdRef.current = null;
     };
   }, [user?.id]); // ✅ Seule dépendance nécessaire
-
-  // ✅ Redirection simplifiée
-  useEffect(() => {
-    if (!user && !loading) {
-      navigate('/auth?returnTo=/profile');
-    }
-  }, [user, loading, navigate]);
 
   // ✅ CORRECTION - Fonction de suppression améliorée
   const handleDeleteSession = async (sessionId: string) => {
