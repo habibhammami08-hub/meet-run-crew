@@ -37,7 +37,9 @@ export async function deleteMyAccount(): Promise<DeleteAccountResponse> {
       };
     }
 
-    if (data?.success) {
+    const result = data as unknown as DeleteAccountResponse;
+    
+    if (result?.success) {
       try {
         localStorage.clear();
         sessionStorage.clear();
@@ -46,7 +48,7 @@ export async function deleteMyAccount(): Promise<DeleteAccountResponse> {
       }
     }
 
-    return data || {
+    return result || {
       success: false,
       message: 'Réponse invalide',
       error: 'Réponse invalide du serveur'
@@ -71,11 +73,11 @@ export async function canDeleteAccount(): Promise<CanDeleteResponse> {
       throw error;
     }
 
-    return (data || {
+    return (data as unknown as CanDeleteResponse) || {
       can_delete: false,
       reason: 'no_data',
       message: 'Aucune donnée reçue'
-    }) as unknown as CanDeleteResponse;
+    };
 
   } catch (error) {
     console.error('Erreur lors de la vérification:', error);
