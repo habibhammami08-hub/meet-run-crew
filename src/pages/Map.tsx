@@ -411,15 +411,27 @@ function MapPageInner() {
                       <div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>
                     ))}
                   </div>
-                ) : nearestSessions.length === 0 ? (
+                ) : nearestFilteredSessions.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Aucune session proche trouvée</p>
-                    <p className="text-xs mt-1">Activez la géolocalisation</p>
+                    <p className="text-sm">
+                      {!userLocation 
+                        ? "Aucune session proche trouvée"
+                        : "Aucune session dans cette zone"
+                      }
+                    </p>
+                    <p className="text-xs mt-1">
+                      {!userLocation 
+                        ? "Activez la géolocalisation pour voir les sessions proches"
+                        : filterRadius !== "all" || filterIntensity !== "all" 
+                          ? "Essayez d'élargir vos filtres de recherche"
+                          : "Aucune session disponible dans votre zone"
+                      }
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {nearestSessions.map(session => {
+                    {nearestFilteredSessions.map(session => {
                       const isOwnSession = currentUser && session.host_id === currentUser.id;
                       const shouldBlur = !hasSub && !isOwnSession;
                       
