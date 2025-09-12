@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.delete-account]
 verify_jwt = true
 
+[functions.delete-user-account]
+verify_jwt = true
+
 [functions]
 timeout = 30
 memory = 512
