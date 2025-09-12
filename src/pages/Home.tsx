@@ -8,7 +8,6 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
-import { useSessionsRealtime, useEnrollmentsRealtime } from "@/hooks/useRealtime";
 import { logger } from "@/utils/logger";
 
 const Home = () => {
@@ -21,13 +20,17 @@ const Home = () => {
   
   const supabase = getSupabase();
 
-  // AbortController pour annuler les requêtes en cours
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
   const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Fonction de fetch avec AbortController pour éviter les race conditions
+  // CORRECTION: Fonction de fetch avec AbortController strict
   const fetchUserActivity = useCallback(async (userId: string) => {
-    if (!supabase || !userId) return;
+    if (!supabase || !userId || !mountedRef.current) {
+      console.log("[Home] Fetch cancelled - missing dependencies or unmounted");
+      return;
+    }
     
     // Annuler la requête précédente si elle existe
     if (abortControllerRef.current) {
@@ -108,7 +111,7 @@ const Home = () => {
       if (error.name === 'AbortError') {
         console.log("[Home] Request aborted");
       } else {
-        console.error('Erreur lors du chargement des activités:', error);
+        logger.error('[Home] Error loading activities:', error);
       }
     } finally {
       if (!signal.aborted && mountedRef.current) {
@@ -117,31 +120,33 @@ const Home = () => {
     }
   }, [supabase]);
 
-  // Effect principal - simplifié
+  // CORRECTION: Effect principal avec cleanup strict
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && mountedRef.current) {
       fetchUserActivity(user.id);
     }
   }, [user?.id, fetchUserActivity]);
 
-  // Debounce pour les événements de refresh
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
-  
+  // CORRECTION: Debounce avec cleanup pour les événements de refresh
   const debouncedRefresh = useCallback(() => {
-    if (!user?.id) return;
+    if (!user?.id || !mountedRef.current) return;
     
     clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current) {
+      if (mountedRef.current && user?.id) {
         fetchUserActivity(user.id);
       }
     }, 2000); // Debounce de 2 secondes
   }, [user?.id, fetchUserActivity]);
 
-  // Écouter les mises à jour de profil avec debounce
+  // CORRECTION: Écouter les mises à jour de profil avec cleanup
   useEffect(() => {
+    if (!user?.id) return;
+    
     const handleProfileRefresh = () => {
-      debouncedRefresh();
+      if (mountedRef.current) {
+        debouncedRefresh();
+      }
     };
 
     window.addEventListener('profileRefresh', handleProfileRefresh);
@@ -149,32 +154,30 @@ const Home = () => {
     return () => {
       window.removeEventListener('profileRefresh', handleProfileRefresh);
     };
-  }, [debouncedRefresh]);
+  }, [debouncedRefresh, user?.id]);
 
-  // Mise à jour temps réel avec debounce
-  useSessionsRealtime(useCallback((payload) => {
-    logger.debug('[Home] Session realtime update:', payload);
-    debouncedRefresh();
-  }, [debouncedRefresh]));
-
-  useEnrollmentsRealtime(user?.id, useCallback((payload) => {
-    logger.debug('[Home] Enrollment realtime update:', payload);
-    debouncedRefresh();
-  }, [user?.id, debouncedRefresh]));
-
-  // Cleanup
+  // CORRECTION: Cleanup général strict
   useEffect(() => {
+    mountedRef.current = true;
+    
     return () => {
+      console.log("[Home] Component unmounting - cleaning up all resources");
       mountedRef.current = false;
+      
+      // Cleanup timeout
+      clearTimeout(debounceTimeoutRef.current);
+      
+      // Cleanup AbortController
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
-      clearTimeout(debounceTimeoutRef.current);
     };
   }, []);
 
+  // CORRECTION: Fonction de suppression avec vérification de mounted
   const handleDeleteSession = async (sessionId: string) => {
-    if (!user) return;
+    if (!user || !mountedRef.current) return;
     
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.")) {
       return;
@@ -189,23 +192,29 @@ const Home = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Session supprimée",
-        description: "La session a été supprimée avec succès.",
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Session supprimée",
+          description: "La session a été supprimée avec succès.",
+        });
 
-      // Actualiser les activités
-      if (user.id) {
-        fetchUserActivity(user.id);
+        // Actualiser les activités seulement si le composant est encore monté
+        if (user.id) {
+          fetchUserActivity(user.id);
+        }
       }
     } catch (error: any) {
-      toast({
-        title: "Erreur de suppression",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Erreur de suppression",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
-      setDeletingSessionId(null);
+      if (mountedRef.current) {
+        setDeletingSessionId(null);
+      }
     }
   };
 
@@ -254,15 +263,6 @@ const Home = () => {
           <p className="text-lg font-bold opacity-95 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
           <div className="flex flex-col sm:flex-row gap-4">
             {user ? (
-              <>
-                <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                  Voir les courses
-                </Button>
-                <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                  Créer une course
-                </Button>
-              </>
-            ) : (
               <>
                 <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
                   Voir les courses
@@ -471,4 +471,13 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Home;font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  Voir les courses
+                </Button>
+                <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  Créer une course
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="
