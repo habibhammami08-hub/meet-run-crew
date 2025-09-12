@@ -71,7 +71,7 @@ serve(async (req) => {
     });
 
     // 3. Check if user can delete account
-    const eligibilityResult = await checkDeletionEligibility(user.id, requestId);
+    const eligibilityResult = await checkDeletionEligibility(user.id, authHeader, requestId);
     
     if (!eligibilityResult.can_delete) {
       logEvent({
@@ -96,7 +96,7 @@ serve(async (req) => {
     }
 
     // 4. Process account deletion
-    const result = await processAccountDeletion(user, requestId);
+    const result = await processAccountDeletion(user, authHeader, requestId);
 
     logEvent({
       level: 'info',
@@ -136,10 +136,11 @@ serve(async (req) => {
 });
 
 async function checkDeletionEligibility(
-  userId: string, 
+  userId: string,
+  authHeader: string | null,
   requestId: string
 ): Promise<CanDeleteResponse> {
-  const supabase = await createSupabaseClient(true);
+  const supabase = await createSupabaseClient(false, authHeader);
 
   try {
     const { data, error } = await supabase.rpc('can_delete_account');
@@ -164,9 +165,10 @@ async function checkDeletionEligibility(
 
 async function processAccountDeletion(
   user: any,
+  authHeader: string | null,
   requestId: string
 ): Promise<DeleteAccountResult> {
-  const supabase = await createSupabaseClient(true);
+  const supabase = await createSupabaseClient(false, authHeader);
 
   try {
     // 1. Execute database deletion using RPC
