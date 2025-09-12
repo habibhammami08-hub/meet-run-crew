@@ -1,10 +1,11 @@
+// src/pages/Map.tsx - Corrections pour affichage des sessions créées
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
-import { MapErrorBoundary } from "@/components/MapErrorBoundary"; // Ajout du boundary
+import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { MapPin } from "lucide-react";
 
 type LatLng = { lat: number; lng: number; };  
@@ -21,9 +22,10 @@ type SessionRow = {
   blur_radius_m?: number | null;  
   location_lat?: number;  
   location_lng?: number;  
+  host_id?: string; // ✅ Ajout pour identifier le créateur
 };
 
-// Brouillage déterministe et cohérent par session (évite le "saut")
+// Brouillage déterministe et cohérent par session
 function seededNoise(seed: string) {  
   let h = 2166136261;  
   for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }  
@@ -31,34 +33,33 @@ function seededNoise(seed: string) {
   const v = (((h * 48271) >>> 0) % 10000) / 10000;  
   return { u, v };  
 }  
+
 function jitterDeterministic(lat:number, lng:number, meters:number, seed:string): LatLng {  
-  const r = meters / 111320; // ≈ degrés/terre  
+  const r = meters / 111320;
   const { u, v } = seededNoise(seed);  
   const w = r * Math.sqrt(u), t = 2 * Math.PI * v;  
   return { lat: lat + w * Math.cos(t), lng: lng + w * Math.sin(t) };  
 }
 
-// Nouveau composant page interne avec fallback d'erreur
 function MapPageInner() {  
   const navigate = useNavigate();  
   const supabase = getSupabase();  
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [sessions, setSessions] = useState<SessionRow[]>([]);  
   const [hasSub, setHasSub] = useState<boolean>(false);  
+  const [currentUser, setCurrentUser] = useState<any>(null); // ✅ Ajout état utilisateur
   const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<string | null>(null);
 
-  // Créer une icône personnalisée moderne pour les marqueurs
-  const createCustomMarkerIcon = (isSubscribed: boolean) => {
-    const size = 12; // Plus petit
-    const color = isSubscribed ? '#065f46' : '#047857'; // Vert beaucoup plus foncé
+  // ✅ Amélioration - Icône différentiée pour ses propres sessions
+  const createCustomMarkerIcon = (isOwnSession: boolean, isSubscribed: boolean) => {
+    const size = isOwnSession ? 16 : 12; // Plus gros pour ses propres sessions
+    const color = isOwnSession ? '#dc2626' : (isSubscribed ? '#065f46' : '#047857'); // Rouge pour ses sessions
     
-    // SVG très simple et petit
     const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
       <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="white" stroke-width="1"/>
+      ${isOwnSession ? `<circle cx="${size/2}" cy="${size/2}" r="${size/4}" fill="white"/>` : ''}
     </svg>`;
-    
-    console.log("[map] Creating custom icon, color:", color, "size:", size);
     
     if (typeof window !== 'undefined' && window.google) {
       return {
@@ -67,20 +68,16 @@ function MapPageInner() {
         anchor: new window.google.maps.Point(size/2, size/2),
       };
     } else {
-      // Fallback simple pour le développement
       return {
         url: 'data:image/svg+xml,' + encodeURIComponent(svg),
       };
     }
   };
 
-  // Mémoriser l'icône pour éviter les re-créations
-  const customIcon = useMemo(() => createCustomMarkerIcon(hasSub), [hasSub]);
-
-  // Geoloc initiale avec options mobiles optimisées
+  // Geolocalisation optimisée
   useEffect(() => {  
     if (navigator.geolocation) {  
-      console.log("[map] Requesting user location for mobile...");
+      console.log("[map] Requesting user location...");
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userPos = { 
@@ -92,18 +89,17 @@ function MapPageInner() {
         },
         (error) => {
           console.warn("[map] Geolocation error:", error);
-          // Garder Paris par défaut si erreur
         },
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 300000 // 5 minutes
+          maximumAge: 300000
         }
       );  
     }  
   }, []);
 
-  // Lire abonnement + sessions  
+  // ✅ CORRECTION PRINCIPALE - Requête de sessions améliorée
   async function fetchGateAndSessions() {  
     if (!supabase) {
       console.log("[map] No supabase client");
@@ -112,8 +108,12 @@ function MapPageInner() {
     setLoading(true);  
     setError(null);
     console.log("[map] Fetching sessions...");
+    
     try {  
+      // ✅ Récupération utilisateur
       const { data: { user } } = await supabase.auth.getUser();  
+      setCurrentUser(user);
+      
       if (user) {  
         console.log("[map] User authenticated:", user.id);
         const { data: prof } = await supabase  
@@ -130,17 +130,17 @@ function MapPageInner() {
         setHasSub(false);  
       }
 
-      // Requête plus permissive pour récupérer toutes les sessions futures
-      const cutoffDate = new Date();
-      cutoffDate.setHours(0, 0, 0, 0); // Début d'aujourd'hui
+      // ✅ CORRECTION - Requête plus inclusive pour les sessions
+      const now = new Date();
+      const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000); // Inclut les sessions des 2 dernières heures
       
       console.log("[map] Fetching sessions from:", cutoffDate.toISOString());
       
       const { data, error } = await supabase  
         .from("sessions")  
-        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m")  
-        .gte("scheduled_at", cutoffDate.toISOString())
-        .eq("status", "published") // Seulement les sessions publiées
+        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id") // ✅ Ajout host_id
+        .gte("scheduled_at", cutoffDate.toISOString()) // ✅ Fenêtre plus large
+        .eq("status", "published")
         .order("scheduled_at", { ascending: true })  
         .limit(500);
 
@@ -151,7 +151,6 @@ function MapPageInner() {
       }
 
       console.log("[map] Raw sessions data:", data?.length || 0, "sessions");
-      console.log("[map] Sessions details:", data);
 
       const mappedSessions = (data ?? []).map((s) => ({  
         ...s,  
@@ -169,22 +168,34 @@ function MapPageInner() {
     }
   }
 
-  useEffect(() => { fetchGateAndSessions(); }, []);
+  useEffect(() => { 
+    fetchGateAndSessions(); 
+  }, []);
 
-  // Realtime  
+  // Realtime avec debounce
   useEffect(() => {  
     if (!supabase) return;  
     console.log("[map] Setting up realtime listener");
+    
+    let timeoutId: NodeJS.Timeout;
+    
     const ch = supabase.channel("sessions-map")  
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, (payload: any) => {  
         console.log("[map] Realtime session update:", payload);
-        fetchGateAndSessions();  
+        
+        // ✅ Debounce pour éviter les appels multiples
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          fetchGateAndSessions();
+        }, 1000);
       })  
       .subscribe((status) => {
         console.log("[map] Realtime channel status:", status);
       });  
+    
     return () => { 
       console.log("[map] Cleaning up realtime channel");
+      clearTimeout(timeoutId);
       supabase.removeChannel(ch); 
     };  
   }, []);
@@ -192,8 +203,9 @@ function MapPageInner() {
   const mapContainerStyle = useMemo(() => ({ 
     width: "100%", 
     height: "calc(100vh - 120px)",
-    touchAction: "pan-x pan-y" // Permet le déplacement avec un doigt
+    touchAction: "pan-x pan-y"
   }), []);
+
   const pathFromPolyline = (p?: string | null): LatLng[] => {  
     if (!p) return [];  
     try { return polyline.decode(p).map(([lat, lng]) => ({ lat, lng })); } catch { return []; }  
@@ -205,7 +217,7 @@ function MapPageInner() {
         <h1 className="text-xl font-semibold">Sessions autour de vous</h1>  
         {!hasSub && (  
           <div className="text-xs text-muted-foreground">  
-            Coordonnées approximatives pour les non-abonnés • <a href="/subscribe" className="underline">S'abonner</a>  
+            Coordonnées approximatives pour les non-abonnés • <a href="/subscription" className="underline">S'abonner</a>  
           </div>  
         )}  
       </div>
@@ -219,40 +231,43 @@ function MapPageInner() {
             mapTypeControl: false, 
             streetViewControl: false, 
             fullscreenControl: false,
-            // Options mobiles optimisées
-            gestureHandling: "greedy", // Permet navigation avec 1 doigt
+            gestureHandling: "greedy",
             zoomControl: true,
             scaleControl: true,
             rotateControl: false,
-            // Style mobile-friendly
             styles: [
               {
                 featureType: "poi",
                 elementType: "labels",
-                stylers: [{ visibility: "off" }] // Masque les POI pour une carte plus claire
+                stylers: [{ visibility: "off" }]
               }
             ]
           }}  
         >
-            {sessions.map(s => {  
-              console.log("[map] Rendering session marker:", s.id, s.title);
-              const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
-              const radius = s.blur_radius_m ?? 1000;  
-              const startShown = hasSub ? start : jitterDeterministic(start.lat, start.lng, radius, s.id);  
-              const showPolyline = hasSub && s.route_polyline;  
-              const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
+          {sessions.map(s => {  
+            console.log("[map] Rendering session marker:", s.id, s.title);
+            const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
+            const radius = s.blur_radius_m ?? 1000;  
+            const isOwnSession = currentUser && s.host_id === currentUser.id; // ✅ Vérification propriétaire
+            const shouldBlur = !hasSub && !isOwnSession; // ✅ Pas de flou pour ses propres sessions
+            const startShown = shouldBlur ? jitterDeterministic(start.lat, start.lng, radius, s.id) : start;
+            const showPolyline = (hasSub || isOwnSession) && s.route_polyline; // ✅ Polyline visible pour ses sessions
+            const path = showPolyline ? pathFromPolyline(s.route_polyline) : [];
 
-              return (  
-                <div key={s.id}>  
-                  <MarkerF   
-                    position={startShown}   
-                    title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
-                    icon={customIcon}
-                    onClick={() => {
-                      console.log("[map] Marker clicked:", s.id);
-                      navigate(`/session/${s.id}`);
-                    }}  
-                  />  
+            // ✅ Icône différentiée
+            const markerIcon = createCustomMarkerIcon(!!isOwnSession, hasSub);
+
+            return (  
+              <div key={s.id}>  
+                <MarkerF   
+                  position={startShown}   
+                  title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${isOwnSession ? ' (Votre session)' : ''}`}
+                  icon={markerIcon}
+                  onClick={() => {
+                    console.log("[map] Marker clicked:", s.id);
+                    navigate(`/session/${s.id}`);
+                  }}  
+                />  
                 {showPolyline && path.length > 1 && (  
                   <Polyline 
                     path={path} 
@@ -260,7 +275,7 @@ function MapPageInner() {
                       clickable: false, 
                       strokeOpacity: 0.9, 
                       strokeWeight: 4,
-                      strokeColor: '#059669' // Couleur verte MeetRun
+                      strokeColor: isOwnSession ? '#dc2626' : '#059669' // ✅ Couleur différente pour ses sessions
                     }} 
                   />  
                 )}  
@@ -280,7 +295,6 @@ function MapPageInner() {
   );  
 }
 
-// Wrapping avec ErrorBoundary pour robustesse
 export default function MapPage() {
   return (
     <MapErrorBoundary>
