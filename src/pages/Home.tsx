@@ -21,19 +21,30 @@ const Home = () => {
   
   const supabase = getSupabase();
 
-  // Refs pour éviter les boucles
-  const fetchingRef = useRef(false);
+  // AbortController pour annuler les requêtes en cours
+  const abortControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
-  // Fonction mémorisée pour éviter les re-créations
-  const fetchUserActivity = useCallback(async () => {
-    if (!user || fetchingRef.current) return;
+  // Fonction de fetch avec AbortController pour éviter les race conditions
+  const fetchUserActivity = useCallback(async (userId: string) => {
+    if (!supabase || !userId) return;
     
-    fetchingRef.current = true;
+    // Annuler la requête précédente si elle existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Créer un nouveau controller
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     setLoading(true);
     
     try {
-      console.log("[Home] Fetching user activity for user:", user.id);
+      console.log("[Home] Fetching user activity for user:", userId);
+      
+      // Vérifier si la requête a été annulée
+      if (signal.aborted || !mountedRef.current) return;
       
       // Récupérer les sessions créées par l'utilisateur
       const { data: createdSessions, error: sessionsError } = await supabase
@@ -42,9 +53,11 @@ const Home = () => {
           *,
           enrollments(count)
         `)
-        .eq('host_id', user.id)
+        .eq('host_id', userId)
         .order('scheduled_at', { ascending: false })
         .limit(3);
+      
+      if (signal.aborted || !mountedRef.current) return;
       
       console.log("[Home] Created sessions result:", { createdSessions, sessionsError });
 
@@ -55,13 +68,13 @@ const Home = () => {
           *,
           sessions(*)
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(3);
       
+      if (signal.aborted || !mountedRef.current) return;
+      
       console.log("[Home] Enrolled sessions result:", { enrolledSessions, enrollmentsError });
-
-      if (!mountedRef.current) return;
 
       // Combiner les activités avec un type
       const activities = [];
@@ -87,82 +100,78 @@ const Home = () => {
       activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
       
       console.log("[Home] Final activities:", activities);
-      if (mountedRef.current) {
+      
+      if (!signal.aborted && mountedRef.current) {
         setUserActivity(activities.slice(0, 5));
       }
-    } catch (error) {
-      console.error('Erreur lors du chargement des activités:', error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log("[Home] Request aborted");
+      } else {
+        console.error('Erreur lors du chargement des activités:', error);
+      }
     } finally {
-      if (mountedRef.current) {
+      if (!signal.aborted && mountedRef.current) {
         setLoading(false);
       }
-      fetchingRef.current = false;
     }
-  }, [user, supabase]);
+  }, [supabase]);
 
-  // Effect principal - charge une seule fois
+  // Effect principal - simplifié
   useEffect(() => {
-    if (user) {
-      fetchUserActivity();
+    if (user?.id) {
+      fetchUserActivity(user.id);
     }
+  }, [user?.id, fetchUserActivity]);
+
+  // Debounce pour les événements de refresh
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  
+  const debouncedRefresh = useCallback(() => {
+    if (!user?.id) return;
     
-    // Cleanup
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []); // Pas de dépendances pour éviter les boucles
-
-  // Effect séparé pour les changements d'utilisateur
-  useEffect(() => {
-    if (user && !fetchingRef.current) {
-      fetchUserActivity();
-    }
+    clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        fetchUserActivity(user.id);
+      }
+    }, 2000); // Debounce de 2 secondes
   }, [user?.id, fetchUserActivity]);
 
   // Écouter les mises à jour de profil avec debounce
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
     const handleProfileRefresh = () => {
-      // Debounce pour éviter les appels multiples
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (user && !fetchingRef.current) {
-          fetchUserActivity();
-        }
-      }, 1000);
+      debouncedRefresh();
     };
 
     window.addEventListener('profileRefresh', handleProfileRefresh);
     
     return () => {
       window.removeEventListener('profileRefresh', handleProfileRefresh);
-      clearTimeout(timeoutId);
     };
-  }, [user, fetchUserActivity]);
+  }, [debouncedRefresh]);
 
   // Mise à jour temps réel avec debounce
   useSessionsRealtime(useCallback((payload) => {
     logger.debug('[Home] Session realtime update:', payload);
-    
-    // Debounce pour éviter les appels multiples
-    setTimeout(() => {
-      if (user && !fetchingRef.current) {
-        fetchUserActivity();
-      }
-    }, 2000);
-  }, [user, fetchUserActivity]));
+    debouncedRefresh();
+  }, [debouncedRefresh]));
 
   useEnrollmentsRealtime(user?.id, useCallback((payload) => {
     logger.debug('[Home] Enrollment realtime update:', payload);
-    
-    // Debounce pour éviter les appels multiples
-    setTimeout(() => {
-      if (user && !fetchingRef.current) {
-        fetchUserActivity();
+    debouncedRefresh();
+  }, [user?.id, debouncedRefresh]));
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-    }, 2000);
-  }, [user, fetchUserActivity]));
+      clearTimeout(debounceTimeoutRef.current);
+    };
+  }, []);
 
   const handleDeleteSession = async (sessionId: string) => {
     if (!user) return;
@@ -185,12 +194,10 @@ const Home = () => {
         description: "La session a été supprimée avec succès.",
       });
 
-      // Actualiser les activités avec un petit délai
-      setTimeout(() => {
-        if (!fetchingRef.current) {
-          fetchUserActivity();
-        }
-      }, 500);
+      // Actualiser les activités
+      if (user.id) {
+        fetchUserActivity(user.id);
+      }
     } catch (error: any) {
       toast({
         title: "Erreur de suppression",
