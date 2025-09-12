@@ -8,13 +8,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Lock, User, Phone, Chrome, Users, MapPin, Heart } from "lucide-react";
+import { Loader2, Mail, Lock, User, Phone, Chrome, Users, MapPin, Heart, CheckCircle } from "lucide-react";
 
 const supabase = getSupabase();
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
@@ -22,8 +24,27 @@ const Auth = () => {
   
   const returnTo = searchParams.get('returnTo') || '/map';
   const mode = searchParams.get('mode') || 'signin';
+  const confirmed = searchParams.get('confirmed') === 'true';
+  const confirmationToken = searchParams.get('token');
 
-  // Redirect authenticated users
+  // Gérer la confirmation d'email au chargement de la page
+  useEffect(() => {
+    if (confirmed && confirmationToken) {
+      setEmailSent(false);
+      toast({
+        title: "Email confirmé !",
+        description: "Votre compte a été activé avec succès. Vous pouvez maintenant vous connecter.",
+      });
+      
+      // Nettoyer les paramètres URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('confirmed');
+      newUrl.searchParams.delete('token');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, [confirmed, confirmationToken, toast]);
+
+  // Redirection des utilisateurs authentifiés
   useEffect(() => {
     if (user) {
       navigate(returnTo);
@@ -83,7 +104,24 @@ const Auth = () => {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Email not confirmed')) {
+          toast({
+            title: "Email non confirmé",
+            description: "Veuillez cliquer sur le lien de confirmation envoyé à votre adresse email.",
+            variant: "destructive",
+          });
+        } else if (error.message.includes('Invalid login credentials')) {
+          toast({
+            title: "Identifiants incorrects",
+            description: "Vérifiez votre email et votre mot de passe.",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast({
         title: "Connexion réussie",
@@ -114,7 +152,9 @@ const Auth = () => {
     const phone = formData.get("phone") as string;
 
     try {
-      const redirectUrl = `${window.location.origin}${returnTo}`;
+      // URL de redirection après confirmation d'email
+      const confirmationUrl = `${window.location.origin}/auth?confirmed=true&returnTo=${encodeURIComponent(returnTo)}`;
+      
       if (!supabase) {
         toast({
           title: "Configuration manquante",
@@ -124,11 +164,11 @@ const Auth = () => {
         return;
       }
       
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: redirectUrl,
+          emailRedirectTo: confirmationUrl,
           data: {
             full_name: fullName,
             age: parseInt(age),
@@ -152,10 +192,16 @@ const Auth = () => {
         return;
       }
 
+      // Marquer que l'email a été envoyé
+      setEmailSent(true);
+      setConfirmedEmail(email);
+
+      // ✅ Message corrigé pour refléter le processus de confirmation
       toast({
-        title: "Compte créé",
-        description: "Vérifiez votre email pour confirmer votre compte.",
+        title: "Email de confirmation envoyé",
+        description: "Vérifiez votre boîte mail et cliquez sur le lien de confirmation pour activer votre compte.",
       });
+      
     } catch (error: any) {
       toast({
         title: "Erreur lors de l'inscription",
@@ -166,6 +212,75 @@ const Auth = () => {
       setIsLoading(false);
     }
   };
+
+  // ✅ Composant pour afficher l'état d'attente de confirmation
+  if (emailSent && confirmedEmail) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="text-center pb-6">
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Mail className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-foreground">
+              Confirmez votre email
+            </CardTitle>
+            <CardDescription className="text-base">
+              Un email de confirmation a été envoyé à <strong>{confirmedEmail}</strong>
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="space-y-6 text-center">
+            <div className="space-y-4">
+              <div className="flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                <span className="text-sm">Email envoyé avec succès</span>
+              </div>
+              
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p>Pour activer votre compte :</p>
+                <ol className="text-left space-y-1 ml-4">
+                  <li>1. Ouvrez votre boîte email</li>
+                  <li>2. Recherchez l'email de MeetRun</li>
+                  <li>3. Cliquez sur le lien de confirmation</li>
+                  <li>4. Vous serez automatiquement connecté</li>
+                </ol>
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-xs text-blue-600">
+                  💡 Vérifiez aussi vos spams si vous ne trouvez pas l'email
+                </p>
+              </div>
+            </div>
+          </CardContent>
+          
+          <CardFooter className="flex flex-col space-y-3">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => {
+                setEmailSent(false);
+                setConfirmedEmail(null);
+              }}
+            >
+              Retour à l'inscription
+            </Button>
+            
+            <p className="text-xs text-center text-muted-foreground">
+              Déjà confirmé ? <button 
+                type="button" 
+                className="text-primary font-medium hover:underline"
+                onClick={() => navigate(`/auth?mode=signin&returnTo=${encodeURIComponent(returnTo)}`)}
+              >
+                Se connecter
+              </button>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4 relative overflow-hidden">
