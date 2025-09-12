@@ -25,12 +25,10 @@ const Auth = () => {
   const returnTo = searchParams.get('returnTo') || '/map';
   const mode = searchParams.get('mode') || 'signin';
   const confirmed = searchParams.get('confirmed') === 'true';
-  const confirmationToken = searchParams.get('token');
 
   // Gérer la confirmation d'email au chargement de la page
   useEffect(() => {
-    if (confirmed && confirmationToken) {
-      setEmailSent(false);
+    if (confirmed) {
       toast({
         title: "Email confirmé !",
         description: "Votre compte a été activé avec succès. Vous pouvez maintenant vous connecter.",
@@ -42,7 +40,7 @@ const Auth = () => {
       newUrl.searchParams.delete('token');
       window.history.replaceState({}, '', newUrl.toString());
     }
-  }, [confirmed, confirmationToken, toast]);
+  }, [confirmed, toast]);
 
   // Redirection des utilisateurs authentifiés
   useEffect(() => {
@@ -152,7 +150,7 @@ const Auth = () => {
     const phone = formData.get("phone") as string;
 
     try {
-      // URL de redirection après confirmation d'email
+      // URL de redirection après confirmation d'email - MODIFIÉ
       const confirmationUrl = `${window.location.origin}/auth?confirmed=true&returnTo=${encodeURIComponent(returnTo)}`;
       
       if (!supabase) {
@@ -179,7 +177,6 @@ const Auth = () => {
       });
 
       if (error) {
-        // Gestion spécifique des cas courants
         if (error.message.includes('already registered') || error.message.includes('already exists')) {
           toast({
             title: "Compte existant",
@@ -196,7 +193,7 @@ const Auth = () => {
       setEmailSent(true);
       setConfirmedEmail(email);
 
-      // ✅ Message corrigé pour refléter le processus de confirmation
+      // MESSAGE CORRIGÉ
       toast({
         title: "Email de confirmation envoyé",
         description: "Vérifiez votre boîte mail et cliquez sur le lien de confirmation pour activer votre compte.",
@@ -213,7 +210,7 @@ const Auth = () => {
     }
   };
 
-  // ✅ Composant pour afficher l'état d'attente de confirmation
+  // ÉCRAN D'ATTENTE DE CONFIRMATION - NOUVEAU
   if (emailSent && confirmedEmail) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
@@ -243,7 +240,7 @@ const Auth = () => {
                   <li>1. Ouvrez votre boîte email</li>
                   <li>2. Recherchez l'email de MeetRun</li>
                   <li>3. Cliquez sur le lien de confirmation</li>
-                  <li>4. Vous serez automatiquement connecté</li>
+                  <li>4. Vous serez automatiquement redirigé</li>
                 </ol>
               </div>
 
