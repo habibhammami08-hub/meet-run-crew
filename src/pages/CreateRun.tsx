@@ -43,7 +43,7 @@ export default function CreateRun() {
     }
   }, []);
 
-  // ✅ CORRECTION - Vérification d'authentification robuste
+  // Vérification d'authentification robuste
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -154,7 +154,7 @@ export default function CreateRun() {
         return;
       }
 
-      // ✅ CORRECTION - S'assurer que le profil existe avec gestion d'erreur
+      // S'assurer que le profil existe
       try {
         const { data: prof, error: pe } = await supabase
           .from('profiles')
@@ -223,7 +223,7 @@ export default function CreateRun() {
       const startAddr = legs[0]?.start_address ?? null;
       const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
-      // ✅ CORRECTION - Payload DB amélioré
+      // Payload DB
       const payload: any = {
         host_id: currentUser.id,
         title: title.trim(),
@@ -232,7 +232,7 @@ export default function CreateRun() {
         start_lng: Number(start.lng),
         end_lat: Number(end.lat), 
         end_lng: Number(end.lng),
-        distance_km: Math.round((meters / 1000) * 100) / 100, // Arrondi à 2 décimales
+        distance_km: Math.round((meters / 1000) * 100) / 100,
         route_distance_m: meters,
         route_polyline: poly || null,
         start_place: startAddr, 
@@ -242,7 +242,7 @@ export default function CreateRun() {
         session_type: sessionTypeState,
         max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
         status: "published",
-        blur_radius_m: 1000, // Rayon de flou par défaut
+        blur_radius_m: 1000,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -267,9 +267,9 @@ export default function CreateRun() {
 
       console.info("[CreateRun] Session created successfully:", data);
       
-      // ✅ CORRECTION PRINCIPALE - Gestion post-création améliorée
+      // Gestion post-création
       try {
-        // Forcer la mise à jour du profil après création de session
+        // Forcer la mise à jour du profil
         const { data: currentProfile } = await supabase
           .from('profiles')
           .select('sessions_hosted')
@@ -286,7 +286,7 @@ export default function CreateRun() {
             .eq('id', currentUser.id);
         }
         
-        // ✅ Déclencher les événements de mise à jour pour synchroniser les composants
+        // Déclencher les événements de mise à jour
         window.dispatchEvent(new CustomEvent('profileRefresh', { 
           detail: { 
             userId: currentUser.id,
@@ -295,7 +295,6 @@ export default function CreateRun() {
           } 
         }));
         
-        // ✅ Déclencher l'événement pour la carte
         window.dispatchEvent(new CustomEvent('mapRefresh', { 
           detail: { 
             newSession: data,
@@ -309,7 +308,7 @@ export default function CreateRun() {
         console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
       }
       
-      // ✅ CORRECTION - Message de succès amélioré
+      // Message de succès
       alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
       
       // Reset du formulaire
@@ -325,10 +324,9 @@ export default function CreateRun() {
       setSessionTypeState("mixed"); 
       setMaxParticipantsState(10);
       
-      // ✅ CORRECTION - Navigation optimisée avec nettoyage du cache
+      // Navigation avec nettoyage du cache
       setTimeout(async () => {
         try {
-          // Nettoyer le cache pour forcer le refresh
           if ('caches' in window) {
             const cacheNames = await caches.keys();
             await Promise.all(
@@ -341,7 +339,6 @@ export default function CreateRun() {
           console.warn("[CreateRun] Cache cleanup failed:", cacheError);
         }
         
-        // Redirection vers la carte
         if (typeof window !== "undefined") {
           console.log("[CreateRun] Redirecting to map to show new session");
           window.location.href = "/map";
@@ -356,7 +353,7 @@ export default function CreateRun() {
     }
   }
 
-  // États de chargement et erreur d'authentification
+  // États de chargement
   if (userReady === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -394,7 +391,6 @@ export default function CreateRun() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent mb-3">
             Créer une nouvelle session
@@ -405,9 +401,7 @@ export default function CreateRun() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Formulaire principal */}
           <div className="space-y-6">
-            {/* Informations générales */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -430,9 +424,6 @@ export default function CreateRun() {
                     className="h-12 text-base"
                     maxLength={100}
                   />
-                  <div className="text-xs text-muted-foreground text-right">
-                    {title.length}/100 caractères
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -446,9 +437,6 @@ export default function CreateRun() {
                     className="min-h-[100px] text-base"
                     maxLength={500}
                   />
-                  <div className="text-xs text-muted-foreground text-right">
-                    {description.length}/500 caractères
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -464,7 +452,6 @@ export default function CreateRun() {
               </CardContent>
             </Card>
 
-            {/* Parcours */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -516,7 +503,6 @@ export default function CreateRun() {
               </CardContent>
             </Card>
 
-            {/* Paramètres */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -587,14 +573,10 @@ export default function CreateRun() {
                     onChange={(e) => setMaxParticipantsState(Number(e.target.value || 10))}
                     className="h-12"
                   />
-                  <div className="text-xs text-muted-foreground">
-                    Entre 3 et 20 participants (vous inclus)
-                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Actions */}
             <div className="space-y-4">
               {waypoints.length > 0 && (
                 <Button
@@ -638,7 +620,6 @@ export default function CreateRun() {
             </div>
           </div>
 
-          {/* Carte interactive */}
           <div className="lg:sticky lg:top-6">
             <Card className="shadow-card overflow-hidden">
               <CardHeader>
@@ -685,6 +666,38 @@ export default function CreateRun() {
                             </svg>
                           `),
                           scaledSize: new google.maps.Size(32, 40),
+                          anchor: new google.maps.Point(16, 40)
+                        }}
+                      />
+                    )}
+                    {end && (
+                      <MarkerF 
+                        position={end}
+                        icon={{
+                          url: "data:image/svg+xml;base64," + btoa(`
+                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
+                              <circle cx="16" cy="15" r="6" fill="white"/>
+                              <circle cx="16" cy="15" r="3" fill="#dc2626"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(32, 40),
+                          anchor: new google.maps.Point(16, 40)
+                        }}
+                      />
+                    )}
+                    {waypoints.map((waypoint, index) => (
+                      <MarkerF 
+                        key={index}
+                        position={waypoint}
+                        icon={{
+                          url: "data:image/svg+xml;base64," + btoa(`
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="2"/>
+                              <circle cx="12" cy="12" r="4" fill="white"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(24, 24),
                           anchor: new google.maps.Point(12, 12)
                         }}
                       />
@@ -728,132 +741,8 @@ export default function CreateRun() {
                       </div>
                     </div>
                   )}
-
-                  {/* Légende de la carte */}
-                  <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-2 text-xs space-y-1 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span>Départ</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                      <span>Arrivée</span>
-                    </div>
-                    {waypoints.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span>Points intermédiaires</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Instructions */}
-                  {!start && !end && (
-                    <div className="absolute top-4 left-4 right-4 bg-blue-50 border border-blue-200 p-3 rounded-lg">
-                      <p className="text-sm text-blue-800">
-                        <strong>💡 Pour commencer :</strong> Cliquez sur la carte pour placer votre point de départ
-                      </p>
-                    </div>
-                  )}
-
-                  {start && !end && (
-                    <div className="absolute top-4 left-4 right-4 bg-orange-50 border border-orange-200 p-3 rounded-lg">
-                      <p className="text-sm text-orange-800">
-                        <strong>🎯 Ensuite :</strong> Cliquez sur la carte pour placer votre point d'arrivée
-                      </p>
-                    </div>
-                  )}
-
-                  {start && end && !dirResult && (
-                    <div className="absolute top-4 left-4 right-4 bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                        <p className="text-sm text-yellow-800">
-                          <strong>⚡ Calcul en cours :</strong> Génération de l'itinéraire...
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {start && end && dirResult && (
-                    <div className="absolute top-4 left-4 right-4 bg-green-50 border border-green-200 p-3 rounded-lg">
-                      <p className="text-sm text-green-800">
-                        <strong>✅ Parfait !</strong> Vous pouvez ajouter des points intermédiaires en cliquant sur la carte
-                      </p>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
-
-        {/* Résumé de la session */}
-        {start && end && dirResult && title && dateTime && (
-          <Card className="mt-6 shadow-card border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">📋 Résumé de votre session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{distanceKm?.toFixed(1)} km</div>
-                  <div className="text-sm text-muted-foreground">Distance</div>
-                </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{intensityState}</div>
-                  <div className="text-sm text-muted-foreground">Intensité</div>
-                </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{maxParticipantsState}</div>
-                  <div className="text-sm text-muted-foreground">Participants max</div>
-                </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">
-                    {new Date(dateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {new Date(dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
-  );
-}: new google.maps.Point(16, 40)
-                        }}
-                      />
-                    )}
-                    {end && (
-                      <MarkerF 
-                        position={end}
-                        icon={{
-                          url: "data:image/svg+xml;base64," + btoa(`
-                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
-                              <circle cx="16" cy="15" r="6" fill="white"/>
-                              <circle cx="16" cy="15" r="3" fill="#dc2626"/>
-                            </svg>
-                          `),
-                          scaledSize: new google.maps.Size(32, 40),
-                          anchor: new google.maps.Point(16, 40)
-                        }}
-                      />
-                    )}
-                    {waypoints.map((waypoint, index) => (
-                      <MarkerF 
-                        key={index}
-                        position={waypoint}
-                        icon={{
-                          url: "data:image/svg+xml;base64," + btoa(`
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="2"/>
-                              <circle cx="12" cy="12" r="4" fill="white"/>
-                              <text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="#3b82f6">${index + 1}</text>
-                            </svg>
-                          `),
-                          scaledSize: new google.maps.Size(24, 24),
-                          anchor
