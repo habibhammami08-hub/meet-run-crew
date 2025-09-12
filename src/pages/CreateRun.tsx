@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
+import { useNavigate } from "react-router-dom";
 import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -15,6 +16,7 @@ import { MapPin, Users, Zap, Timer, Route, Calendar } from "lucide-react";
 type Pt = google.maps.LatLngLiteral;
 
 export default function CreateRun() {
+  const navigate = useNavigate();
   const supabase = getSupabase();
   const [userReady, setUserReady] = useState<"loading"|"ok"|"none">("loading");
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -132,6 +134,170 @@ export default function CreateRun() {
     return d.toISOString();
   }
 
+  // Fonction de création de profil séparée
+  const ensureProfileExists = async () => {
+    if (!currentUser) return false;
+    
+    try {
+      const { data: prof, error: pe } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (!prof) {
+        console.log("[CreateRun] Creating profile for user:", currentUser.id);
+        const { error: upErr } = await supabase.from('profiles').upsert({ 
+          id: currentUser.id, 
+          email: currentUser.email || '',
+          full_name: currentUser.email?.split('@')[0] || 'Runner',
+          sessions_hosted: 0,
+          sessions_joined: 0,
+          total_km: 0
+        });
+        
+        if (upErr) {
+          console.error("[CreateRun] Profile creation error:", upErr);
+          alert("Impossible de créer votre profil. Reconnectez-vous puis réessayez.");
+          return false;
+        }
+      }
+      return true;
+    } catch (profileError) {
+      console.error("[CreateRun] Profile check error:", profileError);
+      alert("Erreur lors de la vérification du profil.");
+      return false;
+    }
+  };
+
+  // Fonction de validation des données séparée
+  const validateSessionData = () => {
+    if (!start || !end) { 
+      alert("Définissez un départ et une arrivée (clics sur la carte)."); 
+      return false; 
+    }
+    
+    if (!dirResult) { 
+      alert("Impossible de calculer l'itinéraire."); 
+      return false; 
+    }
+    
+    if (!title?.trim()) { 
+      alert("Indiquez un titre."); 
+      return false; 
+    }
+    
+    const scheduledIso = toIsoFromLocal(dateTime);
+    if (!scheduledIso) { 
+      alert("Date/heure invalide."); 
+      return false; 
+    }
+    
+    if (new Date(scheduledIso) <= new Date()) { 
+      alert("La date doit être dans le futur."); 
+      return false; 
+    }
+    
+    return { scheduledIso };
+  };
+
+  // Fonction de création du payload séparée
+  const createSessionPayload = (scheduledIso: string) => {
+    const r = (dirResult || {} as any).routes?.[0];
+    const legs = r?.legs ?? [];
+    const meters = legs.reduce((s: number, l: any) => s + (l?.distance?.value ?? 0), 0);
+    const poly = r?.overview_polyline?.toString?.() ?? r?.overview_polyline?.points ?? "";
+    const startAddr = legs[0]?.start_address ?? null;
+    const endAddr = legs[legs.length - 1]?.end_address ?? null;
+
+    const payload: any = {
+      host_id: currentUser.id,
+      title: title.trim(),
+      scheduled_at: scheduledIso,
+      start_lat: Number(start.lat), 
+      start_lng: Number(start.lng),
+      end_lat: Number(end.lat), 
+      end_lng: Number(end.lng),
+      distance_km: Math.round((meters / 1000) * 100) / 100,
+      route_distance_m: meters,
+      route_polyline: poly || null,
+      start_place: startAddr, 
+      end_place: endAddr,
+      location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
+      intensity: uiToDbIntensity(intensityState),
+      session_type: sessionTypeState,
+      max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
+      status: "published",
+      blur_radius_m: 1000,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    if (description?.trim()) {
+      payload.description = description.trim();
+    }
+
+    return payload;
+  };
+
+  // Fonction de post-traitement après création
+  const handlePostCreation = async (sessionData: any) => {
+    try {
+      // Forcer la mise à jour du profil
+      const { data: currentProfile } = await supabase
+        .from('profiles')
+        .select('sessions_hosted')
+        .eq('id', currentUser.id)
+        .single();
+      
+      if (currentProfile) {
+        await supabase
+          .from('profiles')
+          .update({ 
+            sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentUser.id);
+      }
+      
+      // Déclencher les événements de mise à jour
+      window.dispatchEvent(new CustomEvent('profileRefresh', { 
+        detail: { 
+          userId: currentUser.id,
+          action: 'session_created',
+          sessionId: sessionData.id 
+        } 
+      }));
+      
+      window.dispatchEvent(new CustomEvent('mapRefresh', { 
+        detail: { 
+          newSession: sessionData,
+          userId: currentUser.id 
+        } 
+      }));
+      
+      console.log("[CreateRun] Update events dispatched");
+    } catch (profileError) {
+      console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
+    }
+  };
+
+  // Reset du formulaire
+  const resetForm = () => {
+    setStart(null); 
+    setEnd(null); 
+    setWaypoints([]); 
+    setDirResult(null); 
+    setDistanceKm(null);
+    setTitle(""); 
+    setDescription(""); 
+    setDateTime(""); 
+    setIntensityState("course modérée"); 
+    setSessionTypeState("mixed"); 
+    setMaxParticipantsState(10);
+  };
+
+  // Fonction onSubmit refactorisée
   async function onSubmit() {
     if (!supabase) { 
       alert("Configuration Supabase manquante."); 
@@ -148,109 +314,33 @@ export default function CreateRun() {
         hasDir: !!dirResult 
       });
 
-      // Utiliser l'utilisateur déjà vérifié
+      // Vérification utilisateur
       if (!currentUser) {
         alert("Veuillez vous connecter pour créer une session.");
         return;
       }
 
       // S'assurer que le profil existe
-      try {
-        const { data: prof, error: pe } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', currentUser.id)
-          .maybeSingle();
+      const profileExists = await ensureProfileExists();
+      if (!profileExists) return;
 
-        if (!prof) {
-          console.log("[CreateRun] Creating profile for user:", currentUser.id);
-          const { error: upErr } = await supabase.from('profiles').upsert({ 
-            id: currentUser.id, 
-            email: currentUser.email || '',
-            full_name: currentUser.email?.split('@')[0] || 'Runner',
-            sessions_hosted: 0,
-            sessions_joined: 0,
-            total_km: 0
-          });
-          
-          if (upErr) {
-            console.error("[CreateRun] Profile creation error:", upErr);
-            alert("Impossible de créer votre profil. Reconnectez-vous puis réessayez.");
-            return;
-          }
+      // Validation des données
+      const validation = validateSessionData();
+      if (!validation) return;
+      const { scheduledIso } = validation;
+
+      // Recalculer l'itinéraire si nécessaire
+      if (!dirResult) {
+        await calcRoute();
+        if (!dirResult) {
+          alert("Impossible de calculer l'itinéraire.");
+          return;
         }
-      } catch (profileError) {
-        console.error("[CreateRun] Profile check error:", profileError);
-        alert("Erreur lors de la vérification du profil.");
-        return;
       }
 
-      // Préconditions UI
-      if (!start || !end) { 
-        alert("Définissez un départ et une arrivée (clics sur la carte)."); 
-        return; 
-      }
+      // Créer le payload
+      const payload = createSessionPayload(scheduledIso);
       
-      if (!dirResult) { 
-        await calcRoute(); 
-        if (!dirResult) { 
-          alert("Impossible de calculer l'itinéraire."); 
-          return; 
-        } 
-      }
-      
-      if (!title?.trim()) { 
-        alert("Indiquez un titre."); 
-        return; 
-      }
-      
-      const scheduledIso = toIsoFromLocal(dateTime);
-      if (!scheduledIso) { 
-        alert("Date/heure invalide."); 
-        return; 
-      }
-      
-      if (new Date(scheduledIso) <= new Date()) { 
-        alert("La date doit être dans le futur."); 
-        return; 
-      }
-
-      // Extractions Directions
-      const r = (dirResult || {} as any).routes?.[0];
-      const legs = r?.legs ?? [];
-      const meters = legs.reduce((s: number, l: any) => s + (l?.distance?.value ?? 0), 0);
-      const poly = r?.overview_polyline?.toString?.() ?? r?.overview_polyline?.points ?? "";
-      const startAddr = legs[0]?.start_address ?? null;
-      const endAddr = legs[legs.length - 1]?.end_address ?? null;
-
-      // Payload DB
-      const payload: any = {
-        host_id: currentUser.id,
-        title: title.trim(),
-        scheduled_at: scheduledIso,
-        start_lat: Number(start.lat), 
-        start_lng: Number(start.lng),
-        end_lat: Number(end.lat), 
-        end_lng: Number(end.lng),
-        distance_km: Math.round((meters / 1000) * 100) / 100,
-        route_distance_m: meters,
-        route_polyline: poly || null,
-        start_place: startAddr, 
-        end_place: endAddr,
-        location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
-        intensity: uiToDbIntensity(intensityState),
-        session_type: sessionTypeState,
-        max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
-        status: "published",
-        blur_radius_m: 1000,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      if (description?.trim()) {
-        payload.description = description.trim();
-      }
-
       console.info("[CreateRun] Inserting session payload:", payload);
       
       const { data, error } = await supabase
@@ -267,83 +357,24 @@ export default function CreateRun() {
 
       console.info("[CreateRun] Session created successfully:", data);
       
-      // Gestion post-création
-      try {
-        // Forcer la mise à jour du profil
-        const { data: currentProfile } = await supabase
-          .from('profiles')
-          .select('sessions_hosted')
-          .eq('id', currentUser.id)
-          .single();
-        
-        if (currentProfile) {
-          await supabase
-            .from('profiles')
-            .update({ 
-              sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', currentUser.id);
-        }
-        
-        // Déclencher les événements de mise à jour
-        window.dispatchEvent(new CustomEvent('profileRefresh', { 
-          detail: { 
-            userId: currentUser.id,
-            action: 'session_created',
-            sessionId: data.id 
-          } 
-        }));
-        
-        window.dispatchEvent(new CustomEvent('mapRefresh', { 
-          detail: { 
-            newSession: data,
-            userId: currentUser.id 
-          } 
-        }));
-        
-        console.log("[CreateRun] Update events dispatched");
-        
-      } catch (profileError) {
-        console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
-      }
+      // Post-traitement
+      await handlePostCreation(data);
       
       // Message de succès
       alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
       
       // Reset du formulaire
-      setStart(null); 
-      setEnd(null); 
-      setWaypoints([]); 
-      setDirResult(null); 
-      setDistanceKm(null);
-      setTitle(""); 
-      setDescription(""); 
-      setDateTime(""); 
-      setIntensityState("course modérée"); 
-      setSessionTypeState("mixed"); 
-      setMaxParticipantsState(10);
+      resetForm();
       
-      // Navigation avec nettoyage du cache
-      setTimeout(async () => {
-        try {
-          if ('caches' in window) {
-            const cacheNames = await caches.keys();
-            await Promise.all(
-              cacheNames
-                .filter(name => name.includes('map') || name.includes('session'))
-                .map(name => caches.delete(name))
-            );
-          }
-        } catch (cacheError) {
-          console.warn("[CreateRun] Cache cleanup failed:", cacheError);
-        }
-        
-        if (typeof window !== "undefined") {
-          console.log("[CreateRun] Redirecting to map to show new session");
-          window.location.href = "/map";
-        }
-      }, 2000);
+      // Navigation fluide avec React Router
+      setTimeout(() => {
+        navigate("/map", { 
+          state: { 
+            newSessionId: data.id,
+            shouldFocus: true 
+          } 
+        });
+      }, 1500);
       
     } catch (e: any) {
       console.error("[CreateRun] Fatal error:", e);
@@ -377,7 +408,7 @@ export default function CreateRun() {
           </CardHeader>
           <CardContent>
             <Button 
-              onClick={() => window.location.href = `/auth?returnTo=${encodeURIComponent('/create')}`}
+              onClick={() => navigate(`/auth?returnTo=${encodeURIComponent('/create')}`)}
               className="w-full"
             >
               Se connecter
