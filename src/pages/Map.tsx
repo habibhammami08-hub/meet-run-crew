@@ -206,14 +206,6 @@ function MapPageInner() {
 
       if (!signal.aborted && mountedRef.current) {
         setSessions(mappedSessions);
-        
-        // Sessions les plus proches (dans un rayon de 25km)
-        const nearby = mappedSessions
-          .filter(s => s.distanceFromUser !== null && s.distanceFromUser <= 25)
-          .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-          .slice(0, 6);
-        
-        setNearestSessions(nearby);
       }
     } catch (e: any) {
       if (e.name !== 'AbortError' && mountedRef.current) {
