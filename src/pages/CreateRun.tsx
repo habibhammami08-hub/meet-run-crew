@@ -459,10 +459,7 @@ export default function CreateRun() {
                   Définir le parcours
                 </CardTitle>
                 <CardDescription>
-                  {isSelectingLocation 
-                    ? `Cliquez sur la carte pour placer le point ${isSelectingLocation === 'start' ? 'de départ' : "d'arrivée"}`
-                    : "Sélectionnez vos points de départ et d'arrivée"
-                  }
+                  Sélectionnez vos points de départ et d'arrivée
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -627,121 +624,63 @@ export default function CreateRun() {
                   <MapPin className="h-5 w-5 text-primary" />
                   Carte interactive
                 </CardTitle>
-                <CardDescription>
-                  {isSelectingLocation 
-                    ? `Mode sélection: ${isSelectingLocation === 'start' ? 'Point de départ' : "Point d'arrivée"}`
-                    : "Cliquez pour ajouter des points intermédiaires"
-                  }
-                </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="relative">
-                  <GoogleMap
-                    mapContainerStyle={{ width: "100%", height: "500px" }}
-                    zoom={13}
-                    center={start ?? center}
-                    options={{ 
-                      mapTypeControl: false, 
-                      streetViewControl: false, 
-                      fullscreenControl: false,
-                      styles: [
-                        {
-                          featureType: "poi",
-                          elementType: "labels",
-                          stylers: [{ visibility: "off" }]
-                        }
-                      ]
-                    }}
-                    onClick={handleMapClick}
-                  >
-                    {start && (
-                      <MarkerF 
-                        position={start}
-                        icon={{
-                          url: "data:image/svg+xml;base64," + btoa(`
-                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/>
-                              <circle cx="16" cy="15" r="6" fill="white"/>
-                              <path d="M16 9L18 13H14L16 9Z" fill="#16a34a"/>
-                            </svg>
-                          `),
-                          scaledSize: new google.maps.Size(32, 40),
-                          anchor: new google.maps.Point(16, 40)
-                        }}
-                      />
-                    )}
-                    {end && (
-                      <MarkerF 
-                        position={end}
-                        icon={{
-                          url: "data:image/svg+xml;base64," + btoa(`
-                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
-                              <circle cx="16" cy="15" r="6" fill="white"/>
-                              <circle cx="16" cy="15" r="3" fill="#dc2626"/>
-                            </svg>
-                          `),
-                          scaledSize: new google.maps.Size(32, 40),
-                          anchor: new google.maps.Point(16, 40)
-                        }}
-                      />
-                    )}
-                    {waypoints.map((waypoint, index) => (
-                      <MarkerF 
-                        key={index}
-                        position={waypoint}
-                        icon={{
-                          url: "data:image/svg+xml;base64," + btoa(`
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="2"/>
-                              <circle cx="12" cy="12" r="4" fill="white"/>
-                            </svg>
-                          `),
-                          scaledSize: new google.maps.Size(24, 24),
-                          anchor: new google.maps.Point(12, 12)
-                        }}
-                      />
-                    ))}
-                    {start && end && dirResult && (
-                      <DirectionsRenderer
-                        directions={dirResult}
-                        options={{ 
-                          draggable: true, 
-                          suppressMarkers: true,
-                          polylineOptions: {
-                            strokeColor: "#3b82f6",
-                            strokeWeight: 4,
-                            strokeOpacity: 0.8
-                          }
-                        }}
-                        onDirectionsChanged={() => {
-                          console.log("[CreateRun] Route changed via drag");
-                        }}
-                      />
-                    )}
-                  </GoogleMap>
-                  
-                  {isSelectingLocation && (
-                    <div className="absolute top-4 left-4 right-4 bg-primary text-primary-foreground p-3 rounded-lg shadow-lg z-10">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">
-                          {isSelectingLocation === 'start' 
-                            ? '📍 Cliquez pour placer le départ' 
-                            : '🏁 Cliquez pour placer l\'arrivée'
-                          }
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setIsSelectingLocation(null)}
-                          className="text-primary-foreground hover:bg-primary-foreground/20"
-                        >
-                          Annuler
-                        </Button>
-                      </div>
-                    </div>
+                <GoogleMap
+                  mapContainerStyle={{ width: "100%", height: "500px" }}
+                  zoom={13}
+                  center={start ?? center}
+                  options={{ 
+                    mapTypeControl: false, 
+                    streetViewControl: false, 
+                    fullscreenControl: false
+                  }}
+                  onClick={handleMapClick}
+                >
+                  {start && (
+                    <MarkerF 
+                      position={start}
+                      icon={{
+                        url: "data:image/svg+xml;base64," + btoa(`
+                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/>
+                            <circle cx="16" cy="15" r="6" fill="white"/>
+                          </svg>
+                        `),
+                        scaledSize: new google.maps.Size(32, 40),
+                        anchor: new google.maps.Point(16, 40)
+                      }}
+                    />
                   )}
-                </div>
+                  {end && (
+                    <MarkerF 
+                      position={end}
+                      icon={{
+                        url: "data:image/svg+xml;base64," + btoa(`
+                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
+                            <circle cx="16" cy="15" r="6" fill="white"/>
+                          </svg>
+                        `),
+                        scaledSize: new google.maps.Size(32, 40),
+                        anchor: new google.maps.Point(16, 40)
+                      }}
+                    />
+                  )}
+                  {start && end && dirResult && (
+                    <DirectionsRenderer
+                      directions={dirResult}
+                      options={{ 
+                        suppressMarkers: true,
+                        polylineOptions: {
+                          strokeColor: "#3b82f6",
+                          strokeWeight: 4,
+                          strokeOpacity: 0.8
+                        }
+                      }}
+                    />
+                  )}
+                </GoogleMap>
               </CardContent>
             </Card>
           </div>
@@ -750,4 +689,3 @@ export default function CreateRun() {
     </div>
   );
 }
-        </div>
