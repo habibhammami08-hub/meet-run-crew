@@ -26,16 +26,14 @@ interface CanDeleteResponse {
 
 export async function deleteMyAccount(): Promise<DeleteAccountResponse> {
   try {
-    const { data, error } = await supabase.functions.invoke('delete-account2', {
-      method: 'POST'
-    });
+    const { data, error } = await supabase.rpc('app_delete_account');
 
     if (error) {
-      console.error('Edge Function error:', error);
+      console.error('RPC error:', error);
       return {
         success: false,
-        message: 'Erreur lors de l\'appel à la fonction de suppression',
-        error: error.message || 'Erreur lors de l\'appel à la fonction de suppression'
+        message: 'Erreur lors de la suppression du compte',
+        error: error.message || 'Erreur lors de la suppression du compte'
       };
     }
 
