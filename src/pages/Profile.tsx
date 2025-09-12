@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,28 +56,28 @@ export default function ProfilePage() {
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-  const updateProfileStats = async () => {
+  // Ref pour éviter les conditions de course
+  const isMountedRef = useRef(true);
+  const loadingRef = useRef(false);
+
+  // Fonction pour mettre à jour les stats (memoized)
+  const updateProfileStats = useCallback(async (userId: string) => {
     const supabase = getSupabase();
-    if (!supabase || !user) return;
+    if (!supabase) return;
 
     try {
-      console.log("[Profile] Updating profile statistics using RPC...");
+      console.log("[Profile] Updating profile statistics using RPC for user:", userId);
       
-      // Utiliser la fonction RPC pour calculer les stats de manière cohérente
       const { data: statsRaw, error: rpcError } = await supabase
-        .rpc('get_user_stats', { target_user_id: user.id });
+        .rpc('get_user_stats', { target_user_id: userId });
 
       if (rpcError) {
         console.error('[Profile] Error getting user stats:', rpcError);
         return;
       }
 
-      if (!statsRaw) {
-        console.error('[Profile] No stats returned from RPC');
-        return;
-      }
+      if (!statsRaw || !isMountedRef.current) return;
 
-      // Type assertion pour les stats
       const stats = statsRaw as {
         sessions_hosted: number;
         sessions_joined: number;
@@ -88,7 +88,6 @@ export default function ProfilePage() {
 
       console.log("[Profile] Stats calculated from RPC:", stats);
 
-      // Mettre à jour les statistiques dans le profil
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
@@ -97,132 +96,83 @@ export default function ProfilePage() {
           total_km: stats.total_km || 0,
           updated_at: new Date().toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', userId);
 
       if (updateError) {
         console.error('[Profile] Error updating profile stats:', updateError);
-        return;
       }
-
-      console.log("[Profile] Profile stats updated:", {
-        sessions_hosted: stats.sessions_hosted,
-        sessions_joined: stats.sessions_joined,
-        total_km: stats.total_km
-      });
-      
-      // Rafraîchir le profil côté client
-      await refreshProfile();
     } catch (error) {
       console.error('[Profile] Error updating profile stats:', error);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  // Fonction pour charger le profil (memoized)
+  const loadProfile = useCallback(async (userId: string) => {
+    if (loadingRef.current) {
+      console.log("[Profile] Already loading, skipping...");
+      return;
+    }
+
+    loadingRef.current = true;
     const supabase = getSupabase();
-    if (!supabase || !user) return;
+    
+    if (!supabase) {
+      console.log("No supabase client");
+      setLoading(false);
+      loadingRef.current = false;
+      return;
+    }
 
     try {
-      console.log("Refreshing profile for user:", user.id);
+      console.log("[Profile] Loading profile for user:", userId);
+
+      // Mettre à jour les stats d'abord
+      await updateProfileStats(userId);
+
+      if (!isMountedRef.current) return;
+      
+      // Charger le profil
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
-        .eq("id", user.id)
+        .eq("id", userId)
         .maybeSingle();
 
+      if (!isMountedRef.current) return;
+
       if (error) {
-        console.error("Profile refresh error:", error);
+        console.error("Profile fetch error:", error);
       } else if (data) {
-        console.log("Profile refreshed:", data);
+        console.log("Profile loaded:", data);
         setProfile(data);
+        setFullName(data.full_name || "");
+        setAge(data.age ?? "");
+        setCity(data.city || "");
+        setSportLevel("Occasionnel");
+      } else {
+        console.log("No profile found for user");
       }
+
+      // Charger les sessions
+      await fetchMySessions(userId);
+
     } catch (error) {
-      console.error("Error refreshing profile:", error);
+      console.error("Error loading profile:", error);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+      loadingRef.current = false;
     }
-  };
+  }, [updateProfileStats]);
 
-  useEffect(() => {
-    (async () => {
-      const supabase = getSupabase();
-      if (!supabase) {
-        console.log("No supabase client");
-        setLoading(false);
-        return;
-      }
-      
-      setLoading(true);
-      console.log("Loading profile...");
-      
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (!authUser) { 
-          console.log("No authenticated user");
-          setLoading(false); 
-          return; 
-        }
-
-        console.log("Fetching profile for user:", authUser.id);
-        
-        // Mettre à jour les stats d'abord avec l'utilisateur authentifié
-        console.log("[Profile] Updating profile statistics using RPC...");
-        const { data: statsRaw, error: rpcError } = await supabase
-          .rpc('get_user_stats', { target_user_id: authUser.id });
-
-        if (!rpcError && statsRaw) {
-          const stats = statsRaw as {
-            sessions_hosted: number;
-            sessions_joined: number;
-            total_km_hosted: number;
-            total_km_joined: number;
-            total_km: number;
-          };
-
-          await supabase
-            .from('profiles')
-            .update({ 
-              sessions_hosted: stats.sessions_hosted || 0,
-              sessions_joined: stats.sessions_joined || 0,
-              total_km: stats.total_km || 0,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', authUser.id);
-        }
-        
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
-          .eq("id", authUser.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error("Profile fetch error:", error);
-        } else if (data) {
-          console.log("Profile loaded:", data);
-          setProfile(data);
-          setFullName(data.full_name || "");
-          setAge(data.age ?? "");
-          setCity(data.city || "");
-          setSportLevel("Occasionnel");
-        } else {
-          console.log("No profile found for user");
-        }
-
-        // Charger les sessions de l'utilisateur
-        await fetchMySessions();
-      } catch (error) {
-        console.error("Error loading profile:", error);
-      } finally {
-        setLoading(false);
-        console.log("Profile loading finished");
-      }
-    })();
-  }, [user?.id]);
-
-  const fetchMySessions = async () => {
+  // Fonction pour charger les sessions (memoized)
+  const fetchMySessions = useCallback(async (userId: string) => {
     const supabase = getSupabase();
-    if (!supabase || !user) return;
+    if (!supabase) return;
 
     try {
-      console.log("[Profile] Fetching user's sessions...");
+      console.log("[Profile] Fetching user's sessions for:", userId);
       const { data: sessions, error } = await supabase
         .from('sessions')
         .select(`
@@ -235,15 +185,17 @@ export default function ProfilePage() {
           max_participants,
           status
         `)
-        .eq('host_id', user.id)
-        .in('status', ['published', 'active']) // Même filtre que dans get_user_stats
-        .not('scheduled_at', 'is', null) // Exclure les sessions sans date
+        .eq('host_id', userId)
+        .in('status', ['published', 'active'])
+        .not('scheduled_at', 'is', null)
         .order('scheduled_at', { ascending: false });
 
       if (error) {
         console.error('[Profile] Error fetching sessions:', error);
         return;
       }
+
+      if (!isMountedRef.current) return;
 
       // Get participant counts for each session
       const sessionsWithCounts = await Promise.all(
@@ -256,21 +208,51 @@ export default function ProfilePage() {
 
           return {
             ...session,
-            current_participants: (count || 0) + 1 // +1 pour l'organisateur
+            current_participants: (count || 0) + 1
           };
         })
       );
 
-      console.log("[Profile] User sessions loaded:", sessionsWithCounts);
-      setMySessions(sessionsWithCounts);
+      if (isMountedRef.current) {
+        console.log("[Profile] User sessions loaded:", sessionsWithCounts);
+        setMySessions(sessionsWithCounts);
+      }
     } catch (error) {
       console.error('[Profile] Error fetching sessions:', error);
     }
-  };
+  }, []);
+
+  // UseEffect simplifié - charge une seule fois au mount
+  useEffect(() => {
+    console.log("[Profile] Component mounted, user:", user?.id);
+    
+    if (!user?.id) {
+      console.log("[Profile] No user ID, skipping load");
+      setLoading(false);
+      return;
+    }
+
+    // Charger le profil une seule fois
+    loadProfile(user.id);
+
+    // Cleanup function
+    return () => {
+      console.log("[Profile] Component unmounting");
+      isMountedRef.current = false;
+    };
+  }, []); // Pas de dépendances - charge une fois au mount
+
+  // UseEffect séparé pour surveiller les changements d'utilisateur
+  useEffect(() => {
+    if (user?.id && !loading && !loadingRef.current) {
+      console.log("[Profile] User changed, reloading profile for:", user.id);
+      loadProfile(user.id);
+    }
+  }, [user?.id, loadProfile, loading]);
 
   const handleDeleteSession = async (sessionId: string) => {
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase || !user?.id) return;
 
     setDeletingSession(sessionId);
     try {
@@ -292,7 +274,7 @@ export default function ProfilePage() {
         .from('sessions')
         .delete()
         .eq('id', sessionId)
-        .eq('host_id', user?.id); // Security: only delete own sessions
+        .eq('host_id', user.id);
 
       if (sessionError) {
         console.error('[Profile] Error deleting session:', sessionError);
@@ -305,10 +287,10 @@ export default function ProfilePage() {
       });
 
       // Recalculer et mettre à jour les statistiques du profil
-      await updateProfileStats();
+      await updateProfileStats(user.id);
       
       // Refresh sessions list
-      await fetchMySessions();
+      await fetchMySessions(user.id);
     } catch (error: any) {
       console.error('[Profile] Delete error:', error);
       toast({
@@ -323,21 +305,17 @@ export default function ProfilePage() {
 
   async function handleSave() {
     const supabase = getSupabase();
-    if (!supabase || !profile) return;
+    if (!supabase || !profile || !user?.id) return;
     
     setSaving(true);
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-
       let avatarUrl = profile.avatar_url || null;
 
       // Upload avatar si nouveau fichier
       if (avatarFile) {
         const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `avatars/${authUser.id}/avatar.${ext}`;
+        const path = `avatars/${user.id}/avatar.${ext}`;
 
-        // Upload avec upsert
         const { error: uploadError } = await supabase.storage
           .from("avatars")
           .upload(path, avatarFile, { upsert: true });
@@ -361,10 +339,9 @@ export default function ProfilePage() {
           full_name: fullName,
           age: age === "" ? null : Number(age),
           city,
-          // sport_level removed from new schema
           avatar_url: avatarUrl,
         })
-        .eq("id", authUser.id);
+        .eq("id", user.id);
 
       if (error) {
         toast({
@@ -380,7 +357,6 @@ export default function ProfilePage() {
         full_name: fullName,
         age: age === "" ? null : Number(age),
         city,
-        // sport_level removed from new schema
         avatar_url: avatarUrl,
       });
       
