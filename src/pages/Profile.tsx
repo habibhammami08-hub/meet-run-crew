@@ -1,4 +1,3 @@
-// src/pages/Profile.tsx - Corrections pour éviter les boucles infinies
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
