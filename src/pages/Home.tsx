@@ -5,7 +5,7 @@ import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown } from "luc
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
 import { useSessionsRealtime, useEnrollmentsRealtime } from "@/hooks/useRealtime";
@@ -21,43 +21,17 @@ const Home = () => {
   
   const supabase = getSupabase();
 
-  useEffect(() => {
-    if (user) {
-      fetchUserActivity();
-    }
-  }, [user]);
+  // Refs pour éviter les boucles
+  const fetchingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // Écouter les mises à jour de profil
-  useEffect(() => {
-    const handleProfileRefresh = () => {
-      if (user) {
-        fetchUserActivity();
-      }
-    };
-
-    window.addEventListener('profileRefresh', handleProfileRefresh);
-    return () => window.removeEventListener('profileRefresh', handleProfileRefresh);
-  }, [user]);
-
-  // Mise à jour temps réel des sessions et inscriptions
-  useSessionsRealtime((payload) => {
-    logger.debug('[Home] Session realtime update:', payload);
-    if (user) {
-      fetchUserActivity();
-    }
-  });
-
-  useEnrollmentsRealtime(user?.id, (payload) => {
-    logger.debug('[Home] Enrollment realtime update:', payload);
-    if (user) {
-      fetchUserActivity();
-    }
-  });
-
-  const fetchUserActivity = async () => {
-    if (!user) return;
+  // Fonction mémorisée pour éviter les re-créations
+  const fetchUserActivity = useCallback(async () => {
+    if (!user || fetchingRef.current) return;
     
+    fetchingRef.current = true;
     setLoading(true);
+    
     try {
       console.log("[Home] Fetching user activity for user:", user.id);
       
@@ -87,6 +61,8 @@ const Home = () => {
       
       console.log("[Home] Enrolled sessions result:", { enrolledSessions, enrollmentsError });
 
+      if (!mountedRef.current) return;
+
       // Combiner les activités avec un type
       const activities = [];
       
@@ -111,13 +87,82 @@ const Home = () => {
       activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
       
       console.log("[Home] Final activities:", activities);
-      setUserActivity(activities.slice(0, 5));
+      if (mountedRef.current) {
+        setUserActivity(activities.slice(0, 5));
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des activités:', error);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+      fetchingRef.current = false;
     }
-  };
+  }, [user, supabase]);
+
+  // Effect principal - charge une seule fois
+  useEffect(() => {
+    if (user) {
+      fetchUserActivity();
+    }
+    
+    // Cleanup
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []); // Pas de dépendances pour éviter les boucles
+
+  // Effect séparé pour les changements d'utilisateur
+  useEffect(() => {
+    if (user && !fetchingRef.current) {
+      fetchUserActivity();
+    }
+  }, [user?.id, fetchUserActivity]);
+
+  // Écouter les mises à jour de profil avec debounce
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const handleProfileRefresh = () => {
+      // Debounce pour éviter les appels multiples
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (user && !fetchingRef.current) {
+          fetchUserActivity();
+        }
+      }, 1000);
+    };
+
+    window.addEventListener('profileRefresh', handleProfileRefresh);
+    
+    return () => {
+      window.removeEventListener('profileRefresh', handleProfileRefresh);
+      clearTimeout(timeoutId);
+    };
+  }, [user, fetchUserActivity]);
+
+  // Mise à jour temps réel avec debounce
+  useSessionsRealtime(useCallback((payload) => {
+    logger.debug('[Home] Session realtime update:', payload);
+    
+    // Debounce pour éviter les appels multiples
+    setTimeout(() => {
+      if (user && !fetchingRef.current) {
+        fetchUserActivity();
+      }
+    }, 2000);
+  }, [user, fetchUserActivity]));
+
+  useEnrollmentsRealtime(user?.id, useCallback((payload) => {
+    logger.debug('[Home] Enrollment realtime update:', payload);
+    
+    // Debounce pour éviter les appels multiples
+    setTimeout(() => {
+      if (user && !fetchingRef.current) {
+        fetchUserActivity();
+      }
+    }, 2000);
+  }, [user, fetchUserActivity]));
 
   const handleDeleteSession = async (sessionId: string) => {
     if (!user) return;
@@ -140,8 +185,12 @@ const Home = () => {
         description: "La session a été supprimée avec succès.",
       });
 
-      // Actualiser les activités
-      fetchUserActivity();
+      // Actualiser les activités avec un petit délai
+      setTimeout(() => {
+        if (!fetchingRef.current) {
+          fetchUserActivity();
+        }
+      }, 500);
     } catch (error: any) {
       toast({
         title: "Erreur de suppression",
@@ -339,7 +388,7 @@ const Home = () => {
               ) : userActivity.length > 0 ? (
                 <div className="space-y-4">
                   {userActivity.map((activity, index) => (
-                    <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div key={`${activity.id}-${index}`} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                       <div className={`w-2 h-2 rounded-full mt-2 ${
                         activity.activity_type === 'created' ? 'bg-primary' : 
                         activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'bg-green-500' : 'bg-blue-500'
