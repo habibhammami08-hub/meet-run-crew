@@ -338,6 +338,20 @@ function MapPageInner() {
                 Actualiser
               </Button>
               
+              {/* Debug temporaire */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const intensities = sessions.map(s => ({ id: s.id, title: s.title, intensity: s.intensity }));
+                  console.log("[DEBUG] Sessions et intensités:", intensities);
+                  alert(`Sessions trouvées: ${sessions.length}\nIntensités: ${[...new Set(sessions.map(s => s.intensity))].join(', ')}`);
+                }}
+                className="text-xs"
+              >
+                Debug
+              </Button>
+              
               {!hasSub && (
                 <Button
                   size="sm"
