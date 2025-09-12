@@ -43,15 +43,26 @@ export default function CreateRun() {
     }
   }, []);
 
-  // Vérifier l'état d'authentification de façon robuste
+  // ✅ CORRECTION - Vérification d'authentification robuste
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!supabase) { setUserReady("none"); return; }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!alive) return;
-      setCurrentUser(user);
-      setUserReady(user ? "ok" : "none");
+      if (!supabase) { 
+        if (alive) setUserReady("none"); 
+        return; 
+      }
+      
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!alive) return;
+        
+        console.log("[CreateRun] User check result:", user?.id || "no user");
+        setCurrentUser(user);
+        setUserReady(user ? "ok" : "none");
+      } catch (error) {
+        console.error("[CreateRun] Auth error:", error);
+        if (alive) setUserReady("none");
+      }
     })();
     return () => { alive = false; };
   }, [supabase]);
@@ -90,18 +101,23 @@ export default function CreateRun() {
   async function calcRoute(origin?: Pt | null, dest?: Pt | null, wps?: Pt[]) {
     const o = origin ?? start, d = dest ?? end;
     if (!o || !d) return;
-    const svc = new google.maps.DirectionsService();
-    const res = await svc.route({
-      origin: o,
-      destination: d,
-      waypoints: (wps ?? waypoints).map(w => ({ location: w })),
-      travelMode: google.maps.TravelMode.WALKING,
-      provideRouteAlternatives: false,
-      optimizeWaypoints: false,
-    });
-    setDirResult(res);
-    const meters = res.routes[0].legs?.reduce((s, l) => s + (l.distance?.value ?? 0), 0) ?? 0;
-    setDistanceKm(meters / 1000);
+    
+    try {
+      const svc = new google.maps.DirectionsService();
+      const res = await svc.route({
+        origin: o,
+        destination: d,
+        waypoints: (wps ?? waypoints).map(w => ({ location: w })),
+        travelMode: google.maps.TravelMode.WALKING,
+        provideRouteAlternatives: false,
+        optimizeWaypoints: false,
+      });
+      setDirResult(res);
+      const meters = res.routes[0].legs?.reduce((s, l) => s + (l.distance?.value ?? 0), 0) ?? 0;
+      setDistanceKm(meters / 1000);
+    } catch (error) {
+      console.error("[CreateRun] Directions error:", error);
+    }
   }
 
   useEffect(() => {
@@ -117,10 +133,20 @@ export default function CreateRun() {
   }
 
   async function onSubmit() {
-    if (!supabase) { alert("Configuration Supabase manquante."); return; }
+    if (!supabase) { 
+      alert("Configuration Supabase manquante."); 
+      return; 
+    }
+    
     setIsSaving(true);
     try {
-      console.info("[create] submit", { title, dateTime, hasStart: !!start, hasEnd: !!end, hasDir: !!dirResult });
+      console.info("[CreateRun] Starting session creation", { 
+        title, 
+        dateTime, 
+        hasStart: !!start, 
+        hasEnd: !!end, 
+        hasDir: !!dirResult 
+      });
 
       // Utiliser l'utilisateur déjà vérifié
       if (!currentUser) {
@@ -128,33 +154,66 @@ export default function CreateRun() {
         return;
       }
 
-      // S'assurer que le profil existe (pour RLS)
-      const { data: prof, error: pe } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', currentUser.id)
-        .maybeSingle();
+      // ✅ CORRECTION - S'assurer que le profil existe avec gestion d'erreur
+      try {
+        const { data: prof, error: pe } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
 
-      if (!prof) {
-        // déclenche la création via upsert minimal
-        const { error: upErr } = await supabase.from('profiles').upsert({ 
-          id: currentUser.id, 
-          email: currentUser.email || '',
-          full_name: currentUser.email?.split('@')[0] || 'Runner' 
-        });
-        if (upErr) {
-          alert("Votre profil n'est pas prêt. Déconnectez/reconnectez-vous puis réessayez.");
-          return;
+        if (!prof) {
+          console.log("[CreateRun] Creating profile for user:", currentUser.id);
+          const { error: upErr } = await supabase.from('profiles').upsert({ 
+            id: currentUser.id, 
+            email: currentUser.email || '',
+            full_name: currentUser.email?.split('@')[0] || 'Runner',
+            sessions_hosted: 0,
+            sessions_joined: 0,
+            total_km: 0
+          });
+          
+          if (upErr) {
+            console.error("[CreateRun] Profile creation error:", upErr);
+            alert("Impossible de créer votre profil. Reconnectez-vous puis réessayez.");
+            return;
+          }
         }
+      } catch (profileError) {
+        console.error("[CreateRun] Profile check error:", profileError);
+        alert("Erreur lors de la vérification du profil.");
+        return;
       }
 
       // Préconditions UI
-      if (!start || !end) { alert("Définissez un départ et une arrivée (clics sur la carte)."); return; }
-      if (!dirResult) { await calcRoute(); if (!dirResult) { alert("Impossible de calculer l'itinéraire."); return; } }
-      if (!title?.trim()) { alert("Indiquez un titre."); return; }
+      if (!start || !end) { 
+        alert("Définissez un départ et une arrivée (clics sur la carte)."); 
+        return; 
+      }
+      
+      if (!dirResult) { 
+        await calcRoute(); 
+        if (!dirResult) { 
+          alert("Impossible de calculer l'itinéraire."); 
+          return; 
+        } 
+      }
+      
+      if (!title?.trim()) { 
+        alert("Indiquez un titre."); 
+        return; 
+      }
+      
       const scheduledIso = toIsoFromLocal(dateTime);
-      if (!scheduledIso) { alert("Date/heure invalide."); return; }
-      if (new Date(scheduledIso) <= new Date()) { alert("La date doit être dans le futur."); return; }
+      if (!scheduledIso) { 
+        alert("Date/heure invalide."); 
+        return; 
+      }
+      
+      if (new Date(scheduledIso) <= new Date()) { 
+        alert("La date doit être dans le futur."); 
+        return; 
+      }
 
       // Extractions Directions
       const r = (dirResult || {} as any).routes?.[0];
@@ -164,69 +223,134 @@ export default function CreateRun() {
       const startAddr = legs[0]?.start_address ?? null;
       const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
-      // Payload DB (ajoute description si dispo côté schéma)
+      // ✅ CORRECTION - Payload DB amélioré
       const payload: any = {
         host_id: currentUser.id,
         title: title.trim(),
         scheduled_at: scheduledIso,
-        start_lat: Number(start.lat), start_lng: Number(start.lng),
-        end_lat: Number(end.lat), end_lng: Number(end.lng),
-        distance_km: meters / 1000,
+        start_lat: Number(start.lat), 
+        start_lng: Number(start.lng),
+        end_lat: Number(end.lat), 
+        end_lng: Number(end.lng),
+        distance_km: Math.round((meters / 1000) * 100) / 100, // Arrondi à 2 décimales
         route_distance_m: meters,
         route_polyline: poly || null,
-        start_place: startAddr, end_place: endAddr,
+        start_place: startAddr, 
+        end_place: endAddr,
+        location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
         intensity: uiToDbIntensity(intensityState),
         session_type: sessionTypeState,
         max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
         status: "published",
+        blur_radius_m: 1000, // Rayon de flou par défaut
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
-      if (description?.trim()) payload.description = description.trim();
+      
+      if (description?.trim()) {
+        payload.description = description.trim();
+      }
 
-      console.info("[create] inserting payload", payload);
-      const { data, error } = await supabase.from("sessions").insert(payload).select("id,title,scheduled_at").single();
+      console.info("[CreateRun] Inserting session payload:", payload);
+      
+      const { data, error } = await supabase
+        .from("sessions")
+        .insert(payload)
+        .select("id,title,scheduled_at")
+        .single();
+      
       if (error) { 
-        console.error("[sessions.insert] error", error); 
+        console.error("[CreateRun] Insert error:", error); 
         alert("Création impossible : " + (error.message || error.details || "erreur inconnue")); 
         return; 
       }
 
-      console.info("[create] insert SUCCESS", data);
+      console.info("[CreateRun] Session created successfully:", data);
       
-      // Forcer la mise à jour du profil après création de session
-      if (supabase) {
-        try {
-          // Récupérer le profil actuel pour incrémenter sessions_hosted
-          const { data: currentProfile } = await supabase
+      // ✅ CORRECTION PRINCIPALE - Gestion post-création améliorée
+      try {
+        // Forcer la mise à jour du profil après création de session
+        const { data: currentProfile } = await supabase
+          .from('profiles')
+          .select('sessions_hosted')
+          .eq('id', currentUser.id)
+          .single();
+        
+        if (currentProfile) {
+          await supabase
             .from('profiles')
-            .select('sessions_hosted')
-            .eq('id', currentUser.id)
-            .single();
-          
-          if (currentProfile) {
-            await supabase
-              .from('profiles')
-              .update({ 
-                sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', currentUser.id);
-          }
-          
-          // Déclencher l'événement de refresh du profil
-          window.dispatchEvent(new CustomEvent('profileRefresh', { detail: { userId: currentUser.id } }));
-        } catch (profileError) {
-          console.warn("[create] Failed to update profile stats:", profileError);
+            .update({ 
+              sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
         }
+        
+        // ✅ Déclencher les événements de mise à jour pour synchroniser les composants
+        window.dispatchEvent(new CustomEvent('profileRefresh', { 
+          detail: { 
+            userId: currentUser.id,
+            action: 'session_created',
+            sessionId: data.id 
+          } 
+        }));
+        
+        // ✅ Déclencher l'événement pour la carte
+        window.dispatchEvent(new CustomEvent('mapRefresh', { 
+          detail: { 
+            newSession: data,
+            userId: currentUser.id 
+          } 
+        }));
+        
+        console.log("[CreateRun] Update events dispatched");
+        
+      } catch (profileError) {
+        console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
       }
       
-      alert("Session créée 🎉 ID: " + data.id);
-      // Reset + retour carte
-      setStart(null); setEnd(null); setWaypoints([]); setDirResult(null);
-      setTitle(""); setDescription(""); setDateTime(""); setIntensityState("course modérée"); setSessionTypeState("mixed"); setMaxParticipantsState(10);
-      if (typeof window !== "undefined") window.location.assign("/");
+      // ✅ CORRECTION - Message de succès amélioré
+      alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
+      
+      // Reset du formulaire
+      setStart(null); 
+      setEnd(null); 
+      setWaypoints([]); 
+      setDirResult(null); 
+      setDistanceKm(null);
+      setTitle(""); 
+      setDescription(""); 
+      setDateTime(""); 
+      setIntensityState("course modérée"); 
+      setSessionTypeState("mixed"); 
+      setMaxParticipantsState(10);
+      
+      // ✅ CORRECTION - Navigation optimisée avec nettoyage du cache
+      setTimeout(async () => {
+        try {
+          // Nettoyer le cache pour forcer le refresh
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(
+              cacheNames
+                .filter(name => name.includes('map') || name.includes('session'))
+                .map(name => caches.delete(name))
+            );
+          }
+        } catch (cacheError) {
+          console.warn("[CreateRun] Cache cleanup failed:", cacheError);
+        }
+        
+        // Redirection vers la carte
+        if (typeof window !== "undefined") {
+          console.log("[CreateRun] Redirecting to map to show new session");
+          window.location.href = "/map";
+        }
+      }, 2000);
+      
     } catch (e: any) {
-      console.error("[create] fatal", e);
-      alert("Erreur lors de la création. Réessayez.");
+      console.error("[CreateRun] Fatal error:", e);
+      alert("Erreur lors de la création : " + (e.message || "Erreur inconnue"));
     } finally {
       setIsSaving(false);
     }
@@ -234,12 +358,37 @@ export default function CreateRun() {
 
   // États de chargement et erreur d'authentification
   if (userReady === "loading") {
-    return <div className="p-4 text-sm opacity-70">Vérification de votre session…</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Vérification de votre session…</p>
+        </div>
+      </div>
+    );
   }
+  
   if (userReady === "none") {
-    return <div className="p-4 text-sm">
-      Merci de vous connecter pour créer une session. <a href={`/auth?returnTo=${encodeURIComponent('/create')}`} className="underline">Se connecter</a>
-    </div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle>Connexion requise</CardTitle>
+            <CardDescription>
+              Vous devez être connecté pour créer une session de running.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={() => window.location.href = `/auth?returnTo=${encodeURIComponent('/create')}`}
+              className="w-full"
+            >
+              Se connecter
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -279,19 +428,27 @@ export default function CreateRun() {
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="ex: Course matinale au parc"
                     className="h-12 text-base"
+                    maxLength={100}
                   />
+                  <div className="text-xs text-muted-foreground text-right">
+                    {title.length}/100 caractères
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
-                    Description
+                    Description (optionnel)
                   </label>
                   <Textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
                     className="min-h-[100px] text-base"
+                    maxLength={500}
                   />
+                  <div className="text-xs text-muted-foreground text-right">
+                    {description.length}/500 caractères
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -430,6 +587,9 @@ export default function CreateRun() {
                     onChange={(e) => setMaxParticipantsState(Number(e.target.value || 10))}
                     className="h-12"
                   />
+                  <div className="text-xs text-muted-foreground">
+                    Entre 3 et 20 participants (vous inclus)
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -471,9 +631,9 @@ export default function CreateRun() {
               </Button>
 
               {!!disabledReason() && (
-                <p className="text-sm text-muted-foreground text-center bg-muted/50 p-3 rounded-lg">
-                  {disabledReason()}
-                </p>
+                <div className="text-sm text-muted-foreground text-center bg-muted/50 p-3 rounded-lg">
+                  <strong>Pour continuer :</strong> {disabledReason()}
+                </div>
               )}
             </div>
           </div>
@@ -525,7 +685,145 @@ export default function CreateRun() {
                             </svg>
                           `),
                           scaledSize: new google.maps.Size(32, 40),
-                          anchor: new google.maps.Point(16, 40)
+                          anchor: new google.maps.Point(12, 12)
+                        }}
+                      />
+                    ))}
+                    {start && end && dirResult && (
+                      <DirectionsRenderer
+                        directions={dirResult}
+                        options={{ 
+                          draggable: true, 
+                          suppressMarkers: true,
+                          polylineOptions: {
+                            strokeColor: "#3b82f6",
+                            strokeWeight: 4,
+                            strokeOpacity: 0.8
+                          }
+                        }}
+                        onDirectionsChanged={() => {
+                          console.log("[CreateRun] Route changed via drag");
+                        }}
+                      />
+                    )}
+                  </GoogleMap>
+                  
+                  {isSelectingLocation && (
+                    <div className="absolute top-4 left-4 right-4 bg-primary text-primary-foreground p-3 rounded-lg shadow-lg z-10">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          {isSelectingLocation === 'start' 
+                            ? '📍 Cliquez pour placer le départ' 
+                            : '🏁 Cliquez pour placer l\'arrivée'
+                          }
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsSelectingLocation(null)}
+                          className="text-primary-foreground hover:bg-primary-foreground/20"
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Légende de la carte */}
+                  <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-2 text-xs space-y-1 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span>Départ</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <span>Arrivée</span>
+                    </div>
+                    {waypoints.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <span>Points intermédiaires</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Instructions */}
+                  {!start && !end && (
+                    <div className="absolute top-4 left-4 right-4 bg-blue-50 border border-blue-200 p-3 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>💡 Pour commencer :</strong> Cliquez sur la carte pour placer votre point de départ
+                      </p>
+                    </div>
+                  )}
+
+                  {start && !end && (
+                    <div className="absolute top-4 left-4 right-4 bg-orange-50 border border-orange-200 p-3 rounded-lg">
+                      <p className="text-sm text-orange-800">
+                        <strong>🎯 Ensuite :</strong> Cliquez sur la carte pour placer votre point d'arrivée
+                      </p>
+                    </div>
+                  )}
+
+                  {start && end && !dirResult && (
+                    <div className="absolute top-4 left-4 right-4 bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                        <p className="text-sm text-yellow-800">
+                          <strong>⚡ Calcul en cours :</strong> Génération de l'itinéraire...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {start && end && dirResult && (
+                    <div className="absolute top-4 left-4 right-4 bg-green-50 border border-green-200 p-3 rounded-lg">
+                      <p className="text-sm text-green-800">
+                        <strong>✅ Parfait !</strong> Vous pouvez ajouter des points intermédiaires en cliquant sur la carte
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Résumé de la session */}
+        {start && end && dirResult && title && dateTime && (
+          <Card className="mt-6 shadow-card border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary">📋 Résumé de votre session</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-primary">{distanceKm?.toFixed(1)} km</div>
+                  <div className="text-sm text-muted-foreground">Distance</div>
+                </div>
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-primary">{intensityState}</div>
+                  <div className="text-sm text-muted-foreground">Intensité</div>
+                </div>
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-primary">{maxParticipantsState}</div>
+                  <div className="text-sm text-muted-foreground">Participants max</div>
+                </div>
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-primary">
+                    {new Date(dateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {new Date(dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}: new google.maps.Point(16, 40)
                         }}
                       />
                     )}
@@ -554,58 +852,8 @@ export default function CreateRun() {
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="2"/>
                               <circle cx="12" cy="12" r="4" fill="white"/>
+                              <text x="12" y="16" text-anchor="middle" font-size="10" font-weight="bold" fill="#3b82f6">${index + 1}</text>
                             </svg>
                           `),
                           scaledSize: new google.maps.Size(24, 24),
-                          anchor: new google.maps.Point(12, 12)
-                        }}
-                      />
-                    ))}
-                    {start && end && dirResult && (
-                      <DirectionsRenderer
-                        directions={dirResult}
-                        options={{ 
-                          draggable: true, 
-                          suppressMarkers: true,
-                          polylineOptions: {
-                            strokeColor: "#3b82f6",
-                            strokeWeight: 4,
-                            strokeOpacity: 0.8
-                          }
-                        }}
-                        onDirectionsChanged={() => {
-                          console.log("[directions] Route changed via drag");
-                        }}
-                      />
-                    )}
-                  </GoogleMap>
-                  
-                  {isSelectingLocation && (
-                    <div className="absolute top-4 left-4 right-4 bg-primary text-primary-foreground p-3 rounded-lg shadow-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">
-                          {isSelectingLocation === 'start' 
-                            ? '📍 Cliquez pour placer le départ' 
-                            : '🏁 Cliquez pour placer l\'arrivée'
-                          }
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setIsSelectingLocation(null)}
-                          className="text-primary-foreground hover:bg-primary-foreground/20"
-                        >
-                          Annuler
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+                          anchor
