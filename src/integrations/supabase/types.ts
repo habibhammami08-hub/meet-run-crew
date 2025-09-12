@@ -35,6 +35,51 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_blocklist: {
+        Row: {
+          blocked_until: string
+          cancel_at_period_end: boolean | null
+          created_at: string
+          current_period_end: string | null
+          deleted_at: string
+          email_hash: string
+          id: number
+          reactivated_at: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_reactivated: boolean | null
+          subscription_status: string | null
+        }
+        Insert: {
+          blocked_until?: string
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          deleted_at?: string
+          email_hash: string
+          id?: number
+          reactivated_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_reactivated?: boolean | null
+          subscription_status?: string | null
+        }
+        Update: {
+          blocked_until?: string
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          deleted_at?: string
+          email_hash?: string
+          id?: number
+          reactivated_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_reactivated?: boolean | null
+          subscription_status?: string | null
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           amount_paid_cents: number | null
@@ -304,6 +349,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: Json
       }
+      can_delete_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_available_spots: {
         Args: { session_id: string }
         Returns: number
@@ -314,6 +363,14 @@ export type Database = {
       }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
+        Returns: boolean
+      }
+      hash_email_secure: {
+        Args: { email: string }
+        Returns: string
+      }
+      is_email_blocked: {
+        Args: { email: string }
         Returns: boolean
       }
     }
