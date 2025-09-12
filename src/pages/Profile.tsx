@@ -250,6 +250,13 @@ export default function ProfilePage() {
     }
   }, [user?.id, loadProfile, loading]);
 
+  // Redirection automatique vers l'authentification si pas connecté
+  useEffect(() => {
+    if (!user && !loading) {
+      navigate('/auth?returnTo=/profile');
+    }
+  }, [user, loading, navigate]);
+
   const handleDeleteSession = async (sessionId: string) => {
     const supabase = getSupabase();
     if (!supabase || !user?.id) return;
@@ -398,13 +405,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
-  // Redirection automatique vers l'authentification si pas connecté
-  useEffect(() => {
-    if (!user && !loading) {
-      navigate('/auth?returnTo=/profile');
-    }
-  }, [user, loading, navigate]);
 
   if (!user || !profile) {
     return null; // Redirection en cours
