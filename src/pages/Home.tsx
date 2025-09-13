@@ -1,185 +1,158 @@
+// src/pages/Home.tsx
+import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { MapPin, Users, Calendar, Star, Trash2, Crown, User } from "lucide-react";
+
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
-import { useEffect, useState, useCallback, useRef } from "react";
-import heroVideo from "@/assets/hero-video.mp4";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
+
+import heroVideo from "@/assets/hero-video.mp4";
 import meetrunLogo from "@/assets/meetrun-logo.png";
+
+type ActivityItem = {
+  id: string;
+  title: string;
+  scheduled_at?: string | null;
+  location_hint?: string | null;
+  max_participants?: number | null;
+  enrollments?: Array<{ count?: number }>;
+  enrollment_status?: string;
+  activity_type: "created" | "joined";
+  activity_date: string; // created_at de la session/enrollment
+};
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user, signOut, hasActiveSubscription } = useAuth();
+  const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
-  const [userActivity, setUserActivity] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
-  
   const supabase = getSupabase();
 
-  // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
-  const mountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const [userActivity, setUserActivity] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
-  // CORRECTION: Fonction de fetch avec AbortController strict
+  // -------- Fetch activité utilisateur --------
   const fetchUserActivity = useCallback(async (userId: string) => {
-    if (!supabase || !userId || !mountedRef.current) {
-      console.log("[Home] Fetch cancelled - missing dependencies or unmounted");
-      return;
-    }
-    
-    // Annuler la requête précédente si elle existe
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    // Créer un nouveau controller
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-    
-    setLoading(true);
-    
-    try {
-      console.log("[Home] Fetching user activity for user:", userId);
-      
-      // Vérifier si la requête a été annulée
-      if (signal.aborted || !mountedRef.current) return;
-      
-      // Récupérer les sessions créées par l'utilisateur
-      const { data: createdSessions, error: sessionsError } = await supabase
-        .from('sessions')
-        .select(`
-          *,
-          enrollments(count)
-        `)
-        .eq('host_id', userId)
-        .order('scheduled_at', { ascending: false })
-        .limit(3);
-      
-      if (signal.aborted || !mountedRef.current) return;
-      
-      console.log("[Home] Created sessions result:", { createdSessions, sessionsError });
+    if (!supabase || !userId) return;
 
-      // Récupérer les sessions auxquelles l'utilisateur est inscrit
-      const { data: enrolledSessions, error: enrollmentsError } = await supabase
-        .from('enrollments')
+    setLoading(true);
+    try {
+      logger.info("[Home] Fetching user activity for user:", userId);
+
+      // Sessions créées (inclut count via relation)
+      const { data: createdSessions, error: sessionsError } = await supabase
+        .from("sessions")
         .select(`
-          *,
+          id, title, scheduled_at, created_at, location_hint, max_participants,
+          enrollments:enrollments(count)
+        `)
+        .eq("host_id", userId)
+        .order("scheduled_at", { ascending: false })
+        .limit(3);
+
+      if (sessionsError) throw sessionsError;
+
+      // Sessions rejointes (on garde sessions(*) pour compat TS/relations)
+      const { data: enrolledSessions, error: enrollmentsError } = await supabase
+        .from("enrollments")
+        .select(`
+          created_at, status,
           sessions(*)
         `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
         .limit(3);
-      
-      if (signal.aborted || !mountedRef.current) return;
-      
-      console.log("[Home] Enrolled sessions result:", { enrolledSessions, enrollmentsError });
 
-      // Combiner les activités avec un type
-      const activities = [];
-      
-      if (createdSessions) {
-        activities.push(...createdSessions.map(session => ({
-          ...session,
-          activity_type: 'created',
-          activity_date: session.created_at
-        })));
-      }
-      
-      if (enrolledSessions) {
-        activities.push(...enrolledSessions.map(enrollment => ({
-          ...enrollment.sessions,
-          enrollment_status: enrollment.status,
-          activity_type: 'joined',
-          activity_date: enrollment.created_at
-        })));
+      if (enrollmentsError) throw enrollmentsError;
+
+      const activities: ActivityItem[] = [];
+
+      if (createdSessions?.length) {
+        activities.push(
+          ...createdSessions.map((s: any) => ({
+            id: s.id as string,
+            title: s.title as string,
+            scheduled_at: s.scheduled_at ?? null,
+            location_hint: s.location_hint ?? null,
+            max_participants: s.max_participants ?? null,
+            enrollments: s.enrollments ?? [],
+            activity_type: "created" as const,
+            activity_date: s.created_at as string,
+          }))
+        );
       }
 
-      // Trier par date
-      activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
-      
-      console.log("[Home] Final activities:", activities);
-      
-      if (!signal.aborted && mountedRef.current) {
-        setUserActivity(activities.slice(0, 5));
+      if (enrolledSessions?.length) {
+        activities.push(
+          ...enrolledSessions.map((e: any) => ({
+            id: e.sessions?.id as string,
+            title: e.sessions?.title as string,
+            scheduled_at: e.sessions?.scheduled_at ?? null,
+            location_hint: e.sessions?.location_hint ?? null,
+            enrollment_status: e.status as string,
+            activity_type: "joined" as const,
+            activity_date: e.created_at as string,
+          }))
+        );
       }
+
+      activities.sort(
+        (a, b) =>
+          new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime()
+      );
+
+      const top5 = activities.slice(0, 5);
+      setUserActivity(top5);
+      logger.info("[Home] Final activities:", top5);
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log("[Home] Request aborted");
-      } else {
-        logger.error('[Home] Error loading activities:', error);
-      }
+      console.error("[Home] Error loading activities:", error);
+      logger.error("[Home] Error loading activities:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger votre activité récente.",
+        variant: "destructive",
+      });
     } finally {
-      if (!signal.aborted && mountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, toast]);
 
-  // CORRECTION: Effect principal avec cleanup strict
+  // Effet principal : charger activité si user présent
   useEffect(() => {
-    if (user?.id && mountedRef.current) {
+    if (user?.id) {
       fetchUserActivity(user.id);
     }
   }, [user?.id, fetchUserActivity]);
 
-  // CORRECTION: Debounce avec cleanup pour les événements de refresh
-  const debouncedRefresh = useCallback(() => {
-    if (!user?.id || !mountedRef.current) return;
-    
-    clearTimeout(debounceTimeoutRef.current);
-    debounceTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current && user?.id) {
-        fetchUserActivity(user.id);
-      }
-    }, 2000); // Debounce de 2 secondes
-  }, [user?.id, fetchUserActivity]);
-
-  // CORRECTION: Écouter les mises à jour de profil avec cleanup
+  // Écouter un éventuel événement custom pour rafraîchir (avec debounce)
   useEffect(() => {
     if (!user?.id) return;
-    
+
+    let timeoutId: ReturnType<typeof setTimeout>;
     const handleProfileRefresh = () => {
-      if (mountedRef.current) {
-        debouncedRefresh();
-      }
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (user?.id) fetchUserActivity(user.id);
+      }, 2000);
     };
 
-    window.addEventListener('profileRefresh', handleProfileRefresh);
-    
+    window.addEventListener("profileRefresh", handleProfileRefresh);
     return () => {
-      window.removeEventListener('profileRefresh', handleProfileRefresh);
+      window.removeEventListener("profileRefresh", handleProfileRefresh);
+      clearTimeout(timeoutId);
     };
-  }, [debouncedRefresh, user?.id]);
+  }, [user?.id, fetchUserActivity]);
 
-  // CORRECTION: Cleanup général strict
-  useEffect(() => {
-    mountedRef.current = true;
-    
-    return () => {
-      console.log("[Home] Component unmounting - cleaning up all resources");
-      mountedRef.current = false;
-      
-      // Cleanup timeout
-      clearTimeout(debounceTimeoutRef.current);
-      
-      // Cleanup AbortController
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-  }, []);
-
-  // CORRECTION: Fonction de suppression avec vérification de mounted
+  // -------- Suppression session (sécurisée côté client) --------
   const handleDeleteSession = async (sessionId: string) => {
-    if (!user || !mountedRef.current) return;
-    
+    if (!user || !supabase) return;
+
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.")) {
       return;
     }
@@ -187,35 +160,29 @@ const Home = () => {
     setDeletingSessionId(sessionId);
     try {
       const { error } = await supabase
-        .from('sessions')
+        .from("sessions")
         .delete()
-        .eq('id', sessionId);
+        .eq("id", sessionId)
+        .eq("host_id", user.id); // garde côté client (RLS recommandé côté DB aussi)
 
       if (error) throw error;
 
-      if (mountedRef.current) {
-        toast({
-          title: "Session supprimée",
-          description: "La session a été supprimée avec succès.",
-        });
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès.",
+      });
 
-        // Actualiser les activités seulement si le composant est encore monté
-        if (user.id) {
-          fetchUserActivity(user.id);
-        }
+      if (user.id) {
+        fetchUserActivity(user.id);
       }
     } catch (error: any) {
-      if (mountedRef.current) {
-        toast({
-          title: "Erreur de suppression",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Erreur de suppression",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
-      if (mountedRef.current) {
-        setDeletingSessionId(null);
-      }
+      setDeletingSessionId(null);
     }
   };
 
@@ -224,10 +191,10 @@ const Home = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <img 
-            src={meetrunLogo} 
-            alt="MeetRun" 
-            className="h-8 cursor-pointer" 
+          <img
+            src={meetrunLogo}
+            alt="MeetRun"
+            className="h-8 cursor-pointer"
             onClick={() => navigate("/")}
           />
           <div className="flex items-center gap-2">
@@ -237,7 +204,11 @@ const Home = () => {
               </Button>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-primary font-semibold">
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate("/auth?returnTo=/")}
+                  className="text-primary font-semibold"
+                >
                   Se connecter
                 </Button>
                 <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/")}>
@@ -253,7 +224,7 @@ const Home = () => {
       <div className="pt-16">
         {/* Hero Section */}
         <div className="relative h-[50vh] overflow-hidden">
-          <video 
+          <video
             src={heroVideo}
             autoPlay
             muted
@@ -269,25 +240,45 @@ const Home = () => {
             <div className="flex flex-col sm:flex-row gap-4">
               {user ? (
                 <>
-                  <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  <Button
+                    variant="sport"
+                    size="lg"
+                    onClick={() => navigate("/map")}
+                    className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm"
+                  >
                     Voir les sessions
                   </Button>
-                  <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  <Button
+                    variant="sport"
+                    size="lg"
+                    onClick={() => navigate("/create")}
+                    className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm"
+                  >
                     Créer une session
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  <Button
+                    variant="sport"
+                    size="lg"
+                    onClick={() => navigate("/map")}
+                    className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm"
+                  >
                     Voir les sessions
                   </Button>
-                  <Button variant="sport" size="lg" onClick={() => {
-                    if (!user) {
-                      navigate("/auth?returnTo=/create");
-                    } else {
-                      navigate("/create");
-                    }
-                  }} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                  <Button
+                    variant="sport"
+                    size="lg"
+                    onClick={() => {
+                      if (!user) {
+                        navigate("/auth?returnTo=/create");
+                      } else {
+                        navigate("/create");
+                      }
+                    }}
+                    className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm"
+                  >
                     Créer une session
                   </Button>
                 </>
@@ -301,7 +292,7 @@ const Home = () => {
           <h2 className="text-2xl font-bold text-center mb-8 text-foreground">
             Comment ça marche ?
           </h2>
-          
+
           <div className="space-y-6 mb-8">
             <Card className="shadow-card">
               <CardContent className="p-6">
@@ -347,10 +338,20 @@ const Home = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
+            <Button
+              variant="sportSecondary"
+              size="lg"
+              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              onClick={() => navigate("/map")}
+            >
               Voir toutes les sessions
             </Button>
-            <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
+            <Button
+              variant="sport"
+              size="lg"
+              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              onClick={() => navigate("/subscription")}
+            >
               <Crown size={16} className="mr-2" />
               S'abonner maintenant
             </Button>
@@ -373,8 +374,8 @@ const Home = () => {
                     </p>
                     <div className="text-2xl font-bold text-primary whitespace-nowrap">9,99 €/mois</div>
                   </div>
-                  <Button 
-                    variant="sport" 
+                  <Button
+                    variant="sport"
                     size="lg"
                     onClick={() => navigate("/subscription")}
                     className="w-full sm:w-auto sm:ml-4"
@@ -402,7 +403,7 @@ const Home = () => {
                   <div className="space-y-3">
                     {[1, 2, 3].map(i => (
                       <div key={i} className="animate-pulse">
-                        <div className="h-16 bg-gray-200 rounded-lg"></div>
+                        <div className="h-16 bg-gray-200 rounded-lg" />
                       </div>
                     ))}
                   </div>
@@ -410,60 +411,87 @@ const Home = () => {
                   <div className="space-y-4">
                     {userActivity.map((activity, index) => (
                       <div key={`${activity.id}-${index}`} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className={`w-2 h-2 rounded-full mt-2 ${
-                          activity.activity_type === 'created' ? 'bg-primary' : 
-                          activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'bg-green-500' : 'bg-blue-500'
-                        }`}></div>
-                         <div className="flex-1">
-                           <div className="flex justify-between items-start mb-1">
-                             <h4 className="font-medium">{activity.title}</h4>
-                             <div className="flex items-center gap-2">
-                               <Badge variant={
-                                 activity.activity_type === 'created' ? 'default' :
-                                 activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'secondary' : 'outline'
-                               } className="text-xs">
-                                 {activity.activity_type === 'created' ? 'Organisée' : 
-                                  activity.enrollment_status === 'paid' || activity.enrollment_status === 'included_by_subscription' ? 'Participé' : 'Inscrite'}
-                               </Badge>
-                               {activity.activity_type === 'created' && (
-                                 <Button
-                                   variant="ghost"
-                                   size="sm"
-                                   onClick={(e) => {
-                                     e.stopPropagation();
-                                     handleDeleteSession(activity.id);
-                                   }}
-                                   disabled={deletingSessionId === activity.id}
-                                   className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                 >
-                                   <Trash2 size={12} />
-                                 </Button>
-                               )}
-                             </div>
-                           </div>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                              <Calendar size={12} />
-                              {new Date(activity.scheduled_at || activity.date).toLocaleDateString('fr-FR', {
-                                day: 'numeric',
-                                month: 'long'
-                              })}
-                            </p>
-                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <MapPin size={12} />
-                              {activity.location_hint || 'Localisation masquée'}
-                             {activity.activity_type === 'created' && activity.enrollments && (
-                               <span className="ml-2 flex items-center gap-1">
-                                 <Users size={12} />
-                                 {activity.enrollments[0]?.count || 0}/{activity.max_participants}
-                               </span>
-                             )}
-                           </p>
-                         </div>
+                        <div
+                          className={`w-2 h-2 rounded-full mt-2 ${
+                            activity.activity_type === "created"
+                              ? "bg-primary"
+                              : activity.enrollment_status === "paid" ||
+                                activity.enrollment_status === "included_by_subscription"
+                              ? "bg-green-500"
+                              : "bg-blue-500"
+                          }`}
+                        />
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-1">
+                            <h4 className="font-medium">{activity.title}</h4>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={
+                                  activity.activity_type === "created"
+                                    ? "default"
+                                    : activity.enrollment_status === "paid" ||
+                                      activity.enrollment_status === "included_by_subscription"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                className="text-xs"
+                              >
+                                {activity.activity_type === "created"
+                                  ? "Organisée"
+                                  : activity.enrollment_status === "paid" ||
+                                    activity.enrollment_status === "included_by_subscription"
+                                  ? "Participé"
+                                  : "Inscrite"}
+                              </Badge>
+                              {activity.activity_type === "created" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSession(activity.id);
+                                  }}
+                                  disabled={deletingSessionId === activity.id}
+                                  className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  title="Supprimer la session"
+                                >
+                                  <Trash2 size={12} />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                            <Calendar size={12} />
+                            {(() => {
+                              const d = activity.scheduled_at ?? activity.activity_date;
+                              try {
+                                return new Date(d).toLocaleDateString("fr-FR", {
+                                  day: "numeric",
+                                  month: "long",
+                                });
+                              } catch {
+                                return "—";
+                              }
+                            })()}
+                          </p>
+
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <MapPin size={12} />
+                            {activity.location_hint || "Localisation masquée"}
+                            {activity.activity_type === "created" && activity.enrollments && (
+                              <span className="ml-2 flex items-center gap-1">
+                                <Users size={12} />
+                                {(activity.enrollments[0]?.count || 0)}/{activity.max_participants ?? 0}
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
                     ))}
-                    <Button 
-                      variant="ghost" 
-                      className="w-full mt-2" 
+                    <Button
+                      variant="ghost"
+                      className="w-full mt-2"
                       onClick={() => navigate("/profile")}
                     >
                       Voir tout l'historique
