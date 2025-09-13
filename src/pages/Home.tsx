@@ -259,6 +259,7 @@ const Home = () => {
             muted
             loop
             playsInline
+            preload="metadata"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
