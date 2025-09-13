@@ -1,15 +1,51 @@
 // CORRECTION FINALE pour Profile.tsx - Élimination totale des boucles
 
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
-// ... autres imports
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { Profile as DatabaseProfile } from "@/types/database";
+
+// Custom types for this component
+type ProfileData = {
+  id: string;
+  full_name: string | null;
+  age: number | null;
+  city: string | null;
+  avatar_url: string | null;
+  sessions_hosted: number;
+  sessions_joined: number;
+  total_km: number;
+};
+
+type SessionData = {
+  id: string;
+  title: string;
+  scheduled_at: string;
+  start_place: string;
+  distance_km: number;
+  intensity: string;
+  max_participants: number;
+  status: string;
+  current_participants: number;
+};
+import { Trash2, Edit2, Save, X, User, MapPin, Calendar, Users, Target } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [mySessions, setMySessions] = useState<Session[]>([]);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [mySessions, setMySessions] = useState<SessionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
