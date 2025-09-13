@@ -68,6 +68,9 @@ function MapPageInner() {
   // Utilisation du hook useAuth pour l'authentification
   const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
   
+  // LOG TEMPORAIRE pour diagnostiquer
+  console.log('[Map] Component loaded - Auth:', { authLoading, hasUser: !!currentUser, hasSub });
+  
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);  
