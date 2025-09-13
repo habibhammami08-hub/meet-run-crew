@@ -71,7 +71,7 @@ function MapPageInner() {
   const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [filterRadius, setFilterRadius] = useState<string>("10");
+  const [filterRadius, setFilterRadius] = useState<string>("all");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
 
@@ -263,7 +263,7 @@ function MapPageInner() {
     }
     
     return filtered;
-  }, [sessions, userLocation, filterRadius, filterIntensity, filterSessionType]);
+  }, [sessions, userLocation, filterRadius, filterIntensity, filterSessionType, uiToDbIntensity]);
 
   // Sessions les plus proches filtrées
   const filteredNearestSessions = useMemo(() => {
