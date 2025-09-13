@@ -65,15 +65,8 @@ function MapPageInner() {
   const navigate = useNavigate();  
   const supabase = getSupabase();  
   
-  // CONTOURNEMENT: éviter useAuth qui cause des re-renders infinis
-  // const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
-  
-  // Variables d'auth par défaut (à corriger plus tard)
-  const currentUser = null;
-  const hasSub = false;
-  const authLoading = false;
-  
-  console.log('[Map] Component loaded - Auth bypassed');
+  // Utilisation du hook useAuth pour l'authentification
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
   
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
