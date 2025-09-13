@@ -1,6 +1,4 @@
-// CORRECTION FINALE pour Profile.tsx - Élimination totale des boucles
-
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,391 +10,211 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { Profile as DatabaseProfile } from "@/types/database";
+import { Loader2, Trash2 } from "lucide-react";
 
-// Custom types for this component
-type ProfileData = {
+// --- Types minimaux ---
+interface ProfileRow {
   id: string;
+  email: string | null;
   full_name: string | null;
   age: number | null;
   city: string | null;
-  avatar_url: string | null;
-  sessions_hosted: number;
-  sessions_joined: number;
-  total_km: number;
-};
+  avatar_url?: string | null;
+  sessions_hosted?: number | null;
+  sessions_joined?: number | null;
+  total_km?: number | null;
+}
 
-type SessionData = {
+interface SessionRow {
   id: string;
-  title: string;
-  scheduled_at: string;
-  start_place: string;
-  distance_km: number;
-  intensity: string;
-  max_participants: number;
-  status: string;
-  current_participants: number;
-};
-import { Trash2, Edit2, Save, X, User, MapPin, Calendar, Users, Target } from "lucide-react";
+  title: string | null;
+  description?: string | null;
+  scheduled_at?: string | null;
+  status?: string | null;
+}
 
-export default function ProfilePage() {
-  const { user, signOut } = useAuth();
-  const { toast } = useToast();
+export default function Profile() {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [mySessions, setMySessions] = useState<SessionData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [deletingSession, setDeletingSession] = useState<string | null>(null);
-
-  // Form state...
-  const [fullName, setFullName] = useState("");
-  const [age, setAge] = useState<number | "">("");
-  const [city, setCity] = useState("");
-  const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
+  const { user } = useAuth();
+  const { toast } = useToast();
   const supabase = getSupabase();
 
-  // ✅ SOLUTION: Tout dans des useRef - pas de useCallback !
-  const stableFunctions = useRef({
-    fetchMySessions: async (userId: string) => {
-      if (!supabase || !userId) return;
+  // --- State ---
+  const [loading, setLoading] = useState(false); // ⚠️ important: false au départ
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-      try {
-        console.log("[Profile] Fetching sessions for user:", userId);
-        
-        const { data: sessions, error } = await supabase
-          .from('sessions')
-          .select(`
-            id,
-            title,
-            scheduled_at,
-            start_place,
-            distance_km,
-            intensity,
-            max_participants,
-            status
-          `)
-          .eq('host_id', userId)
-          .in('status', ['published', 'active'])
-          .not('scheduled_at', 'is', null)
-          .order('scheduled_at', { ascending: false });
+  const [fullName, setFullName] = useState("");
+  const [age, setAge] = useState<string | "">("");
+  const [city, setCity] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-        if (error) {
-          console.error('[Profile] Error fetching sessions:', error);
-          return;
-        }
+  const [createdSessions, setCreatedSessions] = useState<SessionRow[]>([]);
+  const [enrolledSessions, setEnrolledSessions] = useState<SessionRow[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-        if (!sessions) return;
+  // --- Helpers ---
+  const initials = useMemo(() => {
+    if (!profile?.full_name) return "U";
+    return profile.full_name
+      .split(" ")
+      .map((p) => p[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }, [profile?.full_name]);
 
-        const sessionsWithCounts = await Promise.all(
-          sessions.map(async (session) => {
-            try {
-              const { count } = await supabase
-                .from('enrollments')
-                .select('*', { count: 'exact' })
-                .eq('session_id', session.id)
-                .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+  // --- Chargement du profil ---
+  const loadProfile = useRef(async (userId: string) => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
+        .eq("id", userId)
+        .maybeSingle();
 
-              return {
-                ...session,
-                current_participants: (count || 0) + 1
-              };
-            } catch (error) {
-              console.warn(`[Profile] Error counting participants for session ${session.id}:`, error);
-              return {
-                ...session,
-                current_participants: 1
-              };
-            }
-          })
-        );
+      if (error) throw error;
 
-        console.log("[Profile] Sessions loaded:", sessionsWithCounts.length);
-        setMySessions(sessionsWithCounts);
-      } catch (error) {
-        console.error('[Profile] Error fetching sessions:', error);
-      }
-    },
-
-    updateProfileStats: async (userId: string) => {
-      if (!supabase || !userId) return;
-
-      try {
-        console.log("[Profile] Updating profile statistics for user:", userId);
-        
-        const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
-          supabase
-            .from('sessions')
-            .select('*', { count: 'exact' })
-            .eq('host_id', userId)
-            .eq('status', 'published'),
-          supabase
-            .from('enrollments')
-            .select('*', { count: 'exact' })
-            .eq('user_id', userId)
-            .in('status', ['paid', 'included_by_subscription', 'confirmed'])
-        ]);
-
-        await supabase
-          .from('profiles')
-          .update({ 
-            sessions_hosted: sessionsHosted || 0,
-            sessions_joined: sessionsJoined || 0,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId);
-
-        console.log("[Profile] Stats updated successfully");
-      } catch (error) {
-        console.error('[Profile] Error updating profile stats:', error);
-      }
-    },
-
-    loadProfile: async (userId: string) => {
-      if (!supabase) {
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      
-      try {
-        console.log("[Profile] Loading profile for user:", userId);
-
-        const { data: profileData, error: profileError } = await supabase
+      let p = data as ProfileRow | null;
+      if (!p) {
+        const { data: created, error: upErr } = await supabase
           .from("profiles")
-          .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
-          .eq("id", userId)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("Profile fetch error:", profileError);
-          toast({
-            title: "Erreur",
-            description: "Impossible de charger le profil",
-            variant: "destructive"
-          });
-        } else if (profileData) {
-          console.log("Profile loaded:", profileData);
-          setProfile(profileData);
-          setFullName(profileData.full_name || "");
-          setAge(profileData.age ?? "");
-          setCity(profileData.city || "");
-          setSportLevel("Occasionnel");
-        } else {
-          console.log("No profile found, creating one...");
-          const { data: newProfile, error: createError } = await supabase
-            .from("profiles")
-            .upsert({
-              id: userId,
-              email: user?.email || '',
-              full_name: user?.email?.split('@')[0] || 'Runner',
-              sessions_hosted: 0,
-              sessions_joined: 0,
-              total_km: 0
-            })
-            .select()
-            .single();
-
-          if (!createError && newProfile) {
-            setProfile(newProfile);
-            setFullName(newProfile.full_name || "");
-            setAge(newProfile.age ?? "");
-            setCity(newProfile.city || "");
-            setSportLevel("Occasionnel");
-          }
-        }
-
-        // ✅ Appeler les fonctions stables directement
-        await stableFunctions.current.fetchMySessions(userId);
-        await stableFunctions.current.updateProfileStats(userId);
-
-      } catch (error: any) {
-        console.error("Error loading profile:", error);
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue lors du chargement",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+          .upsert({
+            id: userId,
+            email: user?.email ?? "",
+            full_name: user?.email?.split("@")[0] ?? "Runner",
+            sessions_hosted: 0,
+            sessions_joined: 0,
+            total_km: 0,
+          })
+          .select()
+          .single();
+        if (upErr) throw upErr;
+        p = created as ProfileRow;
       }
+
+      setProfile(p);
+      setFullName(p.full_name ?? "");
+      setAge(p.age ?? "");
+      setCity(p.city ?? "");
+    } catch (e: any) {
+      console.error("[Profile] loadProfile error:", e);
+      toast({ title: "Erreur", description: e?.message ?? "Impossible de charger le profil", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   });
 
-  // ✅ Fonction de suppression simplifiée utilisant stableFunctions
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!supabase || !user?.id) return;
-
-    setDeletingSession(sessionId);
+  // --- Récupération des sessions ---
+  const loadSessions = useRef(async (userId: string) => {
+    if (!supabase) return;
     try {
-      console.log("[Profile] Deleting session:", sessionId);
-      
-      const { error: sessionError } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId)
-        .eq('host_id', user.id);
+      const { data: created, error: sErr } = await supabase
+        .from("sessions")
+        .select("id, title, description, scheduled_at, status")
+        .eq("host_id", userId)
+        .order("scheduled_at", { ascending: false })
+        .limit(5);
+      if (sErr) throw sErr;
+      setCreatedSessions(created ?? []);
 
-      if (sessionError) {
-        throw sessionError;
-      }
-
-      toast({
-        title: "Session supprimée",
-        description: "La session a été supprimée avec succès."
-      });
-
-      // ✅ Utiliser la fonction stable
-      await stableFunctions.current.fetchMySessions(user.id);
-      
-    } catch (error: any) {
-      console.error('[Profile] Delete error:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer la session: " + error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setDeletingSession(null);
+      const { data: enrollments, error: eErr } = await supabase
+        .from("enrollments")
+        .select("sessions(id, title, description, scheduled_at, status)")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (eErr) throw eErr;
+      const flat = (enrollments ?? [])
+        .map((row: any) => row.sessions)
+        .filter(Boolean) as SessionRow[];
+      setEnrolledSessions(flat);
+    } catch (e) {
+      console.error("[Profile] loadSessions error:", e);
     }
-  };
+  });
 
-  // ✅ EFFET PRINCIPAL - AUCUNE dépendance de fonction !
-  useEffect(() => {
-    if (user === null) {
-      navigate('/auth?returnTo=/profile');
-      return;
-    }
-    
-    if (user === undefined) {
-      return; // Encore en cours de chargement auth
-    }
-    
-    // Charger le profil seulement si on n'en a pas et qu'on n'est pas en cours de chargement
-    if (user && !profile && !loading) {
-      stableFunctions.current.loadProfile(user.id); // ✅ Fonction stable !
-    }
-  }, [user, navigate, profile, loading]); // ✅ Aucune fonction dans les dépendances !
-
-  // ✅ Event listener pour les mises à jour externes
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const handleProfileRefresh = (event: any) => {
-      if (event.detail?.userId === user.id) {
-        console.log("[Profile] External refresh triggered");
-        stableFunctions.current.fetchMySessions(user.id);
-        stableFunctions.current.updateProfileStats(user.id);
-      }
-    };
-
-    window.addEventListener('profileRefresh', handleProfileRefresh);
-    return () => window.removeEventListener('profileRefresh', handleProfileRefresh);
-  }, [user?.id]); // ✅ Seulement user.id
-
-  // ✅ Fonction de sauvegarde normale (pas dans useCallback)
-  async function handleSave() {
-    if (!supabase || !profile || !user?.id) return;
-    
+  // --- Update profil ---
+  const onSave = async () => {
+    if (!supabase || !user?.id || saving) return;
     setSaving(true);
     try {
-      let avatarUrl = profile.avatar_url || null;
-
+      // upload avatar si présent
+      let avatar_url: string | undefined = profile?.avatar_url ?? undefined;
       if (avatarFile) {
-        const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `avatars/${user.id}/avatar.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(path, avatarFile, { upsert: true });
-
-        if (uploadError) {
-          toast({
-            title: "Erreur",
-            description: "Erreur upload image : " + uploadError.message,
-            variant: "destructive"
-          });
-          return;
-        }
-
+        const fileExt = avatarFile.name.split(".").pop();
+        const path = `${user.id}/avatar.${fileExt}`;
+        // supprime ancien fichier si besoin (best-effort)
+        try { await supabase.storage.from("avatars").remove([path]); } catch {}
+        const { error: upErr } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
+        if (upErr) throw upErr;
         const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
-        avatarUrl = pub.publicUrl;
+        avatar_url = pub.publicUrl;
       }
 
       const ageValue = age === "" ? null : Number(age);
       const { error } = await supabase
         .from("profiles")
-        .update({
-          full_name: fullName,
-          age: ageValue,
-          city: city,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        })
+        .update({ full_name: fullName, city, age: ageValue, avatar_url })
         .eq("id", user.id);
+      if (error) throw error;
 
-      if (error) {
-        toast({
-          title: "Erreur",
-          description: "Erreur de sauvegarde: " + error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setProfile(prev => prev ? {
-        ...prev,
-        full_name: fullName,
-        age: ageValue,
-        city: city,
-        avatar_url: avatarUrl
-      } : null);
-
+      setProfile((p) => p ? { ...p, full_name: fullName, city, age: ageValue, avatar_url } : p);
       setEditing(false);
-      setAvatarFile(null);
-      
-      toast({
-        title: "Profil mis à jour",
-        description: "Vos modifications ont été sauvegardées."
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue: " + error.message,
-        variant: "destructive"
-      });
+      toast({ title: "Profil mis à jour", description: "Vos informations ont été enregistrées." });
+    } catch (e: any) {
+      console.error("[Profile] save error:", e);
+      toast({ title: "Erreur", description: e?.message ?? "Échec de la sauvegarde", variant: "destructive" });
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  // États de chargement inchangés...
-  if (user === null) return null;
-  if (user === undefined) {
-    return (
-      <div className="container mx-auto p-4 space-y-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p>Vérification de votre authentification...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // --- Suppression d'une session créée ---
+  const deleteSession = async (sessionId: string) => {
+    if (!supabase || !user?.id) return;
+    if (!confirm("Supprimer cette session ?")) return;
+    setDeletingId(sessionId);
+    try {
+      const { error } = await supabase.from("sessions").delete().eq("id", sessionId).eq("host_id", user.id);
+      if (error) throw error;
+      setCreatedSessions((list) => list.filter((s) => s.id !== sessionId));
+      toast({ title: "Session supprimée" });
+    } catch (e: any) {
+      console.error("[Profile] delete session error:", e);
+      toast({ title: "Erreur", description: e?.message ?? "Suppression impossible", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
+  // --- Effets ---
+  useEffect(() => {
+    if (user === null) {
+      navigate("/auth?returnTo=/profile");
+      return;
+    }
+    if (user === undefined) {
+      // auth en cours
+      return;
+    }
+    if (user && !profile) {
+      loadProfile.current(user.id);
+      loadSessions.current(user.id);
+    }
+  }, [user, navigate, profile]);
+
+  // --- Rendu ---
   if (loading) {
     return (
-      <div className="container mx-auto p-4 space-y-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p>Chargement du profil...</p>
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Chargement du profil…</span>
           </div>
         </div>
       </div>
@@ -405,22 +223,142 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="text-center py-8">
-          <p>Impossible de charger le profil</p>
-          <Button onClick={() => window.location.reload()} className="mt-4">
-            Réessayer
-          </Button>
-        </div>
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="mb-4">Impossible de charger le profil.</p>
+            <Button onClick={() => window.location.reload()}>Réessayer</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  // JSX reste identique...
   return (
     <div className="container mx-auto p-4 space-y-6">
-      {/* Le JSX complet reste identique à ton code */}
-      {/* ... */}
+      {/* En-tête profil */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mon profil</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={profile.avatar_url ?? undefined} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="space-y-2">
+              <div className="text-lg font-semibold">{profile.full_name || "Runner"}</div>
+              <div className="text-sm text-muted-foreground">{profile.email}</div>
+              <div className="flex gap-2 mt-1">
+                {profile.sessions_hosted != null && (
+                  <Badge variant="secondary">Créées: {profile.sessions_hosted}</Badge>
+                )}
+                {profile.sessions_joined != null && (
+                  <Badge variant="secondary">Rejointes: {profile.sessions_joined}</Badge>
+                )}
+                {profile.total_km != null && (
+                  <Badge variant="secondary">Total: {profile.total_km} km</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Formulaire */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Nom complet</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={!editing} />
+            </div>
+            <div className="space-y-2">
+              <Label>Ville</Label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} disabled={!editing} />
+            </div>
+            <div className="space-y-2">
+              <Label>Âge</Label>
+              <Input
+                type="number"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                disabled={!editing}
+                min={0}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Avatar</Label>
+              <Input type="file" accept="image/*" disabled={!editing} onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)} />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {!editing ? (
+              <Button onClick={() => setEditing(true)}>Modifier</Button>
+            ) : (
+              <>
+                <Button onClick={onSave} disabled={saving}>
+                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Enregistrer
+                </Button>
+                <Button variant="secondary" onClick={() => { setEditing(false); setAvatarFile(null); setFullName(profile.full_name ?? ""); setAge(profile.age ?? ""); setCity(profile.city ?? ""); }}>
+                  Annuler
+                </Button>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sessions créées */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mes sessions créées</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {createdSessions.length === 0 && (
+            <p className="text-sm text-muted-foreground">Vous n'avez pas encore créé de session.</p>
+          )}
+          {createdSessions.map((s) => (
+            <div key={s.id} className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <div className="font-medium">{s.title || "Sans titre"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {s.scheduled_at ? new Date(s.scheduled_at).toLocaleString() : "Date à définir"}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => navigate(`/session/${s.id}`)}>Ouvrir</Button>
+                <Button size="sm" variant="destructive" onClick={() => deleteSession(s.id)} disabled={deletingId === s.id}>
+                  {deletingId === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Sessions rejointes */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mes sessions rejointes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {enrolledSessions.length === 0 && (
+            <p className="text-sm text-muted-foreground">Vous n'avez pas encore rejoint de session.</p>
+          )}
+          {enrolledSessions.map((s) => (
+            <div key={s.id} className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <div className="font-medium">{s.title || "Sans titre"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {s.scheduled_at ? new Date(s.scheduled_at).toLocaleString() : "Date à définir"}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => navigate(`/session/${s.id}`)}>Ouvrir</Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }
