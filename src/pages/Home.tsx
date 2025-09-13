@@ -268,16 +268,16 @@ const Home = () => {
               {user ? (
                 <>
                   <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Voir les courses
+                    Voir les sessions
                   </Button>
                   <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Créer une course
+                    Créer une session
                   </Button>
                 </>
               ) : (
                 <>
                   <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Voir les courses
+                    Voir les sessions
                   </Button>
                   <Button variant="sport" size="lg" onClick={() => {
                     if (!user) {
@@ -286,7 +286,7 @@ const Home = () => {
                       navigate("/create");
                     }
                   }} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Créer une course
+                    Créer une session
                   </Button>
                 </>
               )}
@@ -346,7 +346,7 @@ const Home = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
-              Voir toutes les courses
+              Voir toutes les sessions
             </Button>
             <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
               <Crown size={16} className="mr-2" />
