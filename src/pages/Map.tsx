@@ -1,5 +1,5 @@
 // src/pages/Map.tsx - Version moderne avec calcul de proximité
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -75,12 +75,6 @@ function MapPageInner() {
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
 
-  // Refs pour cleanup
-  const mountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const channelRef = useRef<any>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
-
   // Icônes de markers personnalisées
   const createCustomMarkerIcon = (isOwnSession: boolean, isSubscribed: boolean, isSelected: boolean = false) => {
     const size = isOwnSession ? 20 : (isSelected ? 18 : 14);
@@ -105,13 +99,11 @@ function MapPageInner() {
 
   // Geolocalisation
   useEffect(() => {  
-    if (!navigator.geolocation || !mountedRef.current) return;
+    if (!navigator.geolocation) return;
     
     console.log("[map] Requesting user location...");
     
     const successCallback = (position: GeolocationPosition) => {
-      if (!mountedRef.current) return;
-      
       const userPos = { 
         lat: position.coords.latitude, 
         lng: position.coords.longitude 
@@ -122,7 +114,6 @@ function MapPageInner() {
     };
     
     const errorCallback = (error: GeolocationPositionError) => {
-      if (!mountedRef.current) return;
       console.warn("[map] Geolocation error:", error);
     };
     
@@ -133,25 +124,18 @@ function MapPageInner() {
     );
   }, []);
 
-  // Fetch sessions avec calcul de proximité
+  // CORRECTION: Fetch sessions simplifié sans AbortController complexe
   const fetchGateAndSessions = async () => {  
-    if (!supabase || !mountedRef.current) return;
-    
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
+    if (!supabase) return;
     
     setLoading(true);
     setError(null);
     
     try {  
+      console.log("[map] Fetching sessions and user data...");
+      
       // Récupération utilisateur
       const { data: { user } } = await supabase.auth.getUser();  
-      if (signal.aborted || !mountedRef.current) return;
-      
       setCurrentUser(user);
       
       if (user) {  
@@ -161,16 +145,12 @@ function MapPageInner() {
           .eq("id", user.id)  
           .maybeSingle();
           
-        if (signal.aborted || !mountedRef.current) return;
-        
         const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
         setHasSub(!!active);  
       } else {  
         setHasSub(false);  
       }
-
-      if (signal.aborted || !mountedRef.current) return;
 
       // Récupération des sessions
       const now = new Date();
@@ -184,9 +164,8 @@ function MapPageInner() {
         .order("scheduled_at", { ascending: true })  
         .limit(500);
 
-      if (signal.aborted || !mountedRef.current) return;
-
       if (error) {  
+        console.error("[map] Sessions fetch error:", error);
         setError("Erreur lors du chargement des sessions.");
         return;
       }
@@ -204,27 +183,15 @@ function MapPageInner() {
         return sessionData;
       });
 
-      if (!signal.aborted && mountedRef.current) {
-        setSessions(mappedSessions);
-      }
+      console.log("[map] Sessions loaded:", mappedSessions.length);
+      setSessions(mappedSessions);
+      
     } catch (e: any) {
-      if (e.name !== 'AbortError' && mountedRef.current) {
-        setError("Une erreur est survenue lors du chargement.");
-      }
+      console.error("[map] Fatal error:", e);
+      setError("Une erreur est survenue lors du chargement.");
     } finally {  
-      if (!signal.aborted && mountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  };
-
-  // Debounced refresh
-  const debouncedRefresh = () => {
-    if (!mountedRef.current) return;
-    clearTimeout(debounceTimeoutRef.current);
-    debounceTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current) fetchGateAndSessions();
-    }, 2000);
   };
 
   // Filtrage des sessions
@@ -262,48 +229,51 @@ function MapPageInner() {
     return nearby;
   }, [filteredSessions]);
 
-  // Effects
+  // CORRECTION: Effect principal simplifié
   useEffect(() => { 
-    if (mountedRef.current) fetchGateAndSessions(); 
-  }, [userLocation]);
+    fetchGateAndSessions(); 
+  }, []); // Pas de dépendance userLocation pour éviter les boucles
 
+  // CORRECTION: Effect séparé pour recalculer les distances quand userLocation change
+  useEffect(() => {
+    if (!userLocation || sessions.length === 0) return;
+    
+    console.log("[map] Recalculating distances for user location:", userLocation);
+    
+    const updatedSessions = sessions.map(s => ({
+      ...s,
+      distanceFromUser: calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng)
+    }));
+    
+    setSessions(updatedSessions);
+  }, [userLocation]); // Seulement quand userLocation change
+
+  // CORRECTION: Realtime simplifié
   useEffect(() => {  
-    if (!supabase || !mountedRef.current) return;  
+    if (!supabase) return;  
     
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    console.log("[map] Setting up realtime subscription");
     
-    const ch = supabase.channel(`sessions-map-${Date.now()}`)  
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => {  
-        if (mountedRef.current) debouncedRefresh();
+    const channel = supabase.channel(`sessions-map-${Date.now()}`)  
+      .on("postgres_changes", { 
+        event: "*", 
+        schema: "public", 
+        table: "sessions",
+        filter: "status=eq.published"
+      }, (payload) => {  
+        console.log("[map] Realtime event received:", payload.eventType);
+        // Debounce la mise à jour
+        setTimeout(() => {
+          fetchGateAndSessions();
+        }, 1000);
       })  
       .subscribe();
     
-    channelRef.current = ch;
-    
     return () => { 
-      clearTimeout(debounceTimeoutRef.current);
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-      if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
+      console.log("[map] Cleaning up realtime subscription");
+      if (supabase) supabase.removeChannel(channel);
     };  
-  }, []);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      clearTimeout(debounceTimeoutRef.current);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      if (channelRef.current && supabase) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, []);
+  }, []); // Pas de dépendances pour éviter les re-créations
 
   const mapContainerStyle = useMemo(() => ({ 
     width: "100%", 
@@ -336,7 +306,7 @@ function MapPageInner() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchGateAndSessions()}
+                onClick={fetchGateAndSessions}
                 disabled={loading}
                 className="flex items-center gap-2"
               >
@@ -399,9 +369,9 @@ function MapPageInner() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Toutes les intensités</SelectItem>
-                      <SelectItem value="marche">Marche</SelectItem>
-                      <SelectItem value="course modérée">Course modérée</SelectItem>
-                      <SelectItem value="course intensive">Course intensive</SelectItem>
+                      <SelectItem value="low">Marche</SelectItem>
+                      <SelectItem value="medium">Course modérée</SelectItem>
+                      <SelectItem value="high">Course intensive</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -592,8 +562,6 @@ function MapPageInner() {
 
                   {/* Markers des sessions */}
                   {filteredSessions.map(s => {  
-                    if (!mountedRef.current) return null;
-                    
                     const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
                     const radius = s.blur_radius_m ?? 1000;  
                     const isOwnSession = currentUser && s.host_id === currentUser.id;
@@ -613,7 +581,6 @@ function MapPageInner() {
                           title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${isOwnSession ? ' (Votre session)' : ''}`}
                           icon={markerIcon}
                           onClick={() => {
-                            if (!mountedRef.current) return;
                             setSelectedSession(s.id);
                           }}  
                         />  
