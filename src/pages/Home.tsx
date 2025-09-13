@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
+import logoMeetrun from "@/assets/logo-meetrun.png";
 import heroVideo from "@/assets/hero-video.mp4";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
@@ -221,25 +222,27 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white border-b border-border px-4 py-3">
+      <header className="px-4 py-3" style={{ backgroundColor: '#00bf63' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
+          <div className="flex items-center">
+            <img src={logoMeetrun} alt="MeetRun" className="h-8" />
+          </div>
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <Button variant="ghost" onClick={() => navigate("/profile")}>
+                <Button variant="ghost" onClick={() => navigate("/profile")} className="text-white hover:bg-white/20">
                   Profil
                 </Button>
-                <Button variant="ghost" onClick={signOut}>
+                <Button variant="ghost" onClick={signOut} className="text-white hover:bg-white/20">
                   Déconnexion
                 </Button>
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-primary font-semibold">
+                <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-white font-semibold hover:bg-white/20">
                   Se connecter
                 </Button>
-                <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/")}>
+                <Button onClick={() => navigate("/auth?mode=signup&returnTo=/")} className="bg-white text-[#00bf63] font-semibold hover:bg-white/90">
                   S'inscrire
                 </Button>
               </div>
