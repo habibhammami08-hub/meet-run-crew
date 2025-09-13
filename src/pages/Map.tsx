@@ -1,5 +1,5 @@
-// src/pages/Map.tsx - Version corrigée avec bonnes valeurs DB et nettoyage debug
-import { useEffect, useMemo, useState } from "react";
+// src/pages/Map.tsx - Version moderne avec calcul de proximité
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -34,7 +34,7 @@ type SessionRow = {
 
 // Calcul de distance haversine
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
+  const R = 6371; // Rayon de la Terre en km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -75,6 +75,12 @@ function MapPageInner() {
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
 
+  // Refs pour cleanup
+  const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const channelRef = useRef<any>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+
   // Icônes de markers personnalisées
   const createCustomMarkerIcon = (isOwnSession: boolean, isSubscribed: boolean, isSelected: boolean = false) => {
     const size = isOwnSession ? 20 : (isSelected ? 18 : 14);
@@ -99,19 +105,25 @@ function MapPageInner() {
 
   // Geolocalisation
   useEffect(() => {  
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || !mountedRef.current) return;
+    
+    console.log("[map] Requesting user location...");
     
     const successCallback = (position: GeolocationPosition) => {
+      if (!mountedRef.current) return;
+      
       const userPos = { 
         lat: position.coords.latitude, 
         lng: position.coords.longitude 
       };
+      console.log("[map] User location found:", userPos);
       setCenter(userPos);
       setUserLocation(userPos);
     };
     
     const errorCallback = (error: GeolocationPositionError) => {
-      console.warn("Geolocation error:", error);
+      if (!mountedRef.current) return;
+      console.warn("[map] Geolocation error:", error);
     };
     
     navigator.geolocation.getCurrentPosition(
@@ -121,9 +133,16 @@ function MapPageInner() {
     );
   }, []);
 
-  // Fetch sessions
+  // Fetch sessions avec calcul de proximité
   const fetchGateAndSessions = async () => {  
-    if (!supabase) return;
+    if (!supabase || !mountedRef.current) return;
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
     
     setLoading(true);
     setError(null);
@@ -131,6 +150,8 @@ function MapPageInner() {
     try {  
       // Récupération utilisateur
       const { data: { user } } = await supabase.auth.getUser();  
+      if (signal.aborted || !mountedRef.current) return;
+      
       setCurrentUser(user);
       
       if (user) {  
@@ -140,12 +161,16 @@ function MapPageInner() {
           .eq("id", user.id)  
           .maybeSingle();
           
+        if (signal.aborted || !mountedRef.current) return;
+        
         const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
         setHasSub(!!active);  
       } else {  
         setHasSub(false);  
       }
+
+      if (signal.aborted || !mountedRef.current) return;
 
       // Récupération des sessions
       const now = new Date();
@@ -158,6 +183,8 @@ function MapPageInner() {
         .eq("status", "published")
         .order("scheduled_at", { ascending: true })  
         .limit(500);
+
+      if (signal.aborted || !mountedRef.current) return;
 
       if (error) {  
         setError("Erreur lors du chargement des sessions.");
@@ -177,13 +204,27 @@ function MapPageInner() {
         return sessionData;
       });
 
-      setSessions(mappedSessions);
-      
+      if (!signal.aborted && mountedRef.current) {
+        setSessions(mappedSessions);
+      }
     } catch (e: any) {
-      setError("Une erreur est survenue lors du chargement.");
+      if (e.name !== 'AbortError' && mountedRef.current) {
+        setError("Une erreur est survenue lors du chargement.");
+      }
     } finally {  
-      setLoading(false);
+      if (!signal.aborted && mountedRef.current) {
+        setLoading(false);
+      }
     }
+  };
+
+  // Debounced refresh
+  const debouncedRefresh = () => {
+    if (!mountedRef.current) return;
+    clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) fetchGateAndSessions();
+    }, 2000);
   };
 
   // Filtrage des sessions
@@ -198,12 +239,12 @@ function MapPageInner() {
       );
     }
     
-    // Filtre par intensité - utilisation des bonnes valeurs DB
+    // Filtre par intensité
     if (filterIntensity !== "all") {
       filtered = filtered.filter(s => s.intensity === filterIntensity);
     }
 
-    // Filtre par type de session - utilisation des bonnes valeurs DB
+    // Filtre par type de session
     if (filterSessionType !== "all") {
       filtered = filtered.filter(s => s.session_type === filterSessionType);
     }
@@ -221,43 +262,47 @@ function MapPageInner() {
     return nearby;
   }, [filteredSessions]);
 
-  // Effect principal
+  // Effects
   useEffect(() => { 
-    fetchGateAndSessions(); 
-  }, []);
-
-  // Effect pour recalculer les distances quand userLocation change
-  useEffect(() => {
-    if (!userLocation || sessions.length === 0) return;
-    
-    const updatedSessions = sessions.map(s => ({
-      ...s,
-      distanceFromUser: calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng)
-    }));
-    
-    setSessions(updatedSessions);
+    if (mountedRef.current) fetchGateAndSessions(); 
   }, [userLocation]);
 
-  // Realtime
   useEffect(() => {  
-    if (!supabase) return;  
+    if (!supabase || !mountedRef.current) return;  
     
-    const channel = supabase.channel(`sessions-map-${Date.now()}`)  
-      .on("postgres_changes", { 
-        event: "*", 
-        schema: "public", 
-        table: "sessions",
-        filter: "status=eq.published"
-      }, (payload) => {  
-        setTimeout(() => {
-          fetchGateAndSessions();
-        }, 1000);
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+    
+    const ch = supabase.channel(`sessions-map-${Date.now()}`)  
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => {  
+        if (mountedRef.current) debouncedRefresh();
       })  
       .subscribe();
     
+    channelRef.current = ch;
+    
     return () => { 
-      if (supabase) supabase.removeChannel(channel);
+      clearTimeout(debounceTimeoutRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
     };  
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(debounceTimeoutRef.current);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (channelRef.current && supabase) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, []);
 
   const mapContainerStyle = useMemo(() => ({ 
@@ -270,16 +315,6 @@ function MapPageInner() {
   const pathFromPolyline = (p?: string | null): LatLng[] => {  
     if (!p) return [];  
     try { return polyline.decode(p).map(([lat, lng]) => ({ lat, lng })); } catch { return []; }  
-  };
-
-  // Fonction pour formater l'affichage du type de session
-  const formatSessionType = (sessionType: string | null): string => {
-    switch (sessionType) {
-      case 'women_only': return 'Femmes uniquement';
-      case 'men_only': return 'Hommes uniquement';
-      case 'mixed': 
-      default: return 'Mixte';
-    }
   };
 
   return (  
@@ -301,7 +336,7 @@ function MapPageInner() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchGateAndSessions}
+                onClick={() => fetchGateAndSessions()}
                 disabled={loading}
                 className="flex items-center gap-2"
               >
@@ -364,9 +399,9 @@ function MapPageInner() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Toutes les intensités</SelectItem>
-                      <SelectItem value="low">Marche</SelectItem>
-                      <SelectItem value="medium">Course modérée</SelectItem>
-                      <SelectItem value="high">Course intensive</SelectItem>
+                      <SelectItem value="marche">Marche</SelectItem>
+                      <SelectItem value="course modérée">Course modérée</SelectItem>
+                      <SelectItem value="course intensive">Course intensive</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -476,7 +511,8 @@ function MapPageInner() {
                                 {session.session_type && session.session_type !== 'mixed' && (
                                   <Badge variant="secondary" className="text-xs py-0">
                                     <Users className="w-2 h-2 mr-1" />
-                                    {formatSessionType(session.session_type)}
+                                    {session.session_type === 'women_only' ? 'Femmes' : 
+                                     session.session_type === 'men_only' ? 'Hommes' : 'Mixte'}
                                   </Badge>
                                 )}
                                 {session.distance_km && (
@@ -556,6 +592,8 @@ function MapPageInner() {
 
                   {/* Markers des sessions */}
                   {filteredSessions.map(s => {  
+                    if (!mountedRef.current) return null;
+                    
                     const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
                     const radius = s.blur_radius_m ?? 1000;  
                     const isOwnSession = currentUser && s.host_id === currentUser.id;
@@ -575,6 +613,7 @@ function MapPageInner() {
                           title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${isOwnSession ? ' (Votre session)' : ''}`}
                           icon={markerIcon}
                           onClick={() => {
+                            if (!mountedRef.current) return;
                             setSelectedSession(s.id);
                           }}  
                         />  
@@ -664,7 +703,7 @@ function MapPageInner() {
                             {session.session_type && session.session_type !== 'mixed' && (
                               <Badge variant="secondary">
                                 <Users className="w-3 h-3 mr-1" />
-                                {formatSessionType(session.session_type)}
+                                {session.session_type === 'women_only' ? 'Femmes uniquement' : 'Hommes uniquement'}
                               </Badge>
                             )}
                           </div>

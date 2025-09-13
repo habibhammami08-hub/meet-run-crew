@@ -1,15 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User } from "lucide-react";
+import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
-import { useEffect, useState, useCallback } from "react";
-import heroVideo from "@/assets/hero-video.mp4";
+import { useEffect, useState, useCallback, useRef } from "react";
+import heroImage from "@/assets/hero-running.jpg";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
-import meetrunLogo from "@/assets/meetrun-logo.png";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -21,17 +20,34 @@ const Home = () => {
   
   const supabase = getSupabase();
 
-  // CORRECTION: Fonction de fetch simplifiée sans AbortController complexe
+  // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
+  const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // CORRECTION: Fonction de fetch avec AbortController strict
   const fetchUserActivity = useCallback(async (userId: string) => {
-    if (!supabase || !userId) {
-      console.log("[Home] Fetch cancelled - missing dependencies");
+    if (!supabase || !userId || !mountedRef.current) {
+      console.log("[Home] Fetch cancelled - missing dependencies or unmounted");
       return;
     }
+    
+    // Annuler la requête précédente si elle existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Créer un nouveau controller
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
     
     setLoading(true);
     
     try {
       console.log("[Home] Fetching user activity for user:", userId);
+      
+      // Vérifier si la requête a été annulée
+      if (signal.aborted || !mountedRef.current) return;
       
       // Récupérer les sessions créées par l'utilisateur
       const { data: createdSessions, error: sessionsError } = await supabase
@@ -43,6 +59,8 @@ const Home = () => {
         .eq('host_id', userId)
         .order('scheduled_at', { ascending: false })
         .limit(3);
+      
+      if (signal.aborted || !mountedRef.current) return;
       
       console.log("[Home] Created sessions result:", { createdSessions, sessionsError });
 
@@ -56,6 +74,8 @@ const Home = () => {
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(3);
+      
+      if (signal.aborted || !mountedRef.current) return;
       
       console.log("[Home] Enrolled sessions result:", { enrolledSessions, enrollmentsError });
 
@@ -83,49 +103,81 @@ const Home = () => {
       activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
       
       console.log("[Home] Final activities:", activities);
-      setUserActivity(activities.slice(0, 5));
       
+      if (!signal.aborted && mountedRef.current) {
+        setUserActivity(activities.slice(0, 5));
+      }
     } catch (error: any) {
-      console.error('[Home] Error loading activities:', error);
-      logger.error('[Home] Error loading activities:', error);
+      if (error.name === 'AbortError') {
+        console.log("[Home] Request aborted");
+      } else {
+        logger.error('[Home] Error loading activities:', error);
+      }
     } finally {
-      setLoading(false);
+      if (!signal.aborted && mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [supabase]);
 
-  // CORRECTION: Effect principal simplifié
+  // CORRECTION: Effect principal avec cleanup strict
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && mountedRef.current) {
       fetchUserActivity(user.id);
     }
   }, [user?.id, fetchUserActivity]);
 
-  // CORRECTION: Écouter les mises à jour de profil avec debounce simple
+  // CORRECTION: Debounce avec cleanup pour les événements de refresh
+  const debouncedRefresh = useCallback(() => {
+    if (!user?.id || !mountedRef.current) return;
+    
+    clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current && user?.id) {
+        fetchUserActivity(user.id);
+      }
+    }, 2000); // Debounce de 2 secondes
+  }, [user?.id, fetchUserActivity]);
+
+  // CORRECTION: Écouter les mises à jour de profil avec cleanup
   useEffect(() => {
     if (!user?.id) return;
     
-    let timeoutId: NodeJS.Timeout;
-    
     const handleProfileRefresh = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (user?.id) {
-          fetchUserActivity(user.id);
-        }
-      }, 2000); // Debounce de 2 secondes
+      if (mountedRef.current) {
+        debouncedRefresh();
+      }
     };
 
     window.addEventListener('profileRefresh', handleProfileRefresh);
     
     return () => {
       window.removeEventListener('profileRefresh', handleProfileRefresh);
-      clearTimeout(timeoutId);
     };
-  }, [user?.id, fetchUserActivity]);
+  }, [debouncedRefresh, user?.id]);
 
-  // CORRECTION: Fonction de suppression simplifiée
+  // CORRECTION: Cleanup général strict
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    return () => {
+      console.log("[Home] Component unmounting - cleaning up all resources");
+      mountedRef.current = false;
+      
+      // Cleanup timeout
+      clearTimeout(debounceTimeoutRef.current);
+      
+      // Cleanup AbortController
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
+  // CORRECTION: Fonction de suppression avec vérification de mounted
   const handleDeleteSession = async (sessionId: string) => {
-    if (!user || !supabase) return;
+    if (!user || !mountedRef.current) return;
     
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.")) {
       return;
@@ -140,42 +192,48 @@ const Home = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Session supprimée",
-        description: "La session a été supprimée avec succès.",
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Session supprimée",
+          description: "La session a été supprimée avec succès.",
+        });
 
-      // Actualiser les activités
-      if (user.id) {
-        fetchUserActivity(user.id);
+        // Actualiser les activités seulement si le composant est encore monté
+        if (user.id) {
+          fetchUserActivity(user.id);
+        }
       }
     } catch (error: any) {
-      toast({
-        title: "Erreur de suppression",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (mountedRef.current) {
+        toast({
+          title: "Erreur de suppression",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
-      setDeletingSessionId(null);
+      if (mountedRef.current) {
+        setDeletingSessionId(null);
+      }
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-border px-4 py-3">
+      <header className="bg-white border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <img 
-            src={meetrunLogo} 
-            alt="MeetRun" 
-            className="h-8 cursor-pointer" 
-            onClick={() => navigate("/")}
-          />
+          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
           <div className="flex items-center gap-2">
             {user ? (
-              <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="p-2">
-                <User size={20} />
-              </Button>
+              <>
+                <Button variant="ghost" onClick={() => navigate("/profile")}>
+                  Profil
+                </Button>
+                <Button variant="ghost" onClick={signOut}>
+                  Déconnexion
+                </Button>
+              </>
             ) : (
               <div className="flex items-center gap-2">
                 <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-primary font-semibold">
@@ -190,37 +248,33 @@ const Home = () => {
         </div>
       </header>
 
-      {/* Main content avec padding pour le header fixe */}
-      <div className="pt-16">
+      {/* Main content avec padding pour la navigation fixe */}
+      <div className="main-content">
         {/* Hero Section */}
         <div className="relative h-[50vh] overflow-hidden">
-          <video 
-            src={heroVideo}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
+          <img 
+            src={heroImage} 
+            alt="MeetRun - Running collectif" 
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
           <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
             <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
-            <p className="text-lg font-bold opacity-95 mb-6 text-center">Marche. Cours. Rencontre.</p>
+            <p className="text-lg font-bold opacity-95 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
             <div className="flex flex-col sm:flex-row gap-4">
               {user ? (
                 <>
                   <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Voir les sessions
+                    Voir les courses
                   </Button>
                   <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Créer une session
+                    Créer une course
                   </Button>
                 </>
               ) : (
                 <>
                   <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Voir les sessions
+                    Voir les courses
                   </Button>
                   <Button variant="sport" size="lg" onClick={() => {
                     if (!user) {
@@ -229,7 +283,7 @@ const Home = () => {
                       navigate("/create");
                     }
                   }} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Créer une session
+                    Créer une course
                   </Button>
                 </>
               )}
@@ -289,7 +343,7 @@ const Home = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
-              Voir toutes les sessions
+              Voir toutes les courses
             </Button>
             <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
               <Crown size={16} className="mr-2" />

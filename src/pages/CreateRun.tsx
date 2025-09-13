@@ -406,8 +406,26 @@ export default function CreateRun() {
   }
   
   if (userReady === "none") {
-    navigate(`/auth?returnTo=${encodeURIComponent('/create')}`);
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle>Connexion requise</CardTitle>
+            <CardDescription>
+              Vous devez être connecté pour créer une session de running.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={() => navigate(`/auth?returnTo=${encodeURIComponent('/create')}`)}
+              className="w-full"
+            >
+              Se connecter
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
