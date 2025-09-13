@@ -389,7 +389,7 @@ const Subscription = () => {
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">💸</div>
                 <h4 className="font-semibold">Économique</h4>
-                <p className="text-sm text-sport-gray">3 sessions par mois et c'est rentabilité !</p>
+                <p className="text-sm text-sport-gray">3 sessions par mois et c'est rentabilisé !</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">🏃‍♀️</div>
