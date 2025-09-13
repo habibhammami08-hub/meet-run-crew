@@ -1,4 +1,4 @@
-// src/pages/Map.tsx - Version moderne avec calcul de proximité
+// src/pages/Map.tsx - Version corrigée avec bonnes valeurs DB et nettoyage debug
 import { useEffect, useMemo, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -34,7 +34,7 @@ type SessionRow = {
 
 // Calcul de distance haversine
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371; // Rayon de la Terre en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -101,20 +101,17 @@ function MapPageInner() {
   useEffect(() => {  
     if (!navigator.geolocation) return;
     
-    console.log("[map] Requesting user location...");
-    
     const successCallback = (position: GeolocationPosition) => {
       const userPos = { 
         lat: position.coords.latitude, 
         lng: position.coords.longitude 
       };
-      console.log("[map] User location found:", userPos);
       setCenter(userPos);
       setUserLocation(userPos);
     };
     
     const errorCallback = (error: GeolocationPositionError) => {
-      console.warn("[map] Geolocation error:", error);
+      console.warn("Geolocation error:", error);
     };
     
     navigator.geolocation.getCurrentPosition(
@@ -124,7 +121,7 @@ function MapPageInner() {
     );
   }, []);
 
-  // CORRECTION: Fetch sessions simplifié sans AbortController complexe
+  // Fetch sessions
   const fetchGateAndSessions = async () => {  
     if (!supabase) return;
     
@@ -132,8 +129,6 @@ function MapPageInner() {
     setError(null);
     
     try {  
-      console.log("[map] Fetching sessions and user data...");
-      
       // Récupération utilisateur
       const { data: { user } } = await supabase.auth.getUser();  
       setCurrentUser(user);
@@ -165,7 +160,6 @@ function MapPageInner() {
         .limit(500);
 
       if (error) {  
-        console.error("[map] Sessions fetch error:", error);
         setError("Erreur lors du chargement des sessions.");
         return;
       }
@@ -183,11 +177,9 @@ function MapPageInner() {
         return sessionData;
       });
 
-      console.log("[map] Sessions loaded:", mappedSessions.length);
       setSessions(mappedSessions);
       
     } catch (e: any) {
-      console.error("[map] Fatal error:", e);
       setError("Une erreur est survenue lors du chargement.");
     } finally {  
       setLoading(false);
@@ -206,12 +198,12 @@ function MapPageInner() {
       );
     }
     
-    // Filtre par intensité
+    // Filtre par intensité - utilisation des bonnes valeurs DB
     if (filterIntensity !== "all") {
       filtered = filtered.filter(s => s.intensity === filterIntensity);
     }
 
-    // Filtre par type de session
+    // Filtre par type de session - utilisation des bonnes valeurs DB
     if (filterSessionType !== "all") {
       filtered = filtered.filter(s => s.session_type === filterSessionType);
     }
@@ -229,16 +221,14 @@ function MapPageInner() {
     return nearby;
   }, [filteredSessions]);
 
-  // CORRECTION: Effect principal simplifié
+  // Effect principal
   useEffect(() => { 
     fetchGateAndSessions(); 
-  }, []); // Pas de dépendance userLocation pour éviter les boucles
+  }, []);
 
-  // CORRECTION: Effect séparé pour recalculer les distances quand userLocation change
+  // Effect pour recalculer les distances quand userLocation change
   useEffect(() => {
     if (!userLocation || sessions.length === 0) return;
-    
-    console.log("[map] Recalculating distances for user location:", userLocation);
     
     const updatedSessions = sessions.map(s => ({
       ...s,
@@ -246,13 +236,11 @@ function MapPageInner() {
     }));
     
     setSessions(updatedSessions);
-  }, [userLocation]); // Seulement quand userLocation change
+  }, [userLocation]);
 
-  // CORRECTION: Realtime simplifié
+  // Realtime
   useEffect(() => {  
     if (!supabase) return;  
-    
-    console.log("[map] Setting up realtime subscription");
     
     const channel = supabase.channel(`sessions-map-${Date.now()}`)  
       .on("postgres_changes", { 
@@ -261,8 +249,6 @@ function MapPageInner() {
         table: "sessions",
         filter: "status=eq.published"
       }, (payload) => {  
-        console.log("[map] Realtime event received:", payload.eventType);
-        // Debounce la mise à jour
         setTimeout(() => {
           fetchGateAndSessions();
         }, 1000);
@@ -270,10 +256,9 @@ function MapPageInner() {
       .subscribe();
     
     return () => { 
-      console.log("[map] Cleaning up realtime subscription");
       if (supabase) supabase.removeChannel(channel);
     };  
-  }, []); // Pas de dépendances pour éviter les re-créations
+  }, []);
 
   const mapContainerStyle = useMemo(() => ({ 
     width: "100%", 
@@ -285,6 +270,16 @@ function MapPageInner() {
   const pathFromPolyline = (p?: string | null): LatLng[] => {  
     if (!p) return [];  
     try { return polyline.decode(p).map(([lat, lng]) => ({ lat, lng })); } catch { return []; }  
+  };
+
+  // Fonction pour formater l'affichage du type de session
+  const formatSessionType = (sessionType: string | null): string => {
+    switch (sessionType) {
+      case 'women_only': return 'Femmes uniquement';
+      case 'men_only': return 'Hommes uniquement';
+      case 'mixed': 
+      default: return 'Mixte';
+    }
   };
 
   return (  
@@ -481,8 +476,7 @@ function MapPageInner() {
                                 {session.session_type && session.session_type !== 'mixed' && (
                                   <Badge variant="secondary" className="text-xs py-0">
                                     <Users className="w-2 h-2 mr-1" />
-                                    {session.session_type === 'women_only' ? 'Femmes' : 
-                                     session.session_type === 'men_only' ? 'Hommes' : 'Mixte'}
+                                    {formatSessionType(session.session_type)}
                                   </Badge>
                                 )}
                                 {session.distance_km && (
@@ -670,7 +664,7 @@ function MapPageInner() {
                             {session.session_type && session.session_type !== 'mixed' && (
                               <Badge variant="secondary">
                                 <Users className="w-3 h-3 mr-1" />
-                                {session.session_type === 'women_only' ? 'Femmes uniquement' : 'Hommes uniquement'}
+                                {formatSessionType(session.session_type)}
                               </Badge>
                             )}
                           </div>
