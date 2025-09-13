@@ -241,13 +241,20 @@ function MapPageInner() {
   useEffect(() => { 
     console.log('[map] Main effect triggered - Auth state:', { authLoading, currentUser: currentUser?.id, hasSub });
     
-    if (!authLoading && mountedRef.current) {
-      console.log('[map] Auth loaded, calling fetchSessions...');
+    // CORRECTION: Ne plus attendre l'auth - charger les sessions immédiatement
+    if (mountedRef.current) {
+      console.log('[map] Loading sessions without waiting for auth...');
       fetchSessions(); 
-    } else {
-      console.log('[map] Waiting for auth to load or component unmounted');
     }
-  }, [userLocation, authLoading, currentUser, hasSub]);
+  }, [userLocation]); // Supprimer authLoading, currentUser, hasSub des dépendances
+
+  // Effect séparé pour les mises à jour d'auth (quand ça marche)
+  useEffect(() => {
+    if (!authLoading && currentUser && mountedRef.current) {
+      console.log('[map] Auth resolved, refreshing sessions...');
+      fetchSessions();
+    }
+  }, [authLoading, currentUser, hasSub]);
 
   useEffect(() => {  
     if (!supabase || !mountedRef.current) return;  
