@@ -511,92 +511,7 @@ function MapPageInner() {
                                 {session.session_type && session.session_type !== 'mixed' && (
                                   <Badge variant="secondary" className="text-xs py-0">
                                     <Users className="w-2 h-2 mr-1" />
-                                    {session.session_type === 'women_only' ? 'Femmes uniquement' : 'Hommes uniquement'} 'Femmes uniquement' : 'Hommes uniquement'}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <Button
-                          onClick={() => navigate(`/session/${session.id}`)}
-                          className="ml-4"
-                        >
-                          Voir détails
-                        </Button>
-                      </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* États de chargement/erreur */}
-        {loading && (  
-          <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-sm font-medium">Chargement des sessions...</span>
-          </div>
-        )}  
-        
-        {error && (
-          <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 shadow-lg rounded-lg p-4 max-w-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs">!</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-red-800">Erreur de chargement</p>
-                <p className="text-xs text-red-600">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}  
-        
-        {!loading && filteredSessions.length === 0 && (
-          <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardContent className="text-center py-12">
-              <MapPin className="mx-auto h-16 w-16 mb-4 text-gray-300" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Aucune session trouvée
-              </h3>
-              <p className="text-gray-500 mb-6">
-                {filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all"
-                  ? "Essayez d'élargir vos filtres de recherche"
-                  : "Il n'y a pas de sessions disponibles pour le moment"
-                }
-              </p>
-              <div className="flex justify-center gap-3">
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    setFilterRadius("all");
-                    setFilterIntensity("all");
-                    setFilterSessionType("all");
-                  }}
-                >
-                  Réinitialiser les filtres
-                </Button>
-                <Button onClick={() => navigate("/create")}>
-                  Créer une session
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>  
-  );  
-}
-
-export default function MapPage() {
-  return (
-    <MapErrorBoundary>
-      <MapPageInner />
-    </MapErrorBoundary>
-  );
-}'Femmes' : 
+                                    {session.session_type === 'women_only' ? 'Femmes' : 
                                      session.session_type === 'men_only' ? 'Hommes' : 'Mixte'}
                                   </Badge>
                                 )}
@@ -788,4 +703,89 @@ export default function MapPage() {
                             {session.session_type && session.session_type !== 'mixed' && (
                               <Badge variant="secondary">
                                 <Users className="w-3 h-3 mr-1" />
-                                {session.session_type === 'women_only' ?
+                                {session.session_type === 'women_only' ? 'Femmes uniquement' : 'Hommes uniquement'}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <Button
+                          onClick={() => navigate(`/session/${session.id}`)}
+                          className="ml-4"
+                        >
+                          Voir détails
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* États de chargement/erreur */}
+        {loading && (  
+          <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            <span className="text-sm font-medium">Chargement des sessions...</span>
+          </div>
+        )}  
+        
+        {error && (
+          <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 shadow-lg rounded-lg p-4 max-w-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs">!</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-red-800">Erreur de chargement</p>
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}  
+        
+        {!loading && filteredSessions.length === 0 && (
+          <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <CardContent className="text-center py-12">
+              <MapPin className="mx-auto h-16 w-16 mb-4 text-gray-300" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Aucune session trouvée
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all"
+                  ? "Essayez d'élargir vos filtres de recherche"
+                  : "Il n'y a pas de sessions disponibles pour le moment"
+                }
+              </p>
+              <div className="flex justify-center gap-3">
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setFilterRadius("all");
+                    setFilterIntensity("all");
+                    setFilterSessionType("all");
+                  }}
+                >
+                  Réinitialiser les filtres
+                </Button>
+                <Button onClick={() => navigate("/create")}>
+                  Créer une session
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>  
+  );  
+}
+
+export default function MapPage() {
+  return (
+    <MapErrorBoundary>
+      <MapPageInner />
+    </MapErrorBoundary>
+  );
+}
