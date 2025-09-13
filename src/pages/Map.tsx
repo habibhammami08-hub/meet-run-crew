@@ -147,8 +147,15 @@ function MapPageInner() {
   const fetchGateAndSessions = async () => {  
     console.log('[map] fetchGateAndSessions called');
     
-    if (!supabase || !mountedRef.current) {
-      console.log('[map] No supabase client or component unmounted');
+    if (!supabase) {
+      console.error('[map] No supabase client available!');
+      setError("Client de base de données indisponible");
+      setLoading(false);
+      return;
+    }
+    
+    if (!mountedRef.current) {
+      console.log('[map] Component unmounted');
       return;
     }
     
@@ -164,29 +171,39 @@ function MapPageInner() {
     
     try {  
       console.log('[map] Getting user...');
-      // Récupération utilisateur
-      const { data: { user } } = await supabase.auth.getUser();  
+      // Récupération utilisateur avec timeout
+      const userPromise = supabase.auth.getUser();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('User fetch timeout')), 10000)
+      );
+      
+      const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
+      
       if (signal.aborted || !mountedRef.current) return;
       
-      console.log('[map] User:', user?.id);
+      console.log('[map] User result:', user ? `Found user ${user.id}` : 'No user');
       setCurrentUser(user);
       
       if (user) {  
         console.log('[map] Getting user profile...');
-        const { data: prof } = await supabase  
+        const { data: prof, error: profileError } = await supabase  
           .from("profiles")  
           .select("sub_status, sub_current_period_end")  
           .eq("id", user.id)  
           .maybeSingle();
           
+        if (profileError) {
+          console.warn('[map] Profile error:', profileError);
+        }
+          
         if (signal.aborted || !mountedRef.current) return;
         
         const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
-        console.log('[map] User subscription active:', !!active);
+        console.log('[map] User subscription active:', !!active, 'Profile:', prof);
         setHasSub(!!active);  
       } else {  
-        console.log('[map] No user found');
+        console.log('[map] No user found - proceeding without auth');
         setHasSub(false);  
       }
 
@@ -196,6 +213,11 @@ function MapPageInner() {
       // Récupération des sessions
       const now = new Date();
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      
+      console.log('[map] Query params:', {
+        cutoffDate: cutoffDate.toISOString(),
+        now: now.toISOString()
+      });
       
       const { data, error } = await supabase  
         .from("sessions")  
@@ -209,12 +231,15 @@ function MapPageInner() {
 
       if (error) {  
         console.error('[map] Error fetching sessions:', error);
-        setError("Erreur lors du chargement des sessions.");
+        setError(`Erreur lors du chargement des sessions: ${error.message}`);
         return;
       }
 
       console.log('[map] Sessions fetched:', data?.length || 0);
-      console.log('[map] Sample sessions:', data?.slice(0, 2));
+      if (data && data.length > 0) {
+        console.log('[map] Sample session:', data[0]);
+        console.log('[map] Session intensities:', data.map(s => s.intensity).filter(Boolean));
+      }
 
       // Calcul des distances et mapping
       const mappedSessions = (data ?? []).map((s) => {
@@ -238,7 +263,7 @@ function MapPageInner() {
     } catch (e: any) {
       console.error('[map] Error in fetchGateAndSessions:', e);
       if (e.name !== 'AbortError' && mountedRef.current) {
-        setError("Une erreur est survenue lors du chargement.");
+        setError(`Une erreur est survenue: ${e.message}`);
       }
     } finally {  
       if (!signal.aborted && mountedRef.current) {
