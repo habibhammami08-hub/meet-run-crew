@@ -1,9 +1,4 @@
-// ProfilePage.tsx (version sans .abortSignal, compatible toutes versions supabase-js)
-// - Anti N+1 avec enrollments(count)
-// - Counts allégés avec head:true
-// - Anti "spinner infini" via requestId + finally fiable
-
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,10 +11,7 @@ import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Trash2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 type Profile = {
   id: string;
@@ -50,7 +42,6 @@ export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-
   const [profile, setProfile] = useState<Profile | null>(null);
   const [mySessions, setMySessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,29 +49,24 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
-  // Form
+  // Form state
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState<number | "">("");
   const [city, setCity] = useState("");
-  const [sportLevel, setSportLevel] = useState<"Occasionnel" | "Confirmé" | "Athlète">("Occasionnel");
+  const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const supabase = getSupabase();
 
-  // Sécurité
-  const mountedRef = useRef(true);
-  const reqIdRef = useRef(0); // pour invalider les réponses obsolètes
-
-  // -------- FETCH SESSIONS (sans N+1) ----------
-  const fetchMySessions = useCallback(async (userId: string, myId: number) => {
-    if (!supabase || !userId || !mountedRef.current) return;
+  // CORRECTION: Fonction de chargement des sessions simplifiée
+  const fetchMySessions = useCallback(async (userId: string) => {
+    if (!supabase || !userId) return;
 
     try {
-      console.log("[Profile] Fetching sessions (with enrollments count) for user:", userId);
-
-      // Nécessite FK enrollments.session_id -> sessions.id
-      const { data, error } = await supabase
-        .from("sessions")
+      console.log("[Profile] Fetching sessions for user:", userId);
+      
+      const { data: sessions, error } = await supabase
+        .from('sessions')
         .select(`
           id,
           title,
@@ -89,88 +75,98 @@ export default function ProfilePage() {
           distance_km,
           intensity,
           max_participants,
-          status,
-          enrollments:enrollments(count)
+          status
         `)
-        .eq("host_id", userId)
-        .in("status", ["published", "active"])
-        .not("scheduled_at", "is", null)
-        .order("scheduled_at", { ascending: false });
+        .eq('host_id', userId)
+        .in('status', ['published', 'active'])
+        .not('scheduled_at', 'is', null)
+        .order('scheduled_at', { ascending: false });
 
       if (error) {
-        console.error("[Profile] Error fetching sessions:", error);
+        console.error('[Profile] Error fetching sessions:', error);
         return;
       }
 
-      const withCounts: Session[] = (data ?? []).map((s: any) => ({
-        id: s.id,
-        title: s.title,
-        scheduled_at: s.scheduled_at,
-        start_place: s.start_place ?? undefined,
-        distance_km: s.distance_km ?? undefined,
-        intensity: s.intensity ?? undefined,
-        max_participants: s.max_participants,
-        status: s.status,
-        current_participants: ((s.enrollments?.[0]?.count ?? 0) + 1),
-      }));
+      if (!sessions) return;
 
-      if (!mountedRef.current || myId !== reqIdRef.current) return;
-      setMySessions(withCounts);
-    } catch (e) {
-      console.error("[Profile] Error fetching sessions:", e);
+      // Compter les participants
+      const sessionsWithCounts = await Promise.all(
+        sessions.map(async (session) => {
+          try {
+            const { count } = await supabase
+              .from('enrollments')
+              .select('*', { count: 'exact' })
+              .eq('session_id', session.id)
+              .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+
+            return {
+              ...session,
+              current_participants: (count || 0) + 1
+            };
+          } catch (error) {
+            console.warn(`[Profile] Error counting participants for session ${session.id}:`, error);
+            return {
+              ...session,
+              current_participants: 1
+            };
+          }
+        })
+      );
+
+      // Filtrer les null
+      const validSessions = sessionsWithCounts.filter(Boolean);
+      
+      console.log("[Profile] Sessions loaded:", validSessions.length);
+      setMySessions(validSessions);
+    } catch (error) {
+      console.error('[Profile] Error fetching sessions:', error);
     }
   }, [supabase]);
 
-  // -------- UPDATE STATS (count sans rapatrier) ----------
-  const updateProfileStats = useCallback(async (userId: string, myId: number) => {
-    if (!supabase || !userId || !mountedRef.current) return;
+  // CORRECTION: Fonction de mise à jour des stats simplifiée
+  const updateProfileStats = useCallback(async (userId: string) => {
+    if (!supabase || !userId) return;
 
     try {
       console.log("[Profile] Updating profile statistics for user:", userId);
-
-      const [hostedRes, joinedRes] = await Promise.all([
+      
+      const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase
-          .from("sessions")
-          .select("*", { count: "exact", head: true })
-          .eq("host_id", userId)
-          .eq("status", "published"),
+          .from('sessions')
+          .select('*', { count: 'exact' })
+          .eq('host_id', userId)
+          .eq('status', 'published'),
         supabase
-          .from("enrollments")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .in("status", ["paid", "included_by_subscription", "confirmed"]),
+          .from('enrollments')
+          .select('*', { count: 'exact' })
+          .eq('user_id', userId)
+          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
 
-      if (!mountedRef.current || myId !== reqIdRef.current) return;
-
-      const sessionsHosted = hostedRes.count ?? 0;
-      const sessionsJoined = joinedRes.count ?? 0;
-
       await supabase
-        .from("profiles")
-        .update({
-          sessions_hosted: sessionsHosted,
-          sessions_joined: sessionsJoined,
-          updated_at: new Date().toISOString(),
+        .from('profiles')
+        .update({ 
+          sessions_hosted: sessionsHosted || 0,
+          sessions_joined: sessionsJoined || 0,
+          updated_at: new Date().toISOString()
         })
-        .eq("id", userId);
+        .eq('id', userId);
 
       console.log("[Profile] Stats updated successfully");
-    } catch (e) {
-      console.error("[Profile] Error updating profile stats:", e);
+    } catch (error) {
+      console.error('[Profile] Error updating profile stats:', error);
     }
   }, [supabase]);
 
-  // -------- LOAD PROFILE (requestId + finally fiable) ----------
+  // CORRECTION: Fonction de chargement du profil simplifiée
   const loadProfile = useCallback(async (userId: string) => {
-    if (!supabase || !mountedRef.current) {
+    if (!supabase) {
       setLoading(false);
       return;
     }
 
-    const myId = ++reqIdRef.current; // invalide toute requête précédente
     setLoading(true);
-
+    
     try {
       console.log("[Profile] Loading profile for user:", userId);
 
@@ -182,15 +178,13 @@ export default function ProfilePage() {
 
       if (profileError) {
         console.error("Profile fetch error:", profileError);
-        if (mountedRef.current && myId === reqIdRef.current) {
-          toast({
-            title: "Erreur",
-            description: "Impossible de charger le profil",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger le profil",
+          variant: "destructive"
+        });
       } else if (profileData) {
-        if (!mountedRef.current || myId !== reqIdRef.current) return;
+        console.log("Profile loaded:", profileData);
         setProfile(profileData);
         setFullName(profileData.full_name || "");
         setAge(profileData.age ?? "");
@@ -202,17 +196,16 @@ export default function ProfilePage() {
           .from("profiles")
           .upsert({
             id: userId,
-            email: user?.email || "",
-            full_name: user?.email?.split("@")[0] || "Runner",
+            email: user?.email || '',
+            full_name: user?.email?.split('@')[0] || 'Runner',
             sessions_hosted: 0,
             sessions_joined: 0,
-            total_km: 0,
+            total_km: 0
           })
           .select()
           .single();
 
         if (!createError && newProfile) {
-          if (!mountedRef.current || myId !== reqIdRef.current) return;
           setProfile(newProfile);
           setFullName(newProfile.full_name || "");
           setAge(newProfile.age ?? "");
@@ -221,66 +214,82 @@ export default function ProfilePage() {
         }
       }
 
-      if (!mountedRef.current || myId !== reqIdRef.current) return;
-
-      // Charger sessions + stats en parallèle (toujours avec le même requestId)
+      // Charger les sessions et mettre à jour les stats
       await Promise.all([
-        fetchMySessions(userId, myId),
-        updateProfileStats(userId, myId),
+        fetchMySessions(userId),
+        updateProfileStats(userId)
       ]);
-    } catch (e) {
-      console.error("Error loading profile:", e);
-      if (mountedRef.current && myId === reqIdRef.current) {
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue lors du chargement",
-          variant: "destructive",
-        });
-      }
+
+    } catch (error: any) {
+      console.error("Error loading profile:", error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors du chargement",
+        variant: "destructive"
+      });
     } finally {
-      if (mountedRef.current && myId === reqIdRef.current) setLoading(false);
+      setLoading(false);
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
-  // -------- DELETE SESSION ----------
-  const handleDeleteSession = useCallback(async (sessionId: string) => {
-    if (!supabase || !user?.id || !mountedRef.current) return;
+  // CORRECTION: Fonction de suppression simplifiée
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!supabase || !user?.id) return;
 
     setDeletingSession(sessionId);
     try {
+      console.log("[Profile] Deleting session:", sessionId);
+      
       const { error: sessionError } = await supabase
-        .from("sessions")
+        .from('sessions')
         .delete()
-        .eq("id", sessionId)
-        .eq("host_id", user.id);
+        .eq('id', sessionId)
+        .eq('host_id', user.id);
 
-      if (sessionError) throw sessionError;
+      if (sessionError) {
+        throw sessionError;
+      }
 
       toast({
         title: "Session supprimée",
-        description: "La session a été supprimée avec succès.",
+        description: "La session a été supprimée avec succès."
       });
 
-      // Rafraîchir la liste + stats (avec le requestId courant)
-      const myId = reqIdRef.current;
-      await fetchMySessions(user.id, myId);
-      await updateProfileStats(user.id, myId);
-    } catch (e: any) {
-      console.error("[Profile] Delete error:", e);
+      await fetchMySessions(user.id);
+      updateProfileStats(user.id);
+      
+    } catch (error: any) {
+      console.error('[Profile] Delete error:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de supprimer la session: " + e.message,
-        variant: "destructive",
+        description: "Impossible de supprimer la session: " + error.message,
+        variant: "destructive"
       });
     } finally {
-      if (mountedRef.current) setDeletingSession(null);
+      setDeletingSession(null);
     }
-  }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
+  };
 
-  // -------- SAVE PROFILE ----------
-  const handleSave = useCallback(async () => {
-    if (!supabase || !profile || !user?.id || !mountedRef.current) return;
+  // CORRECTION: Effect simplifié pour éviter les boucles
+  useEffect(() => {
+    if (user === null) {
+      navigate('/auth?returnTo=/profile');
+      return;
+    }
+    
+    if (user === undefined || loading) {
+      return;
+    }
+    
+    if (user && !profile) {
+      loadProfile(user.id);
+    }
+  }, [user, navigate, profile, loading, loadProfile]);
 
+  // CORRECTION: Fonction de sauvegarde simplifiée
+  async function handleSave() {
+    if (!supabase || !profile || !user?.id) return;
+    
     setSaving(true);
     try {
       let avatarUrl = profile.avatar_url || null;
@@ -297,7 +306,7 @@ export default function ProfilePage() {
           toast({
             title: "Erreur",
             description: "Erreur upload image : " + uploadError.message,
-            variant: "destructive",
+            variant: "destructive"
           });
           return;
         }
@@ -314,7 +323,7 @@ export default function ProfilePage() {
           age: ageValue,
           city: city,
           avatar_url: avatarUrl,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq("id", user.id);
 
@@ -322,65 +331,49 @@ export default function ProfilePage() {
         toast({
           title: "Erreur",
           description: "Erreur de sauvegarde: " + error.message,
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
 
-      if (!mountedRef.current) return;
-      setProfile(prev =>
-        prev
-          ? { ...prev, full_name: fullName, age: ageValue, city, avatar_url: avatarUrl }
-          : null
-      );
+      setProfile(prev => prev ? {
+        ...prev,
+        full_name: fullName,
+        age: ageValue,
+        city: city,
+        avatar_url: avatarUrl
+      } : null);
+
       setEditing(false);
       setAvatarFile(null);
-
+      
       toast({
         title: "Profil mis à jour",
-        description: "Vos modifications ont été sauvegardées.",
+        description: "Vos modifications ont été sauvegardées."
       });
-    } catch (e: any) {
+    } catch (error: any) {
       toast({
         title: "Erreur",
-        description: "Une erreur est survenue: " + e.message,
-        variant: "destructive",
+        description: "Une erreur est survenue: " + error.message,
+        variant: "destructive"
       });
     } finally {
-      if (mountedRef.current) setSaving(false);
+      setSaving(false);
     }
-  }, [supabase, profile, user, fullName, age, city, avatarFile, toast]);
+  }
 
-  // -------- EFFECTS --------
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      // Invalide toute réponse encore en vol
-      reqIdRef.current += 1;
-    };
-  }, []);
+  // Si l'utilisateur n'est pas connecté, on ne render rien (redirection en cours)
+  if (user === null) {
+    return null;
+  }
 
-  useEffect(() => {
-    if (user === null) {
-      navigate("/auth?returnTo=/profile");
-      return;
-    }
-    if (user) {
-      // Lance toujours le chargement quand l'user est connu
-      loadProfile(user.id);
-    }
-  }, [user, navigate, loadProfile]);
-
-  // -------- RENDER --------
-  if (user === null) return null;
-
+  // Si on est en cours de chargement de l'auth
   if (user === undefined) {
     return (
       <div className="container mx-auto p-4 space-y-6">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p>Vérification de votre authentification...</p>
           </div>
         </div>
@@ -388,12 +381,13 @@ export default function ProfilePage() {
     );
   }
 
+  // Si on est en cours de chargement du profil
   if (loading) {
     return (
       <div className="container mx-auto p-4 space-y-6">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p>Chargement du profil...</p>
           </div>
         </div>
@@ -489,8 +483,8 @@ export default function ProfilePage() {
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? "Sauvegarde..." : "Sauvegarder"}
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   onClick={() => {
                     setEditing(false);
                     setAvatarFile(null);
@@ -504,9 +498,9 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 {profile.avatar_url && (
-                  <img
-                    src={profile.avatar_url}
-                    alt="Avatar"
+                  <img 
+                    src={profile.avatar_url} 
+                    alt="Avatar" 
                     className="w-16 h-16 rounded-full object-cover"
                   />
                 )}
@@ -548,11 +542,14 @@ export default function ProfilePage() {
             <Calendar className="w-5 h-5" />
             Mes Sessions ({mySessions.length})
           </h2>
-
+          
           {mySessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>Vous n'avez pas encore organisé de sessions.</p>
-              <Button onClick={() => navigate("/create")} className="mt-4">
+              <Button 
+                onClick={() => navigate('/create')} 
+                className="mt-4"
+              >
                 Créer ma première session
               </Button>
             </div>
@@ -566,12 +563,12 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          {new Date(session.scheduled_at).toLocaleDateString("fr-FR", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
+                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
                           })}
                         </div>
                         {session.start_place && (
@@ -580,16 +577,20 @@ export default function ProfilePage() {
                             {session.start_place}
                           </div>
                         )}
-                        {session.distance_km && <span>{session.distance_km} km</span>}
-                        {session.intensity && <Badge variant="secondary">{session.intensity}</Badge>}
+                        {session.distance_km && (
+                          <span>{session.distance_km} km</span>
+                        )}
+                        {session.intensity && (
+                          <Badge variant="secondary">{session.intensity}</Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-2">
                         <div className="flex items-center gap-1 text-sm">
                           <Users className="w-4 h-4" />
                           {session.current_participants}/{session.max_participants} participants
                         </div>
-                        <Badge variant={session.status === "published" ? "default" : "secondary"}>
-                          {session.status === "published" ? "Publiée" : session.status}
+                        <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
+                          {session.status === 'published' ? 'Publiée' : session.status}
                         </Badge>
                       </div>
                     </div>
