@@ -145,7 +145,12 @@ function MapPageInner() {
 
   // Fetch sessions avec calcul de proximité
   const fetchGateAndSessions = async () => {  
-    if (!supabase || !mountedRef.current) return;
+    console.log('[map] fetchGateAndSessions called');
+    
+    if (!supabase || !mountedRef.current) {
+      console.log('[map] No supabase client or component unmounted');
+      return;
+    }
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -158,13 +163,16 @@ function MapPageInner() {
     setError(null);
     
     try {  
+      console.log('[map] Getting user...');
       // Récupération utilisateur
       const { data: { user } } = await supabase.auth.getUser();  
       if (signal.aborted || !mountedRef.current) return;
       
+      console.log('[map] User:', user?.id);
       setCurrentUser(user);
       
       if (user) {  
+        console.log('[map] Getting user profile...');
         const { data: prof } = await supabase  
           .from("profiles")  
           .select("sub_status, sub_current_period_end")  
@@ -175,13 +183,16 @@ function MapPageInner() {
         
         const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
           && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
+        console.log('[map] User subscription active:', !!active);
         setHasSub(!!active);  
       } else {  
+        console.log('[map] No user found');
         setHasSub(false);  
       }
 
       if (signal.aborted || !mountedRef.current) return;
 
+      console.log('[map] Fetching sessions...');
       // Récupération des sessions
       const now = new Date();
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
@@ -197,9 +208,13 @@ function MapPageInner() {
       if (signal.aborted || !mountedRef.current) return;
 
       if (error) {  
+        console.error('[map] Error fetching sessions:', error);
         setError("Erreur lors du chargement des sessions.");
         return;
       }
+
+      console.log('[map] Sessions fetched:', data?.length || 0);
+      console.log('[map] Sample sessions:', data?.slice(0, 2));
 
       // Calcul des distances et mapping
       const mappedSessions = (data ?? []).map((s) => {
@@ -214,16 +229,21 @@ function MapPageInner() {
         return sessionData;
       });
 
+      console.log('[map] Sessions mapped:', mappedSessions.length);
+
       if (!signal.aborted && mountedRef.current) {
         setSessions(mappedSessions);
+        console.log('[map] Sessions set in state');
       }
     } catch (e: any) {
+      console.error('[map] Error in fetchGateAndSessions:', e);
       if (e.name !== 'AbortError' && mountedRef.current) {
         setError("Une erreur est survenue lors du chargement.");
       }
     } finally {  
       if (!signal.aborted && mountedRef.current) {
         setLoading(false);
+        console.log('[map] Loading finished');
       }
     }
   };
