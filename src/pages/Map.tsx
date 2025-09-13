@@ -238,22 +238,20 @@ function MapPageInner() {
   }, [filteredSessions]);
 
   // Effects
-  
-  // Effect d'initialisation - se déclenche au montage
-  useEffect(() => {
-    fetchSessions();
-  }, []);
-  
-  // Effect pour les changements de position utilisateur
   useEffect(() => { 
-    if (userLocation && mountedRef.current) {
+    console.log('[map] Main effect triggered - Auth state:', { authLoading, currentUser: currentUser?.id, hasSub });
+    
+    // CORRECTION: Ne plus attendre l'auth - charger les sessions immédiatement
+    if (mountedRef.current) {
+      console.log('[map] Loading sessions without waiting for auth...');
       fetchSessions(); 
     }
-  }, [userLocation]);
+  }, [userLocation]); // Supprimer authLoading, currentUser, hasSub des dépendances
 
-  // Effect pour les mises à jour d'auth
+  // Effect séparé pour les mises à jour d'auth (quand ça marche)
   useEffect(() => {
     if (!authLoading && currentUser && mountedRef.current) {
+      console.log('[map] Auth resolved, refreshing sessions...');
       fetchSessions();
     }
   }, [authLoading, currentUser, hasSub]);
