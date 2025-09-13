@@ -73,6 +73,7 @@ function MapPageInner() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [filterRadius, setFilterRadius] = useState<string>("10");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
+  const [filterSessionType, setFilterSessionType] = useState<string>("all");
 
   // Refs pour cleanup
   const mountedRef = useRef(true);
@@ -242,9 +243,14 @@ function MapPageInner() {
     if (filterIntensity !== "all") {
       filtered = filtered.filter(s => s.intensity === filterIntensity);
     }
+
+    // Filtre par type de session
+    if (filterSessionType !== "all") {
+      filtered = filtered.filter(s => s.session_type === filterSessionType);
+    }
     
     return filtered;
-  }, [sessions, userLocation, filterRadius, filterIntensity]);
+  }, [sessions, userLocation, filterRadius, filterIntensity, filterSessionType]);
 
   // Sessions les plus proches filtrées
   const filteredNearestSessions = useMemo(() => {
@@ -338,20 +344,6 @@ function MapPageInner() {
                 Actualiser
               </Button>
               
-              {/* Debug temporaire */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const intensities = sessions.map(s => ({ id: s.id, title: s.title, intensity: s.intensity }));
-                  console.log("[DEBUG] Sessions et intensités:", intensities);
-                  alert(`Sessions trouvées: ${sessions.length}\nIntensités: ${[...new Set(sessions.map(s => s.intensity))].join(', ')}`);
-                }}
-                className="text-xs"
-              >
-                Debug
-              </Button>
-              
               {!hasSub && (
                 <Button
                   size="sm"
@@ -379,9 +371,6 @@ function MapPageInner() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-sm text-gray-600 mb-2">
-                  Debug: Filtre actuel = "{filterIntensity}"
-                </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">
                     Rayon de recherche
@@ -416,6 +405,23 @@ function MapPageInner() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Type de session
+                  </label>
+                  <Select value={filterSessionType} onValueChange={setFilterSessionType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous types</SelectItem>
+                      <SelectItem value="mixed">Mixte</SelectItem>
+                      <SelectItem value="women_only">Femmes uniquement</SelectItem>
+                      <SelectItem value="men_only">Hommes uniquement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardContent>
             </Card>
 
@@ -439,7 +445,7 @@ function MapPageInner() {
                     <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
                     <p className="text-sm">Aucune session proche trouvée</p>
                     <p className="text-xs mt-1">
-                      {filterRadius !== "all" || filterIntensity !== "all" 
+                      {filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all"
                         ? "Essayez d'élargir vos filtres"
                         : "Activez la géolocalisation"
                       }
@@ -505,7 +511,8 @@ function MapPageInner() {
                                 {session.session_type && session.session_type !== 'mixed' && (
                                   <Badge variant="secondary" className="text-xs py-0">
                                     <Users className="w-2 h-2 mr-1" />
-                                    {session.session_type === 'women' ? 'Femmes' : 'Hommes'}
+                                    {session.session_type === 'women_only' ? 'Femmes' : 
+                                     session.session_type === 'men_only' ? 'Hommes' : 'Mixte'}
                                   </Badge>
                                 )}
                                 {session.distance_km && (
@@ -693,85 +700,7 @@ function MapPageInner() {
                                 Max {session.max_participants}
                               </Badge>
                             )}
-                          </div>
-                        </div>
-                        
-                        <Button
-                          onClick={() => navigate(`/session/${session.id}`)}
-                          className="ml-4"
-                        >
-                          Voir détails
-                        </Button>
-                      </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* États de chargement/erreur */}
-        {loading && (  
-          <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-sm font-medium">Chargement des sessions...</span>
-          </div>
-        )}  
-        
-        {error && (
-          <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 shadow-lg rounded-lg p-4 max-w-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs">!</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-red-800">Erreur de chargement</p>
-                <p className="text-xs text-red-600">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}  
-        
-        {!loading && filteredSessions.length === 0 && (
-          <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <CardContent className="text-center py-12">
-              <MapPin className="mx-auto h-16 w-16 mb-4 text-gray-300" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Aucune session trouvée
-              </h3>
-              <p className="text-gray-500 mb-6">
-                {filterRadius !== "all" || filterIntensity !== "all" 
-                  ? "Essayez d'élargir vos filtres de recherche"
-                  : "Il n'y a pas de sessions disponibles pour le moment"
-                }
-              </p>
-              <div className="flex justify-center gap-3">
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    setFilterRadius("all");
-                    setFilterIntensity("all");
-                  }}
-                >
-                  Réinitialiser les filtres
-                </Button>
-                <Button onClick={() => navigate("/create")}>
-                  Créer une session
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>  
-  );  
-}
-
-export default function MapPage() {
-  return (
-    <MapErrorBoundary>
-      <MapPageInner />
-    </MapErrorBoundary>
-  );
-}
+                            {session.session_type && session.session_type !== 'mixed' && (
+                              <Badge variant="secondary">
+                                <Users className="w-3 h-3 mr-1" />
+                                {session.session_type === 'women_only' ?
