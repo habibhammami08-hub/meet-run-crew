@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import heroImage from "@/assets/meetrun-logo.png";
+import heroImage from "@/assets/hero-background.jpg";
+import logoImage from "@/assets/meetrun-logo.png";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 
@@ -223,7 +224,11 @@ const Home = () => {
       {/* Header */}
       <header className="bg-white border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
+          <img 
+            src={logoImage} 
+            alt="MeetRun Logo" 
+            className="h-8 w-auto"
+          />
           <div className="flex items-center gap-2">
             {user ? (
               <>
@@ -254,7 +259,7 @@ const Home = () => {
         <div className="relative h-[50vh] overflow-hidden">
           <img 
             src={heroImage} 
-            alt="MeetRun - Running collectif" 
+            alt="MeetRun - Marche, cours, rencontre" 
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
