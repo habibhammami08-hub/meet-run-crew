@@ -239,8 +239,13 @@ function MapPageInner() {
 
   // Effects
   useEffect(() => { 
+    console.log('[map] Main effect triggered - Auth state:', { authLoading, currentUser: currentUser?.id, hasSub });
+    
     if (!authLoading && mountedRef.current) {
+      console.log('[map] Auth loaded, calling fetchSessions...');
       fetchSessions(); 
+    } else {
+      console.log('[map] Waiting for auth to load or component unmounted');
     }
   }, [userLocation, authLoading, currentUser, hasSub]);
 
