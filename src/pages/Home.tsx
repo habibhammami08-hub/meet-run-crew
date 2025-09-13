@@ -225,7 +225,7 @@ const Home = () => {
       <header className="px-4 py-3" style={{ backgroundColor: '#00bf63' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center">
-            <img src={logoMeetrun} alt="MeetRun" className="h-10" />
+            <img src={logoMeetrun} alt="MeetRun" className="h-8" />
           </div>
           <div className="flex items-center gap-2">
             {user ? (
