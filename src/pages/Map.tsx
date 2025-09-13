@@ -170,42 +170,10 @@ function MapPageInner() {
     setError(null);
     
     try {  
-      console.log('[map] Getting user...');
-      // Récupération utilisateur avec timeout
-      const userPromise = supabase.auth.getUser();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('User fetch timeout')), 10000)
-      );
-      
-      const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
-      
-      if (signal.aborted || !mountedRef.current) return;
-      
-      console.log('[map] User result:', user ? `Found user ${user.id}` : 'No user');
-      setCurrentUser(user);
-      
-      if (user) {  
-        console.log('[map] Getting user profile...');
-        const { data: prof, error: profileError } = await supabase  
-          .from("profiles")  
-          .select("sub_status, sub_current_period_end")  
-          .eq("id", user.id)  
-          .maybeSingle();
-          
-        if (profileError) {
-          console.warn('[map] Profile error:', profileError);
-        }
-          
-        if (signal.aborted || !mountedRef.current) return;
-        
-        const active = prof?.sub_status && ["active","trialing"].includes(prof.sub_status)  
-          && prof?.sub_current_period_end && new Date(prof.sub_current_period_end) > new Date();  
-        console.log('[map] User subscription active:', !!active, 'Profile:', prof);
-        setHasSub(!!active);  
-      } else {  
-        console.log('[map] No user found - proceeding without auth');
-        setHasSub(false);  
-      }
+      // CONTOURNEMENT : skip l'auth pour l'instant et récupérer directement les sessions
+      console.log('[map] Skipping auth - fetching sessions directly...');
+      setCurrentUser(null);
+      setHasSub(false);
 
       if (signal.aborted || !mountedRef.current) return;
 
