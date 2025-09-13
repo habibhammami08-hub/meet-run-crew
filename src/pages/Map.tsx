@@ -1,10 +1,11 @@
-// src/pages/Map.tsx - Version moderne avec calcul de proximité et filtres corrigés
+// src/pages/Map.tsx - Version moderne avec authentification intégrée
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
+import { useAuth } from "@/hooks/useAuth";
 import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ type SessionRow = {
 
 // Calcul de distance haversine
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371; // Rayon de la Terre en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -63,11 +64,13 @@ function jitterDeterministic(lat:number, lng:number, meters:number, seed:string)
 function MapPageInner() {  
   const navigate = useNavigate();  
   const supabase = getSupabase();  
+  
+  // Utilisation du hook useAuth pour l'authentification
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
+  
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);  
-  const [hasSub, setHasSub] = useState<boolean>(false);  
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);  
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
@@ -117,16 +120,9 @@ function MapPageInner() {
   useEffect(() => {  
     if (!navigator.geolocation || !mountedRef.current) return;
     
-    console.log("[map] Requesting user location...");
-    
     const successCallback = (position: GeolocationPosition) => {
       if (!mountedRef.current) return;
-      
-      const userPos = { 
-        lat: position.coords.latitude, 
-        lng: position.coords.longitude 
-      };
-      console.log("[map] User location found:", userPos);
+      const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
       setCenter(userPos);
       setUserLocation(userPos);
     };
@@ -137,27 +133,14 @@ function MapPageInner() {
     };
     
     navigator.geolocation.getCurrentPosition(
-      successCallback,
-      errorCallback,
+      successCallback, errorCallback,
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
     );
   }, []);
 
-  // Fetch sessions avec calcul de proximité
-  const fetchGateAndSessions = async () => {  
-    console.log('[map] fetchGateAndSessions called');
-    
-    if (!supabase) {
-      console.error('[map] No supabase client available!');
-      setError("Client de base de données indisponible");
-      setLoading(false);
-      return;
-    }
-    
-    if (!mountedRef.current) {
-      console.log('[map] Component unmounted');
-      return;
-    }
+  // Fetch sessions
+  const fetchSessions = async () => {  
+    if (!supabase || !mountedRef.current) return;
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -170,22 +153,10 @@ function MapPageInner() {
     setError(null);
     
     try {  
-      // CONTOURNEMENT : skip l'auth pour l'instant et récupérer directement les sessions
-      console.log('[map] Skipping auth - fetching sessions directly...');
-      setCurrentUser(null);
-      setHasSub(false);
-
       if (signal.aborted || !mountedRef.current) return;
 
-      console.log('[map] Fetching sessions...');
-      // Récupération des sessions
       const now = new Date();
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      
-      console.log('[map] Query params:', {
-        cutoffDate: cutoffDate.toISOString(),
-        now: now.toISOString()
-      });
       
       const { data, error } = await supabase  
         .from("sessions")  
@@ -198,45 +169,28 @@ function MapPageInner() {
       if (signal.aborted || !mountedRef.current) return;
 
       if (error) {  
-        console.error('[map] Error fetching sessions:', error);
         setError(`Erreur lors du chargement des sessions: ${error.message}`);
         return;
       }
 
-      console.log('[map] Sessions fetched:', data?.length || 0);
-      if (data && data.length > 0) {
-        console.log('[map] Sample session:', data[0]);
-        console.log('[map] Session intensities:', data.map(s => s.intensity).filter(Boolean));
-      }
-
-      // Calcul des distances et mapping
-      const mappedSessions = (data ?? []).map((s) => {
-        const sessionData = {
-          ...s,  
-          location_lat: s.start_lat,  
-          location_lng: s.start_lng,
-          distanceFromUser: userLocation ? 
-            calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng) : 
-            null
-        };
-        return sessionData;
-      });
-
-      console.log('[map] Sessions mapped:', mappedSessions.length);
+      const mappedSessions = (data ?? []).map((s) => ({
+        ...s,  
+        location_lat: s.start_lat,  
+        location_lng: s.start_lng,
+        distanceFromUser: userLocation ? 
+          calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng) : null
+      }));
 
       if (!signal.aborted && mountedRef.current) {
         setSessions(mappedSessions);
-        console.log('[map] Sessions set in state');
       }
     } catch (e: any) {
-      console.error('[map] Error in fetchGateAndSessions:', e);
       if (e.name !== 'AbortError' && mountedRef.current) {
         setError(`Une erreur est survenue: ${e.message}`);
       }
     } finally {  
       if (!signal.aborted && mountedRef.current) {
         setLoading(false);
-        console.log('[map] Loading finished');
       }
     }
   };
@@ -246,7 +200,7 @@ function MapPageInner() {
     if (!mountedRef.current) return;
     clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current) fetchGateAndSessions();
+      if (mountedRef.current) fetchSessions();
     }, 2000);
   };
 
@@ -254,7 +208,6 @@ function MapPageInner() {
   const filteredSessions = useMemo(() => {
     let filtered = sessions;
     
-    // Filtre par rayon
     if (userLocation && filterRadius !== "all") {
       const radius = parseInt(filterRadius);
       filtered = filtered.filter(s => 
@@ -262,7 +215,6 @@ function MapPageInner() {
       );
     }
     
-    // Filtre par intensité - CORRECTION
     if (filterIntensity !== "all") {
       const dbIntensity = uiToDbIntensity(filterIntensity);
       if (dbIntensity) {
@@ -270,28 +222,27 @@ function MapPageInner() {
       }
     }
 
-    // Filtre par type de session
     if (filterSessionType !== "all") {
       filtered = filtered.filter(s => s.session_type === filterSessionType);
     }
     
     return filtered;
-  }, [sessions, userLocation, filterRadius, filterIntensity, filterSessionType, uiToDbIntensity]);
+  }, [sessions, userLocation, filterRadius, filterIntensity, filterSessionType]);
 
   // Sessions les plus proches filtrées
   const filteredNearestSessions = useMemo(() => {
-    const nearby = filteredSessions
+    return filteredSessions
       .filter(s => s.distanceFromUser !== null && s.distanceFromUser <= 25)
       .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
       .slice(0, 6);
-    
-    return nearby;
   }, [filteredSessions]);
 
   // Effects
   useEffect(() => { 
-    if (mountedRef.current) fetchGateAndSessions(); 
-  }, [userLocation]);
+    if (!authLoading && mountedRef.current) {
+      fetchSessions(); 
+    }
+  }, [userLocation, authLoading, currentUser, hasSub]);
 
   useEffect(() => {  
     if (!supabase || !mountedRef.current) return;  
@@ -355,6 +306,11 @@ function MapPageInner() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Sessions disponibles</h1>
+                {currentUser && (
+                  <p className="text-sm text-gray-600">
+                    Connecté{hasSub && ' • Abonnement actif'}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -362,7 +318,7 @@ function MapPageInner() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchGateAndSessions()}
+                onClick={() => fetchSessions()}
                 disabled={loading}
                 className="flex items-center gap-2"
               >
