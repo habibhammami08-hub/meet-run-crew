@@ -24,6 +24,13 @@ const Home = () => {
   // CORRECTION: Fonction de fetch simplifiée sans AbortController complexe
   const fetchUserActivity = useCallback(async (userId: string) => {
     if (!supabase || !userId) {
+      console.log("[Home] Fetch cancelled - missing dependencies");
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
       console.log("[Home] Fetching user activity for user:", userId);
       
       // Récupérer les sessions créées par l'utilisateur
@@ -419,11 +426,4 @@ const Home = () => {
   );
 };
 
-export default Home;Home] Fetch cancelled - missing dependencies");
-      return;
-    }
-    
-    setLoading(true);
-    
-    try {
-      console.log("[
+export default Home;
