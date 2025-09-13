@@ -211,14 +211,14 @@ const Subscription = () => {
                 <p className="text-sm text-sport-gray">Accéder à l'ensemble des détails précis de la session avant de la rejoindre.</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl mb-2">💸</div>
-                <h4 className="font-semibold">Économique</h4>
-                <p className="text-sm text-sport-gray">3 sessions et c'est rentabilisé !</p>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">🏃‍♀️</div>
                 <h4 className="font-semibold">Illimité</h4>
-                <p className="text-sm text-sport-gray">Participez à autant de sessions que vous voulez.</p>
+                <p className="text-sm text-sport-gray">Ne payez plus vos sessions à la course et participez à autant de sessions que vous voulez.</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">💸</div>
+                <h4 className="font-semibold">Économique</h4>
+                <p className="text-sm text-sport-gray">3 sessions dans le mois et c'est rentabilisé !</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">👥</div>
@@ -387,14 +387,14 @@ const Subscription = () => {
                 <p className="text-sm text-sport-gray">Accéder à l'ensemble des détails précis de la session avant de la rejoindre.</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl mb-2">💸</div>
-                <h4 className="font-semibold">Économique</h4>
-                <p className="text-sm text-sport-gray">3 sessions et c'est rentabilisé !</p>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">🏃‍♀️</div>
                 <h4 className="font-semibold">Illimité</h4>
-                <p className="text-sm text-sport-gray">Participez à autant de sessions que vous voulez.</p>
+                <p className="text-sm text-sport-gray">Ne payez plus vos sessions à la course et participez à autant de sessions que vous voulez.</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">💸</div>
+                <h4 className="font-semibold">Économique</h4>
+                <p className="text-sm text-sport-gray">3 sessions dans le mois et c'est rentabilisé !</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">👥</div>
