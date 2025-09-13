@@ -46,7 +46,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
 
   const [fullName, setFullName] = useState("");
-  const [age, setAge] = useState<string | "">("");
+  const [age, setAge] = useState<string>("");
   const [city, setCity] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
@@ -98,7 +98,7 @@ export default function Profile() {
 
       setProfile(p);
       setFullName(p.full_name ?? "");
-      setAge(p.age ?? "");
+      setAge(p.age != null ? String(p.age) : "");
       setCity(p.city ?? "");
     } catch (e: any) {
       console.error("[Profile] loadProfile error:", e);
@@ -298,7 +298,7 @@ export default function Profile() {
                 <Button onClick={onSave} disabled={saving}>
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Enregistrer
                 </Button>
-                <Button variant="secondary" onClick={() => { setEditing(false); setAvatarFile(null); setFullName(profile.full_name ?? ""); setAge(profile.age ?? ""); setCity(profile.city ?? ""); }}>
+                <Button variant="secondary" onClick={() => { setEditing(false); setAvatarFile(null); setFullName(profile.full_name ?? ""); setAge(profile.age != null ? String(profile.age) : ""); setCity(profile.city ?? ""); }}>
                   Annuler
                 </Button>
               </>
