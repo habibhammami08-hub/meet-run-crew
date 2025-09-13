@@ -224,7 +224,12 @@ const Home = () => {
       {/* Header */}
       <header className="bg-white border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <img src={meetrunLogo} alt="MeetRun" className="h-10" />
+          <img 
+            src={meetrunLogo} 
+            alt="MeetRun" 
+            className="h-10 cursor-pointer" 
+            onClick={() => navigate("/")}
+          />
           <div className="flex items-center gap-2">
             {user ? (
               <>
