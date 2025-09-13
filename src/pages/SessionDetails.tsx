@@ -281,12 +281,12 @@ const SessionDetails = () => {
                       {session.distance_km} km
                     </Badge>
                     <Badge variant={
-                      session.intensity === 'low' ? 'default' : 
-                      session.intensity === 'medium' ? 'secondary' : 
+                      session.intensity === 'marche' ? 'default' : 
+                      session.intensity === 'course modérée' ? 'secondary' : 
                       'destructive'
                     }>
-                      {session.intensity === 'low' ? 'Marche' :
-                       session.intensity === 'medium' ? 'Course modérée' :
+                      {session.intensity === 'marche' ? 'Marche' :
+                       session.intensity === 'course modérée' ? 'Course modérée' :
                        'Course intensive'}
                     </Badge>
                     <Badge variant="outline" className="flex items-center gap-1">
@@ -294,14 +294,14 @@ const SessionDetails = () => {
                       {participants.length + 1}/{session.max_participants}
                     </Badge>
                     <Badge variant={
-                      session.session_type === 'women' ? 'secondary' :
-                      session.session_type === 'men' ? 'secondary' :
+                      session.session_type === 'women_only' ? 'secondary' :
+                      session.session_type === 'men_only' ? 'secondary' :
                       'outline'
                     } className="flex items-center gap-1">
                       <User className="w-3 h-3" />
                       {session.session_type === 'mixed' ? 'Mixte' :
-                       session.session_type === 'women' ? 'Femmes uniquement' :
-                       session.session_type === 'men' ? 'Hommes uniquement' :
+                       session.session_type === 'women_only' ? 'Femmes uniquement' :
+                       session.session_type === 'men_only' ? 'Hommes uniquement' :
                        'Mixte'}
                     </Badge>
                   </div>
