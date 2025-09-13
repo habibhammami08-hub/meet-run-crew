@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import heroImage from "@/assets/hero-running.jpg";
+import heroImage from "@/assets/meetrun-logo.png";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 
@@ -260,7 +260,7 @@ const Home = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
           <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-6">
             <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
-            <p className="text-lg font-bold opacity-95 mb-6 text-center">Rejoignez la communauté mondiale de runner</p>
+            <p className="text-lg font-bold opacity-95 mb-6 text-center">Marche. Cours. Rencontre.</p>
             <div className="flex flex-col sm:flex-row gap-4">
               {user ? (
                 <>

@@ -492,7 +492,6 @@ const SessionDetails = () => {
                     endPlace={session.end_place}
                     canSeeExactLocation={canSeeExactLocation}
                     blurRadiusM={session.blur_radius_m}
-                    routePolyline={hasActiveSubscription ? session.route_polyline : null}
                     className="h-full rounded-lg"
                   />
                   
