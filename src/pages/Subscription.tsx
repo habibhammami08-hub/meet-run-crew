@@ -208,12 +208,12 @@ const Subscription = () => {
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">🎯</div>
                 <h4 className="font-semibold">Lieux exacts</h4>
-                <p className="text-sm text-sport-gray">Fini les zones approximatives ! Voyez exactement où vous rendre.</p>
+                <p className="text-sm text-sport-gray">Accéder à l'ensemble des détails précis de la session avant de la rejoindre.</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">💸</div>
                 <h4 className="font-semibold">Économique</h4>
-                <p className="text-sm text-sport-gray">Une session par mois et c'est rentabilisé !</p>
+                <p className="text-sm text-sport-gray">3 sessions par mois et c'est rentabilité !</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">🏃‍♀️</div>
@@ -222,8 +222,8 @@ const Subscription = () => {
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl mb-2">👥</div>
-                <h4 className="font-semibold">Communauté</h4>
-                <p className="text-sm text-sport-gray">Rencontrez d'autres coureurs passionnés.</p>
+                <h4 className="font-semibold">Rencontre</h4>
+                <p className="text-sm text-sport-gray">Rencontrez d'autres personnes près de chez vous.</p>
               </div>
             </div>
           </CardContent>
