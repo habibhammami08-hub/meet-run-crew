@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
+import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -222,7 +222,7 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white border-b border-border px-4 py-3">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <img 
             src={meetrunLogo} 
@@ -232,14 +232,9 @@ const Home = () => {
           />
           <div className="flex items-center gap-2">
             {user ? (
-              <>
-                <Button variant="ghost" onClick={() => navigate("/profile")}>
-                  Profil
-                </Button>
-                <Button variant="ghost" onClick={signOut}>
-                  Déconnexion
-                </Button>
-              </>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="p-2">
+                <User size={20} />
+              </Button>
             ) : (
               <div className="flex items-center gap-2">
                 <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-primary font-semibold">
@@ -254,8 +249,8 @@ const Home = () => {
         </div>
       </header>
 
-      {/* Main content avec padding pour la navigation fixe */}
-      <div className="main-content">
+      {/* Main content avec padding pour le header fixe */}
+      <div className="pt-16">
         {/* Hero Section */}
         <div className="relative h-[50vh] overflow-hidden">
           <video 
