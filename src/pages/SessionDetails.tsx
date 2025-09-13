@@ -293,6 +293,17 @@ const SessionDetails = () => {
                       <Users className="w-3 h-3" />
                       {participants.length + 1}/{session.max_participants}
                     </Badge>
+                    <Badge variant={
+                      session.session_type === 'women' ? 'secondary' :
+                      session.session_type === 'men' ? 'secondary' :
+                      'outline'
+                    } className="flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {session.session_type === 'mixed' ? 'Mixte' :
+                       session.session_type === 'women' ? 'Femmes uniquement' :
+                       session.session_type === 'men' ? 'Hommes uniquement' :
+                       'Mixte'}
+                    </Badge>
                   </div>
 
                   {/* Description si disponible */}
