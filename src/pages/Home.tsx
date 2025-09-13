@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import heroVideo from "@/assets/hero-video.mp4";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
+import meetrunLogo from "@/assets/meetrun-logo.png";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -223,7 +224,7 @@ const Home = () => {
       {/* Header */}
       <header className="bg-white border-b border-border px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <h1 className="text-xl font-bold text-primary">MeetRun</h1>
+          <img src={meetrunLogo} alt="MeetRun" className="h-10" />
           <div className="flex items-center gap-2">
             {user ? (
               <>
