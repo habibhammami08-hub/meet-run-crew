@@ -30,6 +30,7 @@ interface SessionDetailMapProps {
   endPlace?: string;
   canSeeExactLocation: boolean;
   blurRadiusM?: number;
+  routePolyline?: string;
   className?: string;
 }
 
@@ -64,6 +65,7 @@ const SessionDetailMap = ({
   endPlace,
   canSeeExactLocation,
   blurRadiusM = 800,
+  routePolyline,
   className = "h-64"
 }: SessionDetailMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
