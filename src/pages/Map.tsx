@@ -1,4 +1,4 @@
-// src/pages/Map.tsx - Version moderne avec calcul de proximité et filtres corrigés
+// src/pages/Map.tsx - Version moderne avec calcul de proximité
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -80,16 +80,6 @@ function MapPageInner() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const channelRef = useRef<any>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
-
-  // Fonction pour convertir l'intensité UI vers DB
-  const uiToDbIntensity = (uiIntensity: string): string | null => {
-    const mapping: Record<string, string> = {
-      "marche": "low",
-      "course modérée": "medium", 
-      "course intensive": "high"
-    };
-    return mapping[uiIntensity] || null;
-  };
 
   // Icônes de markers personnalisées
   const createCustomMarkerIcon = (isOwnSession: boolean, isSubscribed: boolean, isSelected: boolean = false) => {
@@ -249,12 +239,9 @@ function MapPageInner() {
       );
     }
     
-    // Filtre par intensité - CORRECTION
+    // Filtre par intensité
     if (filterIntensity !== "all") {
-      const dbIntensity = uiToDbIntensity(filterIntensity);
-      if (dbIntensity) {
-        filtered = filtered.filter(s => s.intensity === dbIntensity);
-      }
+      filtered = filtered.filter(s => s.intensity === filterIntensity);
     }
 
     // Filtre par type de session
