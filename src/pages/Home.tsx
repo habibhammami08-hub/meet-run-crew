@@ -227,7 +227,7 @@ const Home = () => {
           <img 
             src={meetrunLogo} 
             alt="MeetRun" 
-            className="h-10 cursor-pointer" 
+            className="h-8 cursor-pointer" 
             onClick={() => navigate("/")}
           />
           <div className="flex items-center gap-2">
