@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,7 +58,7 @@ export default function ProfilePage() {
 
   const supabase = getSupabase();
 
-  // CORRECTION: Fonction de chargement des sessions simplifiée
+  // CORRECTION: Fonction de chargement des sessions (sans dépendances circulaires)
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId) return;
 
@@ -89,7 +89,7 @@ export default function ProfilePage() {
 
       if (!sessions) return;
 
-      // Compter les participants
+      // Compter les participants de manière optimisée
       const sessionsWithCounts = await Promise.all(
         sessions.map(async (session) => {
           try {
@@ -113,17 +113,14 @@ export default function ProfilePage() {
         })
       );
 
-      // Filtrer les null
-      const validSessions = sessionsWithCounts.filter(Boolean);
-      
-      console.log("[Profile] Sessions loaded:", validSessions.length);
-      setMySessions(validSessions);
+      console.log("[Profile] Sessions loaded:", sessionsWithCounts.length);
+      setMySessions(sessionsWithCounts);
     } catch (error) {
       console.error('[Profile] Error fetching sessions:', error);
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de mise à jour des stats simplifiée
+  // CORRECTION: Fonction de mise à jour des stats (sans dépendances circulaires)
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId) return;
 
@@ -158,8 +155,10 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de chargement du profil simplifiée
-  const loadProfile = useCallback(async (userId: string) => {
+  // CORRECTION: Fonction de chargement du profil (SANS dépendances circulaires)
+  const loadProfile = useRef<(userId: string) => Promise<void>>();
+  
+  loadProfile.current = async (userId: string) => {
     if (!supabase) {
       setLoading(false);
       return;
@@ -214,11 +213,9 @@ export default function ProfilePage() {
         }
       }
 
-      // Charger les sessions et mettre à jour les stats
-      await Promise.all([
-        fetchMySessions(userId),
-        updateProfileStats(userId)
-      ]);
+      // Charger les sessions et stats de manière séquentielle pour éviter les conflicts
+      await fetchMySessions(userId);
+      await updateProfileStats(userId);
 
     } catch (error: any) {
       console.error("Error loading profile:", error);
@@ -230,7 +227,7 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
+  };
 
   // CORRECTION: Fonction de suppression simplifiée
   const handleDeleteSession = async (sessionId: string) => {
@@ -256,7 +253,6 @@ export default function ProfilePage() {
       });
 
       await fetchMySessions(user.id);
-      updateProfileStats(user.id);
       
     } catch (error: any) {
       console.error('[Profile] Delete error:', error);
@@ -270,21 +266,22 @@ export default function ProfilePage() {
     }
   };
 
-  // CORRECTION: Effect simplifié pour éviter les boucles
+  // CORRECTION: Effect simplifié SANS dépendances circulaires
   useEffect(() => {
     if (user === null) {
       navigate('/auth?returnTo=/profile');
       return;
     }
     
-    if (user === undefined || loading) {
-      return;
+    if (user === undefined) {
+      return; // Encore en cours de chargement auth
     }
     
-    if (user && !profile) {
-      loadProfile(user.id);
+    // Charger le profil seulement si on n'en a pas et qu'on n'est pas en cours de chargement
+    if (user && !profile && !loading) {
+      loadProfile.current?.(user.id);
     }
-  }, [user, navigate, profile, loading, loadProfile]);
+  }, [user, navigate, profile, loading]); // Pas de loadProfile dans les dépendances !
 
   // CORRECTION: Fonction de sauvegarde simplifiée
   async function handleSave() {
