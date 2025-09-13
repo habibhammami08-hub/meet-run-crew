@@ -210,6 +210,13 @@ export default function CreateRun() {
     const startAddr = legs[0]?.start_address ?? null;
     const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
+    // CORRECTION: Mapping des valeurs UI vers les valeurs DB pour session_type
+    const sessionTypeMapping: { [key: string]: string } = {
+      "mixed": "mixed",
+      "women": "women_only",
+      "men": "men_only"
+    };
+
     const payload: any = {
       host_id: currentUser.id,
       title: title.trim(),
@@ -225,7 +232,7 @@ export default function CreateRun() {
       end_place: endAddr,
       location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
       intensity: uiToDbIntensity(intensityState),
-      session_type: sessionTypeState,
+      session_type: sessionTypeMapping[sessionTypeState] || "mixed",
       max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
       status: "published",
       blur_radius_m: 1000,
@@ -236,6 +243,8 @@ export default function CreateRun() {
     if (description?.trim()) {
       payload.description = description.trim();
     }
+
+    console.log("[CreateRun] Session type mapping:", sessionTypeState, "->", sessionTypeMapping[sessionTypeState]);
 
     return payload;
   };
