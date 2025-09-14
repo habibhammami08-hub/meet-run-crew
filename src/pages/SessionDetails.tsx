@@ -195,10 +195,25 @@ const SessionDetails = () => {
   const isSessionFull = participants.length >= session.max_participants;
 
   // ————————— Map data —————————
-  const start: LatLng = useMemo(() => ({ lat: session.start_lat, lng: session.start_lng }), [session.start_lat, session.start_lng]);
-  const end: LatLng | null = useMemo(() => (session.end_lat && session.end_lng) ? ({ lat: session.end_lat, lng: session.end_lng }) : null, [session.end_lat, session.end_lng]);
-  const shownStart: LatLng = useMemo(() => canSeeExactLocation ? start : jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id), [canSeeExactLocation, start, session.blur_radius_m, session.id]);
-  const routePath: LatLng[] = useMemo(() => pathFromPolyline(session.route_polyline), [session.route_polyline]);
+  const start: LatLng | null = useMemo(() => 
+    session ? ({ lat: session.start_lat, lng: session.start_lng }) : null, 
+    [session?.start_lat, session?.start_lng]
+  );
+  
+  const end: LatLng | null = useMemo(() => 
+    (session?.end_lat && session?.end_lng) ? ({ lat: session.end_lat, lng: session.end_lng }) : null, 
+    [session?.end_lat, session?.end_lng]
+  );
+  
+  const shownStart: LatLng | null = useMemo(() => {
+    if (!session || !start) return null;
+    return canSeeExactLocation ? start : jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id);
+  }, [canSeeExactLocation, start, session?.blur_radius_m, session?.id]);
+  
+  const routePath: LatLng[] = useMemo(() => 
+    session ? pathFromPolyline(session.route_polyline) : [], 
+    [session?.route_polyline]
+  );
 
   const mapOptions = useMemo(() => ({
     mapTypeControl: false,
@@ -382,7 +397,9 @@ const SessionDetails = () => {
                   <div className="h-[600px] w-full">
                     <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
                       {/* Départ (flouté si non abonné/non hôte) */}
-                      <MarkerF position={shownStart} icon={startMarkerIcon} title={canSeeExactLocation ? "Point de départ (exact)" : "Point de départ (zone approximative)"} />
+                      {shownStart && (
+                        <MarkerF position={shownStart} icon={startMarkerIcon} title={canSeeExactLocation ? "Point de départ (exact)" : "Point de départ (zone approximative)"} />
+                      )}
 
                       {/* Arrivée si définie (toujours exacte) */}
                       {end && (
