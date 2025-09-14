@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User } from "lucide-react";
+import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User, CreditCard, Heart, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -292,64 +292,145 @@ const Home = () => {
           </div>
         </div>
 
-        {/* How it works section */}
-        <div className="p-6">
-          <h2 className="text-2xl font-bold text-center mb-8 text-foreground">
-            Comment ça marche ?
-          </h2>
-          
-          <div className="space-y-6 mb-8">
-            <Card className="shadow-card">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-20 h-8 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
-                    1
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2">Trouve ta course avec d'autres runners</h3>
-                    <p className="text-muted-foreground">Découvre les sessions de running collectif près de chez toi sur la carte interactive.</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* How it works section - VERSION MODERNISÉE */}
+        <div className="p-6 bg-gradient-to-b from-gray-50/50 to-white">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-primary to-primary-variant bg-clip-text text-transparent">
+                Comment ça marche ?
+              </h2>
+              <p className="text-muted-foreground text-lg">Rejoins la communauté MeetRun en 3 étapes simples</p>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="flex justify-center mb-12">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">1</div>
+                <div className="w-16 h-1 bg-gradient-to-r from-primary to-primary-variant rounded-full"></div>
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">2</div>
+                <div className="w-16 h-1 bg-gradient-to-r from-primary to-primary-variant rounded-full"></div>
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">3</div>
+              </div>
+            </div>
 
-            <Card className="shadow-card">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-20 h-8 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
-                    2
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+              {/* Étape 1 */}
+              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
+                <CardContent className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
+                    <MapPin size={32} className="text-white" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2">Abonne-toi</h3>
-                    <p className="text-muted-foreground">Abonne-toi pour 9,99€/mois et accède à toutes les sessions de running collectif en illimité.</p>
+                  <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
+                    Trouve ta session près de chez toi
+                  </h3>
+                  <p className="text-muted-foreground mb-6 leading-relaxed">
+                    Découvre sur la carte interactive des sessions de running collectif ou simplement des balades en groupe.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => navigate("/map")}
+                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
+                  >
+                    Voir la carte <ArrowRight size={16} className="ml-2" />
+                  </Button>
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Users size={12} />
+                      Déjà +500 sessions
+                    </span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card className="shadow-card">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-20 h-8 sm:w-8 sm:h-8 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg sm:text-sm shadow-lg">
-                    3
+              {/* Étape 2 */}
+              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 to-emerald-500"></div>
+                <CardContent className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
+                    <CreditCard size={32} className="text-white" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2">Run et fais des rencontres inoubliables</h3>
-                    <p className="text-muted-foreground">Rejoins ton groupe au point de rendez-vous et profite de ton run collectif !</p>
+                  <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
+                    Abonne-toi en toute liberté
+                  </h3>
+                  <p className="text-muted-foreground mb-6 leading-relaxed">
+                    Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate("/subscription")}
+                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
+                  >
+                    S'abonner <Crown size={16} className="ml-2" />
+                  </Button>
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Shield size={12} />
+                      Sans engagement
+                    </span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
-              Voir toutes les sessions
-            </Button>
-            <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
-              <Crown size={16} className="mr-2" />
-              S'abonner maintenant
-            </Button>
+              {/* Étape 3 */}
+              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-rose-500"></div>
+                <CardContent className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
+                    <Heart size={32} className="text-white" />
+                  </div>
+                  <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
+                    Bouge, respire, rencontre
+                  </h3>
+                  <p className="text-muted-foreground mb-6 leading-relaxed">
+                    Rejoins ton groupe au point de rendez-vous, profite de l'énergie collective et fais des rencontres naturelles.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate("/create")}
+                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
+                  >
+                    Créer ma session <Star size={16} className="ml-2" />
+                  </Button>
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Heart size={12} />
+                      Communauté bienveillante
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* CTA central avec stats */}
+            <div className="text-center bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-3xl p-8 border border-primary/20">
+              <div className="flex justify-center gap-8 mb-6 text-sm">
+                <div className="text-center">
+                  <div className="font-bold text-2xl text-primary">1000+</div>
+                  <div className="text-muted-foreground">Runners actifs</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-bold text-2xl text-primary">500+</div>
+                  <div className="text-muted-foreground">Sessions/mois</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-bold text-2xl text-primary">4.8★</div>
+                  <div className="text-muted-foreground">Note moyenne</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
+                <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
+                  Voir toutes les sessions
+                </Button>
+                <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
+                  <Crown size={16} className="mr-2" />
+                  Commencer maintenant
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
