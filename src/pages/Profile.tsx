@@ -62,7 +62,7 @@ export default function ProfilePage() {
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // CORRECTION: Redirection avec cleanup
+  // CORRECTION: useEffect optimisé pour éviter les boucles infinies
   useEffect(() => {
     if (user === null) {
       navigate('/auth?returnTo=/profile');
@@ -73,10 +73,11 @@ export default function ProfilePage() {
       return;
     }
     
-    if (user && loading && mountedRef.current) {
+    // Charger le profil seulement une fois quand l'utilisateur est défini
+    if (user && user.id && loading && mountedRef.current) {
       loadProfile(user.id);
     }
-  }, [user, navigate]);
+  }, [user?.id, navigate]); // CORRECTION: Dépendance sur user.id seulement
 
   // CORRECTION: Fonction de chargement des sessions avec AbortController
   const fetchMySessions = useCallback(async (userId: string) => {

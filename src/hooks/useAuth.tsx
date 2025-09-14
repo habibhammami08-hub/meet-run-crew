@@ -51,10 +51,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const validationInProgress = useRef(false);
   const lastValidationTime = useRef<number>(0);
 
-  // Fonction pour vérifier si une session est vraiment valide
+  // Fonction pour vérifier si une session est vraiment valide - VERSION CORRIGÉE
   const validateSession = useCallback(async (): Promise<boolean> => {
     if (!supabase || validationInProgress.current) {
-      return false;
+      return session !== null;
     }
 
     // Éviter les validations trop fréquentes (max 1 par minute)
@@ -82,47 +82,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
 
-      // 2. Vérifier si la session est expirée
-      const expiresAt = currentSession.expires_at ? new Date(currentSession.expires_at * 1000) : null;
-      const now = new Date();
-      
-      if (expiresAt && expiresAt <= now) {
-        logger.debug("[auth] Session expired, attempting refresh...");
-        
-        // Tenter un refresh
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshError || !refreshedSession) {
-          logger.warn("[auth] Session refresh failed:", refreshError);
-          return false;
-        }
-        
-        logger.debug("[auth] Session refreshed successfully");
-      }
-
-      // 3. Test de connectivité avec une requête simple
+      // 2. Test de connectivité simple SANS test des profils pour éviter la boucle
       const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !currentUser) {
         logger.warn("[auth] User validation failed:", userError);
         return false;
-      }
-
-      // 4. Test d'accès aux données (optionnel mais recommandé)
-      try {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', currentUser.id)
-          .limit(1)
-          .single();
-          
-        if (profileError && profileError.code !== 'PGRST116') {
-          logger.warn("[auth] Profile access test failed:", profileError);
-          // Ne pas considérer comme échec critique, juste un avertissement
-        }
-      } catch (profileTestError) {
-        logger.warn("[auth] Profile test error (non-critical):", profileTestError);
       }
 
       logger.debug("[auth] Session validation successful");
@@ -134,7 +99,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       validationInProgress.current = false;
     }
-  }, [session]);
+  }, [session]); // CORRECTION: Supprimer supabase des dépendances pour éviter les boucles
 
   // Fonction pour récupérer le statut d'abonnement avec validation complète
   const fetchSubscriptionStatus = useCallback(async (userId: string, retryCount = 0) => {
@@ -335,14 +300,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     let mounted = true;
     let authSubscription: any = null;
 
-    // AMÉLIORATION: Surveillance plus intelligente de la session
+    // AMÉLIORATION: Surveillance moins agressive de la session
     const startSessionMonitoring = () => {
       if (sessionCheckInterval.current) {
         clearInterval(sessionCheckInterval.current);
       }
       
       sessionCheckInterval.current = setInterval(async () => {
-        if (!mounted || !supabase) return;
+        if (!mounted || !supabase || !session) return;
         
         try {
           const isValid = await validateSession();
@@ -354,19 +319,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (error) {
           logger.error("Erreur lors de la vérification de session:", error);
         }
-      }, 2 * 60 * 1000); // Vérifier toutes les 2 minutes au lieu de 5
+      }, 5 * 60 * 1000); // CORRECTION: Retour à 5 minutes pour éviter trop de validations
     };
 
-    // AMÉLIORATION: Validation immédiate au retour sur la page
+    // AMÉLIORATION: Validation moins agressive au retour sur la page
     const handleVisibilityChange = async () => {
       if (!document.hidden && session && mounted) {
-        logger.debug("[auth] Page became visible, validating session...");
-        
-        const isValid = await validateSession();
-        if (!isValid) {
-          logger.warn("[auth] Session invalid after page focus, signing out...");
-          await signOut();
-        }
+        // Attendre un peu avant de valider pour éviter les validations inutiles
+        setTimeout(async () => {
+          if (!mounted || !session) return;
+          
+          logger.debug("[auth] Page became visible, validating session...");
+          
+          const isValid = await validateSession();
+          if (!isValid) {
+            logger.warn("[auth] Session invalid after page focus, signing out...");
+            await signOut();
+          }
+        }, 1000); // Délai de 1 seconde
       }
     };
 
@@ -387,7 +357,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setSession(session);
           setUser(session.user);
           
-          // Démarrer la surveillance et validation immédiate
+          // Démarrer la surveillance seulement après stabilisation
           startSessionMonitoring();
           
           if (!localStorage.getItem('deletion_in_progress') && 
@@ -402,13 +372,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }, 10000);
 
             try {
-              // Validation immédiate de la nouvelle session
-              const isValid = await validateSession();
-              if (!isValid) {
-                logger.warn("[auth] New session is invalid");
-                throw new Error("Invalid session");
-              }
-
+              // CORRECTION: Plus de validation immédiate pour éviter la boucle
               await ensureProfile(session.user);
               if (mounted) {
                 await fetchSubscriptionStatus(session.user.id);
@@ -469,17 +433,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           logger.error("Error getting initial session:", error);
         }
         
-        // NOUVELLE: Validation immédiate de la session initiale
-        if (session) {
-          const isValid = await validateSession();
-          if (!isValid) {
-            logger.warn("[auth] Initial session is invalid, clearing...");
-            await supabase.auth.signOut({ scope: "global" });
-            await handleAuthStateChange('INVALID_SESSION', null);
-            return;
-          }
-        }
-        
+        // CORRECTION: Plus de validation initiale pour éviter la boucle
         await handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {
         logger.error("Auth initialization error:", error);
