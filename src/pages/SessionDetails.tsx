@@ -1,4 +1,4 @@
-// src/pages/SessionDetails.tsx — Google Maps, départ protégé, parcours bleu, layout mobile/desktop OK
+// src/pages/SessionDetails.tsx — Infos au-dessus de la carte, départ protégé, parcours bleu, layout mobile/desktop OK
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
@@ -491,8 +491,45 @@ const SessionDetails = () => {
             )}
           </div>
 
-          {/* Colonne droite — Carte + prévention + Rejoindre (mobile) */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile) */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
+            {/* Bloc infos AU-DESSUS de la carte */}
+            <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
+              {!canSeeExactLocation && (
+                <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
+                  <span className="font-medium">💡&nbsp;</span>
+                  <span className="align-top inline-block">
+                    Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
+                    <br className="hidden sm:block" />
+                    <span className="sm:pl-[10.5ch]">
+                      (une partie du parcours reste visible pour tous, mais son début est masqué)
+                    </span>
+                  </span>
+                </div>
+              )}
+
+              <div className="space-y-1 text-sm">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Départ : </span>
+                    {canSeeExactLocation
+                      ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
+                      : `Départ masqué • Zone approximative (rayon ${session.blur_radius_m || 1000} m)`}
+                  </div>
+                </div>
+                {end && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="font-medium">Arrivée : </span>
+                      {session.end_place || "Point d'arrivée défini"}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Carte */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
@@ -518,7 +555,7 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
-            {/* Rappels & sécurité — sous la carte (aucun cadre blanc) */}
+            {/* Rappels & sécurité — sous la carte */}
             <div className="mt-1">
               <h3 className="text-center text-lg md:text-xl font-bold text-gray-900 mb-2">Rappels & sécurité</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-700">
@@ -639,20 +676,6 @@ const SessionDetails = () => {
                   )}
                 </CardContent>
               </Card>
-            )}
-
-            {/* Info d’accès exact (sous la carte) */}
-            {!canSeeExactLocation && (
-              <div className="text-xs text-blue-700 bg-blue-50 rounded p-3">
-                <span className="font-medium">💡&nbsp;</span>
-                <span className="align-top inline-block">
-                  Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
-                  <br className="hidden sm:block" />
-                  <span className="sm:pl-[10.5ch]">
-                    (une partie du parcours reste visible pour tous, mais son début est masqué)
-                  </span>
-                </span>
-              </div>
             )}
           </div>
         </div>
