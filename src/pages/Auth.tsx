@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone, Chrome, Users, MapPin, Heart, CheckCircle } from "lucide-react";
+import logoImage from "@/assets/meetrun-logo-green.png";
 
 const supabase = getSupabase();
 
@@ -292,7 +293,7 @@ const Auth = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
             <img 
-              src="/src/assets/meetrun-logo-green.png" 
+              src={logoImage} 
               alt="MeetRun" 
               className="h-10 w-auto"
             />
