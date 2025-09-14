@@ -425,6 +425,59 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [ensureProfile, fetchSubscriptionStatus]);
 
+  // Déconnexion automatique à la fermeture d'onglet
+  useEffect(() => {
+    const handlePageUnload = () => {
+      if (user && supabase) {
+        logger.debug("[auth] Page unload detected - signing out user");
+        
+        // Nettoyage immédiat du state local
+        setUser(null);
+        setSession(null);
+        setHasActiveSubscription(false);
+        setSubscriptionStatus(null);
+        setSubscriptionEnd(null);
+        
+        // Nettoyage du storage
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (e) {
+          logger.warn("Storage clear error on unload:", e);
+        }
+        
+        // Déconnexion Supabase synchrone pour la fermeture d'onglet
+        try {
+          navigator.sendBeacon('/api/signout', JSON.stringify({ userId: user.id }));
+        } catch (e) {
+          // Fallback si sendBeacon échoue
+          try {
+            supabase.auth.signOut({ scope: "global" });
+          } catch (signOutError) {
+            logger.warn("SignOut error on unload:", signOutError);
+          }
+        }
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && user) {
+        logger.debug("[auth] Page hidden - preparing for potential unload");
+      }
+    };
+    
+    // Écouter les événements de fermeture d'onglet
+    window.addEventListener('beforeunload', handlePageUnload);
+    window.addEventListener('pagehide', handlePageUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handlePageUnload);
+      window.removeEventListener('pagehide', handlePageUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
+
   const value = {
     user,
     session,
