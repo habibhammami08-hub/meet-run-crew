@@ -167,7 +167,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Fonction pour sauvegarder les données de reconnexion
   const saveReconnectionData = useCallback(async () => {
-    if (!user || !session || !supabase) return;
+    console.log("[auth] saveReconnectionData called", { user: user?.id, session: !!session });
+    
+    if (!user || !session || !supabase) {
+      console.log("[auth] Missing data for reconnection save:", { user: !!user, session: !!session, supabase: !!supabase });
+      return;
+    }
     
     try {
       const reconnectionData = {
@@ -178,49 +183,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
       
       localStorage.setItem('meetrun_reconnection', JSON.stringify(reconnectionData));
-      logger.debug("[auth] Reconnection data saved");
+      console.log("[auth] Reconnection data saved successfully:", { email: user.email, timestamp: reconnectionData.timestamp });
     } catch (error) {
-      logger.warn("[auth] Failed to save reconnection data:", error);
+      console.error("[auth] Failed to save reconnection data:", error);
     }
   }, [user, session]);
 
   // Fonction pour tenter la reconnexion automatique
   const attemptAutoReconnection = useCallback(async (): Promise<boolean> => {
-    if (!supabase) return false;
+    console.log("[auth] attemptAutoReconnection called");
+    
+    if (!supabase) {
+      console.log("[auth] No supabase client");
+      return false;
+    }
     
     try {
       const savedData = localStorage.getItem('meetrun_reconnection');
-      if (!savedData) return false;
+      console.log("[auth] Saved reconnection data:", savedData);
+      
+      if (!savedData) {
+        console.log("[auth] No reconnection data found");
+        return false;
+      }
       
       const reconnectionData = JSON.parse(savedData);
       const now = Date.now();
       const twentyFourHours = 24 * 60 * 60 * 1000;
+      const timeDiff = now - reconnectionData.timestamp;
+      
+      console.log("[auth] Time difference:", timeDiff, "24h limit:", twentyFourHours);
       
       // Vérifier si moins de 24h se sont écoulées
-      if (now - reconnectionData.timestamp > twentyFourHours) {
-        logger.debug("[auth] Reconnection data expired, cleaning up");
+      if (timeDiff > twentyFourHours) {
+        console.log("[auth] Reconnection data expired, cleaning up");
         localStorage.removeItem('meetrun_reconnection');
         return false;
       }
       
-      // Tenter la reconnexion avec le refresh token
-      const { data, error } = await supabase.auth.setSession({
-        access_token: '', // On n'a pas besoin de l'access token, le refresh token suffit
+      console.log("[auth] Attempting auto-reconnection with refresh token");
+      
+      // Utiliser refreshSession au lieu de setSession
+      const { data, error } = await supabase.auth.refreshSession({
         refresh_token: reconnectionData.refreshToken
       });
       
       if (error || !data.session) {
-        logger.debug("[auth] Auto-reconnection failed:", error);
+        console.log("[auth] Auto-reconnection failed:", error);
         localStorage.removeItem('meetrun_reconnection');
         return false;
       }
       
-      logger.info("[auth] Auto-reconnection successful for user:", reconnectionData.email);
+      console.log("[auth] Auto-reconnection successful for user:", reconnectionData.email);
       localStorage.removeItem('meetrun_reconnection'); // Nettoyer après succès
       return true;
       
     } catch (error) {
-      logger.error("[auth] Auto-reconnection error:", error);
+      console.error("[auth] Auto-reconnection error:", error);
       localStorage.removeItem('meetrun_reconnection');
       return false;
     }
@@ -428,8 +447,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // CORRECTION: Initialisation avec gestion d'erreur améliorée
     const initAuth = async () => {
+      console.log("[auth] initAuth called");
+      
       if (!supabase) {
-        logger.warn("[auth] Client Supabase indisponible - authentification désactivée");
+        console.warn("[auth] Client Supabase indisponible - authentification désactivée");
         setLoading(false);
         return;
       }
@@ -442,22 +463,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           window.history.replaceState(null, '', window.location.pathname);
         }
         
+        console.log("[auth] Checking for auto-reconnection...");
         // D'abord tenter la reconnexion automatique
         const autoReconnected = await attemptAutoReconnection();
         if (autoReconnected) {
-          logger.info("[auth] Auto-reconnection completed successfully");
+          console.log("[auth] Auto-reconnection completed successfully");
           return; // La session sera gérée par onAuthStateChange
         }
         
+        console.log("[auth] No auto-reconnection, getting current session");
         // Si pas de reconnexion auto, procéder normalement
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
-          logger.error("Error getting initial session:", error);
+          console.error("Error getting initial session:", error);
         }
         
+        console.log("[auth] Current session:", session?.user?.id ?? 'none');
         await handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {
-        logger.error("Auth initialization error:", error);
+        console.error("Auth initialization error:", error);
         if (mounted) {
           setLoading(false);
         }
