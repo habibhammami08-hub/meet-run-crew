@@ -3,8 +3,9 @@
 // 2) Couleur du parcours en BLEU (#3b82f6)
 // 3) Hooks stables + recentrage dynamique
 // 4) Bouton "Retour aux sessions" vers /map
-// 5) Phrase d’info mise à jour + "hanging indent" (emoji aligné)
+// 5) Phrase d’info "hanging indent" + texte mis à jour
 // 6) ❗️Aucun marker de départ pour les non-abonnés / non-payeurs
+// 7) 🛡️ Panneau de prévention en bas de la carte (overlay)
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -14,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   MapPin, Calendar, Clock, Users, Trash2, Crown, CreditCard,
-  CheckCircle, User, ArrowLeft
+  CheckCircle, User, ArrowLeft, AlertTriangle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -218,7 +219,6 @@ const SessionDetails = () => {
       const mid = trimmedRoutePath[Math.floor(trimmedRoutePath.length / 2)];
       setCenter(mid);
     } else {
-      // aucun tracé : on centre sur une zone approximative (sans marker)
       const approx = jitterDeterministic(session.start_lat, session.start_lng, session.blur_radius_m ?? 1000, session.id);
       setCenter(approx);
     }
@@ -404,7 +404,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 bg.green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
                           <User className="w-4 h-4" />
                         </div>
                       )}
@@ -537,7 +537,7 @@ const SessionDetails = () => {
                     </GoogleMap>
                   </div>
 
-                  {/* Overlay infos */}
+                  {/* Overlay infos (haut) */}
                   <div className="absolute top-4 left-4 right-4">
                     <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
                       <h3 className="font-semibold mb-2">Lieu de rendez-vous</h3>
@@ -562,7 +562,7 @@ const SessionDetails = () => {
                         )}
                       </div>
 
-                      {/* 💡 Callout en “hanging indent” (emoji dans sa colonne) */}
+                      {/* 💡 Callout en “hanging indent” */}
                       {!canSeeExactLocation && (
                         <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700 grid grid-cols-[auto,1fr] gap-2 items-start">
                           <span aria-hidden="true">💡</span>
@@ -574,6 +574,23 @@ const SessionDetails = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* Overlay prévention (bas) */}
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <div className="bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg text-xs text-gray-700">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                        <p>
+                          Rappel sécurité : privilégiez un point de rendez-vous public et éclairé, prévenez un proche, 
+                          et emportez de quoi vous hydrater.
+                          {canSeeExactLocation
+                            ? " Partagez le point exact uniquement avec les participants confirmés."
+                            : " Le point exact sera visible après abonnement ou paiement unique."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </CardContent>
             </Card>
