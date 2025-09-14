@@ -342,8 +342,8 @@ const SessionDetails = () => {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* ----- Carte Google Maps ----- */}
           <div className="order-1 lg:order-2 lg:col-span-2">
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm h-full overflow-hidden">verflow
-       <CardContent className=\"p-0\">-full">
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm h-full overflow-hidden">
+              <CardContent className=\"p-0\">
                 <div className="relative">
                   {/* Hauteur adaptée : + haute sur mobile pour être prioritaire */}
                   <div className="w-full h-[360px] sm:h-[420px] lg:h-[600px]">
