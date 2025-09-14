@@ -1,5 +1,9 @@
-// src/pages/SessionDetails.tsx — correctif : hooks stables (Erreur #310), recentrage dynamique, Google Maps
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+// src/pages/SessionDetails.tsx — correctif :
+// 1) Tracé (polyline) coupé au début pour ne pas dévoiler le départ aux non-abonnés
+// 2) Couleur du parcours en BLEU (#3b82f6)
+// 3) Hooks stables (évite l'erreur React #310) + recentrage dynamique
+
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
@@ -39,19 +43,28 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
   try { return polyline.decode(p).map(([lat, lng]) => ({ lat, lng })); } catch { return []; }
 };
 
-const createCustomMarkerIcon = (color: string, inner?: string) => {
-  const size = 18;
-  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
-    ${inner || ''}
-  </svg>`;
-  const url = 'data:image/svg+xml,' + encodeURIComponent(svg);
-  const g = typeof window !== 'undefined' ? (window as any).google : undefined;
-  return g?.maps?.Size && g?.maps?.Point
-    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size/2, size + 6) }
-    : { url };
-};
+// Couper les X premiers mètres du tracé pour éviter de déduire le départ
+function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
+  if (!path || path.length < 2 || meters <= 0) return path || [];
+  const R = 6371000; // m
+  let acc = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i-1];
+    const b = path[i];
+    const dLat = (b.lat - a.lat) * Math.PI/180;
+    const dLng = (b.lng - a.lng) * Math.PI/180;
+    const la1 = a.lat * Math.PI/180;
+    const la2 = b.lat * Math.PI/180;
+    const hav = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
+    const d = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1-hav)) * R; // meters
+    acc += d;
+    if (acc >= meters) {
+      return path.slice(i);
+    }
+  }
+  // Si le parcours est plus court que la distance à couper, on garde seulement le dernier point
+  return path.slice(-1);
+}
 
 // ————————————————————————————————————————————————————————————
 // Page
@@ -72,9 +85,6 @@ const SessionDetails = () => {
 
   // Map state
   const [center, setCenter] = useState<LatLng | null>(null);
-  const mountedRef = useRef(false);
-
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   useEffect(() => { if (id) fetchSessionDetails(); }, [id, user]);
 
@@ -90,7 +100,7 @@ const SessionDetails = () => {
   const fetchSessionDetails = async () => {
     const { data: sessionData, error } = await supabase
       .from('sessions')
-      .select(`*, profiles:host_id (id, full_name, age, gender, avatar_url, city)`) // + tous les champs de sessions
+      .select(`*, profiles:host_id (id, full_name, age, gender, avatar_url, city)`) // + champs profils organisateur
       .eq('id', id)
       .maybeSingle();
 
@@ -102,20 +112,19 @@ const SessionDetails = () => {
 
     if (sessionData) {
       setSession(sessionData);
-      // Centrer la carte sur le point de départ (flouté si besoin) — centre provisoire, sera affiné via hooks
       const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
       const shown = canSeeExact ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1000, sessionData.id);
       setCenter(shown);
     }
 
-    const { data: participantsData, error: participantsError } = await supabase
+    const { data: participantsData } = await supabase
       .from('enrollments')
       .select(`*, profiles:user_id (id, full_name, age, gender, avatar_url, city)`) 
       .eq('session_id', id)
       .in('status', ['paid', 'included_by_subscription', 'confirmed']);
 
-    if (!participantsError && participantsData) {
+    if (participantsData) {
       setParticipants(participantsData);
       if (user) setIsEnrolled(!!participantsData.find(p => p.user_id === user.id));
     }
@@ -193,9 +202,18 @@ const SessionDetails = () => {
     return { lat: j.lat, lng: j.lng };
   }, [session, start, canSeeExactLocation]);
 
-  const routePath = useMemo<LatLng[]>(() => (
+  const fullRoutePath = useMemo<LatLng[]>(() => (
     session?.route_polyline ? pathFromPolyline(session.route_polyline) : []
   ), [session]);
+
+  // On coupe le début du tracé si l'utilisateur ne voit pas le point exact
+  const trimmedRoutePath = useMemo<LatLng[]>(() => {
+    if (!fullRoutePath.length) return [];
+    if (canSeeExactLocation) return fullRoutePath;
+    const minTrim = 300; // sécurité minimale
+    const trimMeters = Math.max(session?.blur_radius_m ?? 0, minTrim);
+    return trimRouteStart(fullRoutePath, trimMeters);
+  }, [fullRoutePath, canSeeExactLocation, session]);
 
   // Recentrage si le point de départ visible change (ex: l'utilisateur devient abonné)
   useEffect(() => {
@@ -218,8 +236,31 @@ const SessionDetails = () => {
     ],
   }), []);
 
-  const startMarkerIcon = useMemo(() => createCustomMarkerIcon(canSeeExactLocation ? '#dc2626' : '#047857'), [canSeeExactLocation]);
-  const endMarkerIcon = useMemo(() => createCustomMarkerIcon('#ef4444'), []);
+  const startMarkerIcon = useMemo(() => {
+    const size = 18; const color = canSeeExactLocation ? '#dc2626' : '#047857';
+    const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
+      <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
+    </svg>`;
+    const url = 'data:image/svg+xml,' + encodeURIComponent(svg);
+    const g = typeof window !== 'undefined' ? (window as any).google : undefined;
+    return g?.maps?.Size && g?.maps?.Point
+      ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size/2, size + 6) }
+      : { url };
+  }, [canSeeExactLocation]);
+
+  const endMarkerIcon = useMemo(() => {
+    const size = 18; const color = '#ef4444';
+    const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
+      <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
+    </svg>`;
+    const url = 'data:image/svg+xml,' + encodeURIComponent(svg);
+    const g = typeof window !== 'undefined' ? (window as any).google : undefined;
+    return g?.maps?.Size && g?.maps?.Point
+      ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size/2, size + 6) }
+      : { url };
+  }, []);
 
   // ————————— Early return APRÈS tous les hooks —————————
   if (!session || !shownStart || !center) {
@@ -410,9 +451,9 @@ const SessionDetails = () => {
                         <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />
                       )}
 
-                      {/* Parcours exact pour tout le monde */}
-                      {routePath.length > 1 && (
-                        <Polyline path={routePath} options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#059669' }} />
+                      {/* Parcours exact (BLEU) — tronqué au début si nécessaire */}
+                      {trimmedRoutePath.length > 1 && (
+                        <Polyline path={trimmedRoutePath} options={{ clickable: false, strokeOpacity: 0.95, strokeWeight: 4, strokeColor: '#3b82f6' }} />
                       )}
                     </GoogleMap>
                   </div>
@@ -440,7 +481,7 @@ const SessionDetails = () => {
                         )}
                       </div>
                       {!canSeeExactLocation && (
-                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">💡 Abonnez-vous pour voir le lieu exact (le parcours reste visible pour tous).</div>
+                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">💡 Abonnez-vous pour voir le lieu exact (le parcours reste visible pour tous, mais son début est masqué).</div>
                       )}
                     </div>
                   </div>
