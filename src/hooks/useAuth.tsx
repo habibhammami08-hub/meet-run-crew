@@ -234,7 +234,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
       
-      console.log("[auth] Auto-reconnection successful for user:", reconnectionData.email);
+      console.log("✅ [auth] AUTO-RECONNECTION SUCCESSFUL for user:", reconnectionData.email);
       localStorage.removeItem('meetrun_reconnection'); // Nettoyer après succès
       return true;
       
