@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { getSupabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
@@ -14,6 +14,8 @@ interface AuthContextType {
   subscriptionEnd: string | null;
   refreshSubscription: () => Promise<void>;
   signOut: () => Promise<void>;
+  // Nouvelle méthode pour vérifier et rafraîchir la session
+  validateSession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   subscriptionEnd: null,
   refreshSubscription: async () => {},
   signOut: async () => {},
+  validateSession: async () => false,
 });
 
 export const useAuth = () => {
@@ -42,6 +45,96 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  
+  // Refs pour éviter les re-renders et gérer les timeouts
+  const sessionCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const validationInProgress = useRef(false);
+  const lastValidationTime = useRef<number>(0);
+
+  // Fonction pour vérifier si une session est vraiment valide
+  const validateSession = useCallback(async (): Promise<boolean> => {
+    if (!supabase || validationInProgress.current) {
+      return false;
+    }
+
+    // Éviter les validations trop fréquentes (max 1 par minute)
+    const now = Date.now();
+    if (now - lastValidationTime.current < 60000) {
+      return session !== null;
+    }
+
+    validationInProgress.current = true;
+    lastValidationTime.current = now;
+
+    try {
+      logger.debug("[auth] Validating session...");
+      
+      // 1. Vérifier d'abord la session locale
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        logger.error("[auth] Session validation error:", sessionError);
+        return false;
+      }
+
+      if (!currentSession) {
+        logger.debug("[auth] No session found during validation");
+        return false;
+      }
+
+      // 2. Vérifier si la session est expirée
+      const expiresAt = currentSession.expires_at ? new Date(currentSession.expires_at * 1000) : null;
+      const now = new Date();
+      
+      if (expiresAt && expiresAt <= now) {
+        logger.debug("[auth] Session expired, attempting refresh...");
+        
+        // Tenter un refresh
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError || !refreshedSession) {
+          logger.warn("[auth] Session refresh failed:", refreshError);
+          return false;
+        }
+        
+        logger.debug("[auth] Session refreshed successfully");
+      }
+
+      // 3. Test de connectivité avec une requête simple
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !currentUser) {
+        logger.warn("[auth] User validation failed:", userError);
+        return false;
+      }
+
+      // 4. Test d'accès aux données (optionnel mais recommandé)
+      try {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', currentUser.id)
+          .limit(1)
+          .single();
+          
+        if (profileError && profileError.code !== 'PGRST116') {
+          logger.warn("[auth] Profile access test failed:", profileError);
+          // Ne pas considérer comme échec critique, juste un avertissement
+        }
+      } catch (profileTestError) {
+        logger.warn("[auth] Profile test error (non-critical):", profileTestError);
+      }
+
+      logger.debug("[auth] Session validation successful");
+      return true;
+
+    } catch (error) {
+      logger.error("[auth] Session validation error:", error);
+      return false;
+    } finally {
+      validationInProgress.current = false;
+    }
+  }, [session]);
 
   // Fonction pour récupérer le statut d'abonnement avec validation complète
   const fetchSubscriptionStatus = useCallback(async (userId: string, retryCount = 0) => {
@@ -165,11 +258,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, fetchSubscriptionStatus]);
 
-  // CORRECTION: Fonction de déconnexion forcée et immédiate
   const signOut = async () => {
     if (!supabase) {
       logger.warn("[auth] Client Supabase indisponible pour la déconnexion");
-      // Nettoyage local quand même
       setUser(null);
       setSession(null);
       setHasActiveSubscription(false);
@@ -183,7 +274,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       logger.debug("Starting logout process...");
 
-      // IMMÉDIATEMENT nettoyer le state local pour éviter tout délai
+      // Nettoyer l'interval de vérification
+      if (sessionCheckInterval.current) {
+        clearInterval(sessionCheckInterval.current);
+        sessionCheckInterval.current = null;
+      }
+
+      // Nettoyage immédiat du state
       setUser(null);
       setSession(null);
       setHasActiveSubscription(false);
@@ -191,7 +288,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionEnd(null);
       setLoading(false);
 
-      // Nettoyer le localStorage immédiatement
       try {
         localStorage.clear();
         sessionStorage.clear();
@@ -199,7 +295,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logger.warn("Storage clear error:", e);
       }
 
-      // Nettoyer les channels realtime
       try {
         const channels = supabase.getChannels();
         for (const channel of channels) {
@@ -209,7 +304,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logger.warn("Error removing channels:", e);
       }
 
-      // Déconnexion Supabase (en arrière-plan, ne pas attendre)
       setTimeout(async () => {
         try {
           await supabase.auth.signOut({ scope: "global" });
@@ -218,11 +312,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }, 0);
 
-      // Redirection immédiate sans attendre
       window.location.replace("/");
     } catch (error) {
       logger.error("Critical logout error:", error);
-      // Force logout même en cas d'erreur critique
       setUser(null);
       setSession(null);
       setHasActiveSubscription(false);
@@ -230,7 +322,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionEnd(null);
       setLoading(false);
       
-      // Nettoyer le stockage et rediriger quoi qu'il arrive
       try {
         localStorage.clear();
         sessionStorage.clear();
@@ -243,84 +334,81 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let mounted = true;
     let authSubscription: any = null;
-    let sessionCheckInterval: NodeJS.Timeout | null = null;
 
-    // CORRECTION: Surveillance périodique de la session (toutes les 5 minutes)
+    // AMÉLIORATION: Surveillance plus intelligente de la session
     const startSessionMonitoring = () => {
-      if (sessionCheckInterval) {
-        clearInterval(sessionCheckInterval);
+      if (sessionCheckInterval.current) {
+        clearInterval(sessionCheckInterval.current);
       }
       
-      sessionCheckInterval = setInterval(async () => {
+      sessionCheckInterval.current = setInterval(async () => {
         if (!mounted || !supabase) return;
         
         try {
-          const { data: { session }, error } = await supabase.auth.getSession();
+          const isValid = await validateSession();
           
-          if (error) {
-            logger.warn("Session check error:", error);
-            return;
-          }
-          
-          // Vérifier si la session est proche de l'expiration (dans les 10 prochaines minutes)
-          if (session?.expires_at) {
-            const expiresAt = new Date(session.expires_at * 1000);
-            const now = new Date();
-            const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
-            
-            if (expiresAt < tenMinutesFromNow) {
-              logger.info("Session proche de l'expiration, tentative de renouvellement");
-              try {
-                await supabase.auth.refreshSession();
-                logger.info("Session renouvelée avec succès");
-              } catch (refreshError) {
-                logger.error("Erreur lors du renouvellement de session:", refreshError);
-              }
-            }
+          if (!isValid && session) {
+            logger.warn("[auth] Session validation failed, signing out...");
+            await signOut();
           }
         } catch (error) {
           logger.error("Erreur lors de la vérification de session:", error);
         }
-      }, 5 * 60 * 1000); // Vérifier toutes les 5 minutes
+      }, 2 * 60 * 1000); // Vérifier toutes les 2 minutes au lieu de 5
     };
 
-    // CORRECTION: Nettoyer l'URL des fragments OAuth AVANT d'écouter les auth events
+    // AMÉLIORATION: Validation immédiate au retour sur la page
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && session && mounted) {
+        logger.debug("[auth] Page became visible, validating session...");
+        
+        const isValid = await validateSession();
+        if (!isValid) {
+          logger.warn("[auth] Session invalid after page focus, signing out...");
+          await signOut();
+        }
+      }
+    };
+
+    // Nettoyer l'URL des fragments OAuth
     if (window.location.search.includes('access_token') || window.location.hash.includes('access_token')) {
       const cleanUrl = window.location.origin + window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
       logger.debug("OAuth URL cleaned");
     }
 
-    // CORRECTION: Fonction pour gérer les changements d'état d'auth de manière sécurisée
     const handleAuthStateChange = async (event: string, session: Session | null) => {
       if (!mounted) return;
 
       logger.debug("Auth state changed:", event, session?.user?.id);
       
       try {
-        // CORRECTION: Vérification stricte - seulement traiter les sessions valides avec un utilisateur
         if (session && session.user) {
-          // Utilisateur connecté avec session valide
           setSession(session);
           setUser(session.user);
           
-          // Démarrer la surveillance de session uniquement si connecté
+          // Démarrer la surveillance et validation immédiate
           startSessionMonitoring();
           
-          // Ne pas recréer le profil si suppression ou déconnexion en cours
           if (!localStorage.getItem('deletion_in_progress') && 
               !localStorage.getItem('logout_in_progress') &&
               mounted) {
             
-            // CORRECTION: Opérations asynchrones avec timeout de sécurité
             const timeoutId = setTimeout(() => {
               if (mounted) {
                 logger.warn("Auth operations timeout, proceeding without profile/subscription");
                 setLoading(false);
               }
-            }, 10000); // 10 secondes max
+            }, 10000);
 
             try {
+              // Validation immédiate de la nouvelle session
+              const isValid = await validateSession();
+              if (!isValid) {
+                logger.warn("[auth] New session is invalid");
+                throw new Error("Invalid session");
+              }
+
               await ensureProfile(session.user);
               if (mounted) {
                 await fetchSubscriptionStatus(session.user.id);
@@ -337,7 +425,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setLoading(false);
           }
         } else {
-          // Aucune session ou session invalide - utilisateur non connecté
           setSession(null);
           setUser(null);
           setHasActiveSubscription(false);
@@ -345,15 +432,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setSubscriptionEnd(null);
           setLoading(false);
           
-          // Arrêter la surveillance de session si déconnecté
-          if (sessionCheckInterval) {
-            clearInterval(sessionCheckInterval);
-            sessionCheckInterval = null;
+          if (sessionCheckInterval.current) {
+            clearInterval(sessionCheckInterval.current);
+            sessionCheckInterval.current = null;
           }
         }
       } catch (error) {
         logger.error("Error in auth state change handler:", error);
-        // En cas d'erreur, s'assurer que l'utilisateur n'est pas connecté par défaut
         setSession(null);
         setUser(null);
         setHasActiveSubscription(false);
@@ -365,7 +450,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // CORRECTION: Initialisation avec détection d'expiration et refresh forcé
     const initAuth = async () => {
       if (!supabase) {
         logger.warn("[auth] Client Supabase indisponible - authentification désactivée");
@@ -374,54 +458,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       try {
-        // Nettoyer l'URL avant d'initialiser l'auth
         if (window.location.hash && 
             !window.location.pathname.includes('/auth') && 
             window.location.pathname !== '/goodbye') {
           window.history.replaceState(null, '', window.location.pathname);
         }
-
-        // CORRECTION: Nettoyage des flags localStorage résiduels
-        localStorage.removeItem('deletion_in_progress');
-        localStorage.removeItem('logout_in_progress');
         
-        logger.debug("[auth] Getting initial session...");
-        let { data: { session }, error } = await supabase.auth.getSession();
-        
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           logger.error("Error getting initial session:", error);
         }
-
-        // CORRECTION: Si session undefined/null, tenter un refresh puis re-récupérer
-        if (!session) {
-          logger.debug("[auth] No initial session found, attempting refresh...");
-          try {
-            const { data: refreshResult, error: refreshError } = await supabase.auth.refreshSession();
-            if (!refreshError && refreshResult.session) {
-              session = refreshResult.session;
-              logger.debug("[auth] Session refreshed successfully");
-            } else {
-              logger.debug("[auth] Refresh failed or no session:", refreshError?.message);
-            }
-          } catch (refreshErr) {
-            logger.warn("[auth] Refresh session error:", refreshErr);
-          }
-        }
-
-        // CORRECTION: Validation supplémentaire - vérifier si le token est valide
-        if (session?.access_token) {
-          try {
-            // Test avec un appel API simple pour valider le token
-            const { data: testUser, error: userError } = await supabase.auth.getUser();
-            if (userError || !testUser.user) {
-              logger.warn("[auth] Token seems invalid, clearing session");
-              session = null;
-            } else {
-              logger.debug("[auth] Token validated successfully");
-            }
-          } catch (tokenError) {
-            logger.warn("[auth] Token validation failed:", tokenError);
-            session = null;
+        
+        // NOUVELLE: Validation immédiate de la session initiale
+        if (session) {
+          const isValid = await validateSession();
+          if (!isValid) {
+            logger.warn("[auth] Initial session is invalid, clearing...");
+            await supabase.auth.signOut({ scope: "global" });
+            await handleAuthStateChange('INVALID_SESSION', null);
+            return;
           }
         }
         
@@ -434,7 +489,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // CORRECTION: Écouter les changements d'état d'authentification avec gestion d'erreur
     try {
       if (supabase) {
         const { data } = supabase.auth.onAuthStateChange(handleAuthStateChange);
@@ -444,14 +498,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       logger.error("Error setting up auth state listener:", error);
     }
 
+    // Écouter les changements de visibilité de la page
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     initAuth();
 
     return () => {
       mounted = false;
       
-      // Nettoyer l'interval de surveillance de session
-      if (sessionCheckInterval) {
-        clearInterval(sessionCheckInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      if (sessionCheckInterval.current) {
+        clearInterval(sessionCheckInterval.current);
       }
       
       if (authSubscription) {
@@ -462,7 +520,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     };
-  }, [ensureProfile, fetchSubscriptionStatus]);
+  }, [ensureProfile, fetchSubscriptionStatus, validateSession]);
 
   const value = {
     user,
@@ -473,6 +531,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     subscriptionEnd,
     refreshSubscription,
     signOut,
+    validateSession,
   };
 
   return (
