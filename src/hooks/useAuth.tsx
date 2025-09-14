@@ -165,6 +165,67 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, fetchSubscriptionStatus]);
 
+  // Fonction pour sauvegarder les données de reconnexion
+  const saveReconnectionData = useCallback(async () => {
+    if (!user || !session || !supabase) return;
+    
+    try {
+      const reconnectionData = {
+        email: user.email,
+        refreshToken: session.refresh_token,
+        timestamp: Date.now(),
+        userId: user.id
+      };
+      
+      localStorage.setItem('meetrun_reconnection', JSON.stringify(reconnectionData));
+      logger.debug("[auth] Reconnection data saved");
+    } catch (error) {
+      logger.warn("[auth] Failed to save reconnection data:", error);
+    }
+  }, [user, session]);
+
+  // Fonction pour tenter la reconnexion automatique
+  const attemptAutoReconnection = useCallback(async (): Promise<boolean> => {
+    if (!supabase) return false;
+    
+    try {
+      const savedData = localStorage.getItem('meetrun_reconnection');
+      if (!savedData) return false;
+      
+      const reconnectionData = JSON.parse(savedData);
+      const now = Date.now();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      
+      // Vérifier si moins de 24h se sont écoulées
+      if (now - reconnectionData.timestamp > twentyFourHours) {
+        logger.debug("[auth] Reconnection data expired, cleaning up");
+        localStorage.removeItem('meetrun_reconnection');
+        return false;
+      }
+      
+      // Tenter la reconnexion avec le refresh token
+      const { data, error } = await supabase.auth.setSession({
+        access_token: '', // On n'a pas besoin de l'access token, le refresh token suffit
+        refresh_token: reconnectionData.refreshToken
+      });
+      
+      if (error || !data.session) {
+        logger.debug("[auth] Auto-reconnection failed:", error);
+        localStorage.removeItem('meetrun_reconnection');
+        return false;
+      }
+      
+      logger.info("[auth] Auto-reconnection successful for user:", reconnectionData.email);
+      localStorage.removeItem('meetrun_reconnection'); // Nettoyer après succès
+      return true;
+      
+    } catch (error) {
+      logger.error("[auth] Auto-reconnection error:", error);
+      localStorage.removeItem('meetrun_reconnection');
+      return false;
+    }
+  }, []);
+
   // CORRECTION: Fonction de déconnexion forcée et immédiate
   const signOut = async () => {
     if (!supabase) {
@@ -191,7 +252,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionEnd(null);
       setLoading(false);
 
-      // Nettoyer le localStorage immédiatement
+      // Nettoyer le localStorage immédiatement (y compris les données de reconnexion)
       try {
         localStorage.clear();
         sessionStorage.clear();
@@ -381,6 +442,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           window.history.replaceState(null, '', window.location.pathname);
         }
         
+        // D'abord tenter la reconnexion automatique
+        const autoReconnected = await attemptAutoReconnection();
+        if (autoReconnected) {
+          logger.info("[auth] Auto-reconnection completed successfully");
+          return; // La session sera gérée par onAuthStateChange
+        }
+        
+        // Si pas de reconnexion auto, procéder normalement
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           logger.error("Error getting initial session:", error);
@@ -423,13 +492,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     };
-  }, [ensureProfile, fetchSubscriptionStatus]);
+  }, [ensureProfile, fetchSubscriptionStatus, attemptAutoReconnection]);
 
   // Déconnexion automatique à la fermeture d'onglet
   useEffect(() => {
-    const handlePageUnload = () => {
+    const handlePageUnload = async () => {
       if (user && supabase) {
-        logger.debug("[auth] Page unload detected - signing out user");
+        logger.debug("[auth] Page unload detected - saving reconnection data and signing out");
+        
+        // Sauvegarder les données de reconnexion AVANT la déconnexion
+        await saveReconnectionData();
         
         // Nettoyage immédiat du state local
         setUser(null);
@@ -438,24 +510,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSubscriptionStatus(null);
         setSubscriptionEnd(null);
         
-        // Nettoyage du storage
+        // Nettoyage du storage SAUF les données de reconnexion
         try {
+          const reconnectionData = localStorage.getItem('meetrun_reconnection');
           localStorage.clear();
           sessionStorage.clear();
+          // Restaurer les données de reconnexion après le clear
+          if (reconnectionData) {
+            localStorage.setItem('meetrun_reconnection', reconnectionData);
+          }
         } catch (e) {
           logger.warn("Storage clear error on unload:", e);
         }
         
         // Déconnexion Supabase synchrone pour la fermeture d'onglet
         try {
-          navigator.sendBeacon('/api/signout', JSON.stringify({ userId: user.id }));
-        } catch (e) {
-          // Fallback si sendBeacon échoue
-          try {
-            supabase.auth.signOut({ scope: "global" });
-          } catch (signOutError) {
-            logger.warn("SignOut error on unload:", signOutError);
-          }
+          await supabase.auth.signOut({ scope: "global" });
+        } catch (signOutError) {
+          logger.warn("SignOut error on unload:", signOutError);
         }
       }
     };
@@ -463,6 +535,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && user) {
         logger.debug("[auth] Page hidden - preparing for potential unload");
+        // Sauvegarder préventivement au cas où l'onglet serait fermé brutalement
+        saveReconnectionData();
       }
     };
     
@@ -476,7 +550,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       window.removeEventListener('pagehide', handlePageUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user]);
+  }, [user, saveReconnectionData]);
 
   const value = {
     user,
