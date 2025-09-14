@@ -66,7 +66,7 @@ function MapPageInner() {
   const supabase = getSupabase();  
   
   // Utilisation du hook useAuth pour l'authentification
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
+  const { user: currentUser, hasActiveSubscription: hasSub, authLoading } = useAuth();
   
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });  
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -239,22 +239,24 @@ function MapPageInner() {
 
   // Effects
   useEffect(() => { 
+    // ⛔️ ne pas lancer tant que l'auth n'est pas prête
+    if (authLoading) return;
+    
     console.log('[map] Main effect triggered - Auth state:', { authLoading, currentUser: currentUser?.id, hasSub });
     
-    // CORRECTION: Ne plus attendre l'auth - charger les sessions immédiatement
     if (mountedRef.current) {
-      console.log('[map] Loading sessions without waiting for auth...');
+      console.log('[map] Loading sessions...');
       fetchSessions(); 
     }
-  }, [userLocation]); // Supprimer authLoading, currentUser, hasSub des dépendances
+  }, [authLoading, userLocation, currentUser?.id]); // Ajouter authLoading et currentUser?.id
 
-  // Effect séparé pour les mises à jour d'auth (quand ça marche)
+  // Effect pour les changements d'auth
   useEffect(() => {
-    if (!authLoading && currentUser && mountedRef.current) {
-      console.log('[map] Auth resolved, refreshing sessions...');
-      fetchSessions();
-    }
-  }, [authLoading, currentUser, hasSub]);
+    if (authLoading || !currentUser || !mountedRef.current) return;
+    
+    console.log('[map] Auth resolved, refreshing sessions...');
+    fetchSessions();
+  }, [authLoading, currentUser?.id, hasSub]);
 
   useEffect(() => {  
     if (!supabase || !mountedRef.current) return;  

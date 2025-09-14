@@ -22,7 +22,7 @@ declare global {
 }
 
 const Subscription = () => {
-  const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
+  const { user, hasActiveSubscription, refreshSubscription } = useAuth();
   const [isPortalLoading, setIsPortalLoading] = useState(false);
   const [stripeBuyButtonLoaded, setStripeBuyButtonLoaded] = useState(false);
   const { toast } = useToast();
@@ -257,15 +257,13 @@ const Subscription = () => {
                   Actif
                 </Badge>
                 <span className="text-sm text-sport-gray">
-                  Statut: {subscriptionStatus}
+                  Statut: Actif
                 </span>
               </div>
               
-              {subscriptionEnd && (
-                <p className="text-sm text-sport-gray">
-                  Renouvellement automatique le {formatDate(subscriptionEnd)}
-                </p>
-              )}
+              <p className="text-sm text-sport-gray">
+                Votre abonnement est actif et vous donne accès à toutes les sessions
+              </p>
 
               <div className="bg-sport-light p-4 rounded-lg">
                 <h3 className="font-semibold mb-2">Avantages inclus :</h3>
