@@ -1,5 +1,5 @@
 // src/pages/Map.tsx - Version moderne avec authentification intégrée
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -32,6 +32,19 @@ type SessionRow = {
   max_participants?: number;
   distanceFromUser?: number;
 };
+
+// ✅ Helper: rejouer une requête après refresh si 401/expired
+async function withAuthRetry<T>(fn: () => Promise<T>) {
+  const supabase = getSupabase();
+  try {
+    // Essai n°1
+    return await fn();
+  } catch (_e: any) {
+    // Essai n°2 après refresh
+    try { await supabase.auth.refreshSession(); } catch {}
+    return await fn();
+  }
+}
 
 // Calcul de distance haversine
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -138,7 +151,7 @@ function MapPageInner() {
     );
   }, []);
 
-  // Fetch sessions
+  // Fetch sessions (avec refresh + retry)
   const fetchSessions = async () => {  
     if (!supabase || !mountedRef.current) return;
     
@@ -155,16 +168,21 @@ function MapPageInner() {
     try {  
       if (signal.aborted || !mountedRef.current) return;
 
+      // ✅ Validation/refresh immédiat au cold start
+      await supabase.auth.refreshSession().catch(() => {});
+
       const now = new Date();
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
       
-      const { data, error } = await supabase  
-        .from("sessions")  
-        .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants")
-        .gte("scheduled_at", cutoffDate.toISOString())
-        .eq("status", "published")
-        .order("scheduled_at", { ascending: true })  
-        .limit(500);
+      const { data, error } = await withAuthRetry(() =>
+        supabase  
+          .from("sessions")  
+          .select("id,title,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants")
+          .gte("scheduled_at", cutoffDate.toISOString())
+          .eq("status", "published")
+          .order("scheduled_at", { ascending: true })  
+          .limit(500)
+      ) as any;
 
       if (signal.aborted || !mountedRef.current) return;
 
@@ -173,7 +191,7 @@ function MapPageInner() {
         return;
       }
 
-      const mappedSessions = (data ?? []).map((s) => ({
+      const mappedSessions = (data ?? []).map((s: SessionRow) => ({
         ...s,  
         location_lat: s.start_lat,  
         location_lng: s.start_lng,
@@ -240,15 +258,14 @@ function MapPageInner() {
   // Effects
   useEffect(() => { 
     console.log('[map] Main effect triggered - Auth state:', { authLoading, currentUser: currentUser?.id, hasSub });
-    
-    // CORRECTION: Ne plus attendre l'auth - charger les sessions immédiatement
+    // CORRECTION: charger les sessions immédiatement (sans attendre auth)
     if (mountedRef.current) {
       console.log('[map] Loading sessions without waiting for auth...');
       fetchSessions(); 
     }
-  }, [userLocation]); // Supprimer authLoading, currentUser, hasSub des dépendances
+  }, [userLocation]); // on laisse comme avant
 
-  // Effect séparé pour les mises à jour d'auth (quand ça marche)
+  // Effect séparé pour les mises à jour d'auth
   useEffect(() => {
     if (!authLoading && currentUser && mountedRef.current) {
       console.log('[map] Auth resolved, refreshing sessions...');
@@ -448,7 +465,7 @@ function MapPageInner() {
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
-                      const isOwnSession = currentUser && session.host_id === currentUser.id;
+                      const isOwnSession = currentUser && session.host_id === (currentUser as any).id;
                       const shouldBlur = !hasSub && !isOwnSession;
                       
                       return (
@@ -590,7 +607,7 @@ function MapPageInner() {
                     
                     const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };  
                     const radius = s.blur_radius_m ?? 1000;  
-                    const isOwnSession = currentUser && s.host_id === currentUser.id;
+                    const isOwnSession = currentUser && s.host_id === (currentUser as any).id;
                     const shouldBlur = !hasSub && !isOwnSession;
                     const startShown = shouldBlur ? jitterDeterministic(start.lat, start.lng, radius, s.id) : start;
                     const isSelected = selectedSession === s.id;
@@ -637,7 +654,7 @@ function MapPageInner() {
                     const session = sessions.find(s => s.id === selectedSession);
                     if (!session) return null;
                     
-                    const isOwnSession = currentUser && session.host_id === currentUser.id;
+                    const isOwnSession = currentUser && session.host_id === (currentUser as any).id;
                     const shouldBlur = !hasSub && !isOwnSession;
                     
                     return (
