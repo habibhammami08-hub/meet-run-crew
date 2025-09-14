@@ -19,19 +19,16 @@ const SessionDetails = () => {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { user, hasActiveSubscription, authLoading } = useAuth();
+  const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   
   const supabase = getSupabase();
 
   useEffect(() => {
-    // ⛔️ ne pas lancer tant que l'auth n'est pas prête
-    if (authLoading) return;
-    
     if (id) {
       fetchSessionDetails();
     }
-  }, [authLoading, id, user]);
+  }, [id, user]);
 
   useEffect(() => {
     const paymentStatus = searchParams.get('payment');

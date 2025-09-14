@@ -39,7 +39,7 @@ type Session = {
 };
 
 export default function ProfilePage() {
-  const { user, signOut, authLoading } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -64,9 +64,6 @@ export default function ProfilePage() {
 
   // CORRECTION: Redirection avec cleanup
   useEffect(() => {
-    // ⛔️ ne pas lancer tant que l'auth n'est pas prête
-    if (authLoading) return;
-    
     if (user === null) {
       navigate('/auth?returnTo=/profile');
       return;
@@ -79,7 +76,7 @@ export default function ProfilePage() {
     if (user && loading && mountedRef.current) {
       loadProfile(user.id);
     }
-  }, [authLoading, user, navigate]);
+  }, [user, navigate]);
 
   // CORRECTION: Fonction de chargement des sessions avec AbortController
   const fetchMySessions = useCallback(async (userId: string) => {
