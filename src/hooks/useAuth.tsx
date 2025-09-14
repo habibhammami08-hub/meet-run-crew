@@ -1,13 +1,13 @@
 // src/hooks/useAuth.tsx
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import type { User, Session } from "@supabase/supabase-js";
 import { getSupabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 
 const supabase = getSupabase();
 
 interface AuthContextType {
-  user: User | null | undefined; // undefined = en cours d'init
+  user: User | null;
   session: Session | null;
   loading: boolean;
   hasActiveSubscription: boolean;
@@ -15,12 +15,10 @@ interface AuthContextType {
   subscriptionEnd: string | null;
   refreshSubscription: () => Promise<void>;
   signOut: () => Promise<void>;
-  /** Force a validation/refresh now (useful before critical queries) */
-  validateSessionNow: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: undefined,
+  user: null,
   session: null,
   loading: true,
   hasActiveSubscription: false,
@@ -28,37 +26,66 @@ const AuthContext = createContext<AuthContextType>({
   subscriptionEnd: null,
   refreshSubscription: async () => {},
   signOut: async () => {},
-  validateSessionNow: async () => {},
 });
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
   return context;
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
 
-  const mountedRef = useRef(true);
-  const sessionCheckInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Anti-rebond pour refreshs agressifs (retour onglet, etc.)
+  const lastRefreshRef = useRef<number>(0);
+  const mountedRef = useRef<boolean>(true);
+  const sessionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const authSubRef = useRef<{ unsubscribe: () => void } | null>(null);
 
+  const safeRefreshSession = useCallback(async (reason: string) => {
+    if (!supabase || !mountedRef.current) return;
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 60_000) {
+      logger.debug(`[auth] refresh skipped (cooldown) • reason=${reason}`);
+      return;
+    }
+    try {
+      logger.debug(`[auth] refreshSession() • reason=${reason}`);
+      lastRefreshRef.current = now;
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) {
+        logger.warn("[auth] refreshSession error:", error);
+        return;
+      }
+      if (data?.session) {
+        setSession(data.session);
+        setUser(data.session.user ?? null);
+      }
+    } catch (e) {
+      logger.error("[auth] refreshSession fatal error:", e);
+    }
+  }, []);
+
+  // -------- Subscription status ----------
   const fetchSubscriptionStatus = useCallback(async (userId: string, retryCount = 0) => {
     const maxRetries = 3;
     if (!supabase) {
-      logger.warn("[auth] Supabase indisponible pour récupérer l'abonnement");
+      logger.warn("[auth] Client Supabase indisponible pour récupérer l'abonnement");
       return;
     }
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('sub_status, sub_current_period_end')
-        .eq('id', userId)
+        .from("profiles")
+        .select("sub_status, sub_current_period_end")
+        .eq("id", userId)
         .maybeSingle();
 
       if (error) {
@@ -71,95 +98,82 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (!data) {
+        logger.warn("No profile found for user:", userId);
         setHasActiveSubscription(false);
         setSubscriptionStatus(null);
         setSubscriptionEnd(null);
         return;
       }
 
-      const validStatuses = ['active', 'trialing', 'canceled', 'past_due', 'incomplete'];
-      const status = validStatuses.includes(data.sub_status) ? data.sub_status : 'inactive';
-      const isActiveStatus = ['active', 'trialing'].includes(status);
-      const isNotExpired = !data.sub_current_period_end || new Date(data.sub_current_period_end) > new Date();
+      const validStatuses = ["active", "trialing", "canceled", "past_due", "incomplete"];
+      const status = validStatuses.includes(data.sub_status) ? data.sub_status : "inactive";
+      const isActiveStatus = ["active", "trialing"].includes(status);
+      const isNotExpired =
+        !data.sub_current_period_end || new Date(data.sub_current_period_end) > new Date();
       const computedActiveSubscription = isActiveStatus && isNotExpired;
 
       setHasActiveSubscription(computedActiveSubscription);
       setSubscriptionStatus(status);
       setSubscriptionEnd(data.sub_current_period_end);
-      logger.debug('[auth] Subscription status:', { status, computedActiveSubscription });
+
+      logger.debug("Subscription status updated:", {
+        status,
+        isActiveStatus,
+        isNotExpired,
+        hasActiveSubscription: computedActiveSubscription,
+      });
     } catch (error) {
-      logger.error('Error in fetchSubscriptionStatus:', error);
+      logger.error("Error in fetchSubscriptionStatus:", error);
       setHasActiveSubscription(false);
       setSubscriptionStatus(null);
       setSubscriptionEnd(null);
     }
   }, []);
 
-  /** Returns true if refreshed successfully (or not needed) */
-  const refreshIfNeeded = useCallback(async (): Promise<boolean> => {
-    if (!supabase) return false;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const now = Date.now();
-      const exp = session?.expires_at ? session.expires_at * 1000 : 0;
-
-      // si pas de session => rien à rafraîchir
-      if (!session) return true;
-
-      // refresh si expiré ou < 10 min
-      if (exp - now < 10 * 60 * 1000) {
-        logger.info("[auth] Session near/after expiry -> refreshing");
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
-          logger.error("[auth] refreshSession error:", error);
-          return false;
-        }
-        // update local state with fresh session
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-      }
-      return true;
-    } catch (e) {
-      logger.error("[auth] refreshIfNeeded error:", e);
-      return false;
-    }
-  }, []);
-
-  const validateSessionNow = useCallback(async () => {
-    // Force un check + refresh immédiat, utilisé par les pages avant requêtes critiques
-    await refreshIfNeeded();
-  }, [refreshIfNeeded]);
-
+  // -------- Ensure profile exists ----------
   const ensureProfile = useCallback(async (u: User) => {
-    if (!supabase) return;
+    if (!supabase) {
+      logger.warn("[auth] Client Supabase indisponible pour créer le profil");
+      return;
+    }
     try {
       const { data: existingProfile, error: selectError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', u.id)
+        .from("profiles")
+        .select("id")
+        .eq("id", u.id)
         .maybeSingle();
 
-      if (selectError && selectError.code !== 'PGRST116') throw selectError;
+      if (selectError && (selectError as any).code !== "PGRST116") {
+        throw selectError;
+      }
 
       if (!existingProfile) {
         const profileData = {
           id: u.id,
-          email: u.email || '',
+          email: u.email || "",
           full_name: u.user_metadata?.full_name || u.user_metadata?.name || null,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
 
         const { data, error } = await supabase
-          .from('profiles')
-          .upsert(profileData, { onConflict: 'id', ignoreDuplicates: false })
+          .from("profiles")
+          .upsert(profileData, {
+            onConflict: "id",
+            ignoreDuplicates: false,
+          })
           .select()
           .single();
 
-        if (error) throw error;
-        logger.debug("[profile] created:", data);
+        if (error) {
+          logger.error("[profile] Creation error:", error);
+          throw error;
+        }
+
+        logger.debug("[profile] Profile created successfully:", data);
         return data;
       }
+
       return existingProfile;
     } catch (error) {
       logger.error("[profile] ensureProfile error:", error);
@@ -168,14 +182,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const refreshSubscription = useCallback(async () => {
-    if (user && user !== undefined) {
+    if (user) {
       await fetchSubscriptionStatus(user.id);
-      window.dispatchEvent(new CustomEvent('profileRefresh', { detail: { userId: user.id } }));
+      window.dispatchEvent(new CustomEvent("profileRefresh", { detail: { userId: user.id } }));
     }
   }, [user, fetchSubscriptionStatus]);
 
+  // -------- Sign out ----------
   const signOut = useCallback(async () => {
     if (!supabase) {
+      logger.warn("[auth] Client Supabase indisponible pour la déconnexion");
       setUser(null);
       setSession(null);
       setHasActiveSubscription(false);
@@ -185,9 +201,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       window.location.replace("/");
       return;
     }
+
     try {
       logger.debug("Starting logout process...");
+      // Flag clair (tu le testais déjà)
+      try {
+        localStorage.setItem("logout_in_progress", "1");
+      } catch {}
 
+      // Reset local state immédiatement
       setUser(null);
       setSession(null);
       setHasActiveSubscription(false);
@@ -195,13 +217,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionEnd(null);
       setLoading(false);
 
-      try {
-        localStorage.clear();
-        sessionStorage.clear();
-      } catch (e) {
-        logger.warn("Storage clear error:", e);
-      }
-
+      // Nettoyer canaux
       try {
         const channels = supabase.getChannels();
         for (const ch of channels) await supabase.removeChannel(ch);
@@ -209,7 +225,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logger.warn("Error removing channels:", e);
       }
 
-      // signOut réel (non bloquant pour l’UX)
+      // Signout global (non bloquant)
       setTimeout(async () => {
         try {
           await supabase.auth.signOut({ scope: "global" });
@@ -217,6 +233,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           logger.warn("SignOut error:", e);
         }
       }, 0);
+
+      // Nettoyage storage après signOut (et pour propager aux autres onglets)
+      try {
+        localStorage.removeItem("logout_in_progress");
+        localStorage.setItem("logged_out_at", String(Date.now()));
+        sessionStorage.clear();
+      } catch {}
 
       window.location.replace("/");
     } catch (error) {
@@ -228,133 +251,195 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSubscriptionEnd(null);
       setLoading(false);
       try {
-        localStorage.clear();
+        localStorage.removeItem("logout_in_progress");
         sessionStorage.clear();
       } catch {}
       window.location.replace("/");
     }
   }, []);
 
-  const handleAuthStateChange = useCallback(async (event: string, sess: Session | null) => {
-    if (!mountedRef.current) return;
-    logger.debug("Auth state changed:", event, sess?.user?.id);
+  // -------- Handle auth state changes ----------
+  const handleAuthStateChange = useCallback(
+    async (event: string, newSession: Session | null) => {
+      if (!mountedRef.current) return;
+      logger.debug("Auth state changed:", event, newSession?.user?.id);
 
-    try {
-      if (sess?.user) {
-        setSession(sess);
-        setUser(sess.user);
+      try {
+        if (newSession && newSession.user) {
+          setSession(newSession);
+          setUser(newSession.user);
 
-        // démarrer/relancer la surveillance de session
-        if (sessionCheckInterval.current) clearInterval(sessionCheckInterval.current);
-        sessionCheckInterval.current = setInterval(async () => {
-          if (!mountedRef.current) return;
-          await refreshIfNeeded();
-        }, 5 * 60 * 1000);
+          // Sanity check: s'assurer que le token est toujours utilisable
+          try {
+            const { data: userCheck, error: userErr } = await supabase.auth.getUser();
+            if (userErr || !userCheck?.user) {
+              // Token invalide/inutilisable → on tente un refresh immédiat
+              logger.warn("[auth] getUser failed after state change → refreshing");
+              await safeRefreshSession("auth_state_change_invalid_user");
+            }
+          } catch (e) {
+            logger.warn("[auth] getUser fatal during state change:", e);
+          }
 
-        // Validation / initial fetch
-        const ok = await refreshIfNeeded();
-        if (!ok) {
-          // refresh KO => mettre l'état déconnecté
+          // Ensure profile + subscription
+          const timeoutId = setTimeout(() => {
+            if (mountedRef.current) {
+              logger.warn("Auth ops timeout → continue without profile/subscription");
+              setLoading(false);
+            }
+          }, 10_000);
+
+          try {
+            await ensureProfile(newSession.user);
+            if (mountedRef.current) {
+              await fetchSubscriptionStatus(newSession.user.id);
+            }
+          } catch (e) {
+            logger.error("Auth async operations error:", e);
+          } finally {
+            clearTimeout(timeoutId);
+            if (mountedRef.current) setLoading(false);
+          }
+        } else {
+          // Déconnecté
           setSession(null);
           setUser(null);
           setHasActiveSubscription(false);
           setSubscriptionStatus(null);
           setSubscriptionEnd(null);
-          setLoading(false);
-          return;
+          if (mountedRef.current) setLoading(false);
         }
-
-        try {
-          await ensureProfile(sess.user);
-          await fetchSubscriptionStatus(sess.user.id);
-        } catch (e) {
-          logger.error("Post sign-in ops error:", e);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        // Aucune session valide
+      } catch (error) {
+        logger.error("Error in auth state change handler:", error);
         setSession(null);
         setUser(null);
         setHasActiveSubscription(false);
         setSubscriptionStatus(null);
         setSubscriptionEnd(null);
-        setLoading(false);
-
-        if (sessionCheckInterval.current) {
-          clearInterval(sessionCheckInterval.current);
-          sessionCheckInterval.current = null;
-        }
+        if (mountedRef.current) setLoading(false);
       }
-    } catch (error) {
-      logger.error("Error in auth state handler:", error);
-      setSession(null);
-      setUser(null);
-      setHasActiveSubscription(false);
-      setSubscriptionStatus(null);
-      setSubscriptionEnd(null);
-      setLoading(false);
-    }
-  }, [ensureProfile, fetchSubscriptionStatus, refreshIfNeeded]);
+    },
+    [ensureProfile, fetchSubscriptionStatus, safeRefreshSession]
+  );
 
+  // -------- Init & listeners ----------
   useEffect(() => {
     mountedRef.current = true;
 
-    const init = async () => {
-      if (!supabase) {
-        logger.warn("[auth] Supabase indisponible");
-        setUser(null);
-        setLoading(false);
-        return;
+    const startSessionMonitoring = () => {
+      if (sessionCheckIntervalRef.current) {
+        clearInterval(sessionCheckIntervalRef.current);
       }
-
-      // Nettoyer URL OAuth si besoin
-      if (window.location.search.includes('access_token') || window.location.hash.includes('access_token')) {
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
-        logger.debug("OAuth URL cleaned");
-      }
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        // Forcer validation/refresh immédiat au cold start (onglet rouvert)
-        await refreshIfNeeded();
-
-        await handleAuthStateChange('INITIAL_SESSION', session);
-      } catch (e) {
-        logger.error("Auth init error:", e);
-        setUser(null);
-        setLoading(false);
-      }
+      sessionCheckIntervalRef.current = setInterval(async () => {
+        if (!mountedRef.current || !supabase) return;
+        try {
+          const { data: { session } = { session: null } } = await supabase.auth.getSession();
+          const exp = session?.expires_at ? new Date(session.expires_at * 1000) : null;
+          if (exp) {
+            const soon = new Date(Date.now() + 10 * 60 * 1000);
+            if (exp < soon) {
+              await safeRefreshSession("interval_expiring");
+            }
+          }
+        } catch (e) {
+          logger.warn("[auth] periodic session check error:", e);
+        }
+      }, 5 * 60 * 1000);
     };
 
-    let unsubscribe: (() => void) | null = null;
+    // Nettoyer URL OAuth résiduels
+    try {
+      if (
+        window.location.search.includes("access_token") ||
+        window.location.hash.includes("access_token")
+      ) {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
+        logger.debug("OAuth URL cleaned");
+      }
+      if (
+        window.location.hash &&
+        !window.location.pathname.includes("/auth") &&
+        window.location.pathname !== "/goodbye"
+      ) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    } catch {}
 
+    // Initialisation: on récupère la session, puis on force un refresh proactif
     (async () => {
       try {
-        const { data } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-        unsubscribe = () => data.subscription.unsubscribe();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) logger.error("Error getting initial session:", error);
+
+        await handleAuthStateChange("INITIAL_SESSION", session ?? null);
+
+        // refresh immédiat si on revient après un moment (évite faux "connecté")
+        await safeRefreshSession("init_mount");
+        startSessionMonitoring();
       } catch (e) {
-        logger.error("Error setting auth listener:", e);
-      } finally {
-        await init();
+        logger.error("Auth initialization error:", e);
+        if (mountedRef.current) setLoading(false);
       }
     })();
 
-    return () => {
-      mountedRef.current = false;
-      if (sessionCheckInterval.current) {
-        clearInterval(sessionCheckInterval.current);
-        sessionCheckInterval.current = null;
+    // Listener auth
+    try {
+      if (supabase) {
+        const { data } = supabase.auth.onAuthStateChange((e, s) =>
+          handleAuthStateChange(e, s)
+        );
+        authSubRef.current = data.subscription;
       }
-      if (unsubscribe) {
-        try { unsubscribe(); } catch {}
+    } catch (e) {
+      logger.error("Error setting up auth state listener:", e);
+    }
+
+    // Listener visibilité → refresh à la remontée d’onglet
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        safeRefreshSession("visibilitychange_visible");
+        // rafraîchir l’abonnement silencieusement
+        if (user?.id) fetchSubscriptionStatus(user.id);
       }
     };
-  }, [handleAuthStateChange, refreshIfNeeded]);
+    document.addEventListener("visibilitychange", onVisibility);
 
-  const value: AuthContextType = {
+    // Propagation inter-onglets: si un autre onglet se déconnecte
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === "logged_out_at" && ev.newValue) {
+        logger.info("[auth] detected sign-out in another tab");
+        setUser(null);
+        setSession(null);
+        setHasActiveSubscription(false);
+        setSubscriptionStatus(null);
+        setSubscriptionEnd(null);
+        setLoading(false);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      mountedRef.current = false;
+
+      if (sessionCheckIntervalRef.current) {
+        clearInterval(sessionCheckIntervalRef.current);
+        sessionCheckIntervalRef.current = null;
+      }
+      if (authSubRef.current) {
+        try {
+          authSubRef.current.unsubscribe();
+        } catch (e) {
+          logger.error("Error unsubscribing from auth:", e);
+        }
+        authSubRef.current = null;
+      }
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [fetchSubscriptionStatus, handleAuthStateChange, safeRefreshSession, user?.id]);
+
+  const value = {
     user,
     session,
     loading,
@@ -363,12 +448,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     subscriptionEnd,
     refreshSubscription,
     signOut,
-    validateSessionNow,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
