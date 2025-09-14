@@ -374,17 +374,32 @@ const Subscription = () => {
           </Card>
         )}
 
-        {/* Pricing Info */}
+        {/* Pourquoi MeetRun Unlimited */}
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Tarification</CardTitle>
+            <CardTitle>Pourquoi MeetRun Unlimited ?</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-primary">9,99 €</div>
-              <div className="text-sport-gray">par mois</div>
-              <div className="text-sm text-sport-gray mt-2">
-                Facturation mensuelle • Résiliable à tout moment
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">🎯</div>
+                <h4 className="font-semibold">Lieux exacts</h4>
+                <p className="text-sm text-sport-gray">Fini les zones approximatives ! Voyez exactement où vous rendre.</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">💸</div>
+                <h4 className="font-semibold">Économique</h4>
+                <p className="text-sm text-sport-gray">3 sessions par mois et c'est rentabilisé !</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">🏃‍♀️</div>
+                <h4 className="font-semibold">Illimité</h4>
+                <p className="text-sm text-sport-gray">Participez à autant de sessions que vous voulez.</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl mb-2">👥</div>
+                <h4 className="font-semibold">Rencontre</h4>
+                <p className="text-sm text-sport-gray">Rencontrez d'autres personnes près de chez vous.</p>
               </div>
             </div>
           </CardContent>
