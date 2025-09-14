@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 
 const supabase = getSupabase();
@@ -255,20 +255,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (!mounted || !supabase) return;
         
         try {
-          // 🔒 validation réseau — si ça échoue, on déconnecte proprement
-          const { user } = await getCurrentUserSafe({ timeoutMs: 5000 });
-          if (!user) {
-            logger.warn("Session monitoring: user validation failed, signing out");
-            await handleAuthStateChange('SESSION_BECAME_INVALID', null);
-            try { 
-              await supabase.auth.signOut({ scope: "local" }); 
-            } catch {}
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            logger.warn("Session check error:", error);
             return;
           }
-
+          
           // Vérifier si la session est proche de l'expiration (dans les 10 prochaines minutes)
-          const { data: { session }, error } = await supabase.auth.getSession();
-          if (!error && session?.expires_at) {
+          if (session?.expires_at) {
             const expiresAt = new Date(session.expires_at * 1000);
             const now = new Date();
             const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
@@ -284,7 +279,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
         } catch (error) {
-          logger.warn("Session monitor error:", error);
+          logger.error("Erreur lors de la vérification de session:", error);
         }
       }, 5 * 60 * 1000); // Vérifier toutes les 5 minutes
     };
@@ -370,7 +365,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // ✅ Initialisation fiable avec validation réseau
+    // CORRECTION: Initialisation avec gestion d'erreur améliorée
     const initAuth = async () => {
       if (!supabase) {
         logger.warn("[auth] Client Supabase indisponible - authentification désactivée");
@@ -386,40 +381,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           window.history.replaceState(null, '', window.location.pathname);
         }
         
-        // ✅ validation réseau (gère aussi un refresh si besoin)
-        const { user } = await getCurrentUserSafe({ timeoutMs: 6000 });
-
-        if (user) {
-          const { data: { session } } = await supabase.auth.getSession();
-          await handleAuthStateChange('INITIAL_SESSION_VALIDATED', session);
-        } else {
-          // ❌ session locale invalide → on nettoie
-          await handleAuthStateChange('INITIAL_SESSION_INVALID', null);
-          try {
-            await supabase.auth.signOut({ scope: "local" });
-          } catch {}
-          localStorage.removeItem("supabase.auth.token");
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          logger.error("Error getting initial session:", error);
         }
+        
+        await handleAuthStateChange('INITIAL_SESSION', session);
       } catch (error) {
         logger.error("Auth initialization error:", error);
         if (mounted) {
           setLoading(false);
         }
-      }
-    };
-
-    // Revalider quand l'app revient au premier plan
-    const onVisible = async () => {
-      if (!supabase || document.hidden || !user) return;
-      logger.debug("App became visible, validating session...");
-      
-      const { user: validatedUser } = await getCurrentUserSafe({ timeoutMs: 5000 });
-      if (!validatedUser) {
-        logger.warn("Visibility revalidation failed, signing out");
-        await handleAuthStateChange('VISIBILITY_REVALIDATION_FAILED', null);
-        try { 
-          await supabase.auth.signOut({ scope: "local" }); 
-        } catch {}
       }
     };
 
@@ -433,16 +405,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       logger.error("Error setting up auth state listener:", error);
     }
 
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', onVisible);
-
     initAuth();
 
     return () => {
       mounted = false;
-      
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onVisible);
       
       // Nettoyer l'interval de surveillance de session
       if (sessionCheckInterval) {
