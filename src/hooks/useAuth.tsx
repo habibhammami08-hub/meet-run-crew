@@ -410,11 +410,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Revalider quand l'app revient au premier plan
     const onVisible = async () => {
-      if (!supabase || document.hidden || !session) return;
+      if (!supabase || document.hidden || !user) return;
       logger.debug("App became visible, validating session...");
       
-      const { user } = await getCurrentUserSafe({ timeoutMs: 5000 });
-      if (!user) {
+      const { user: validatedUser } = await getCurrentUserSafe({ timeoutMs: 5000 });
+      if (!validatedUser) {
         logger.warn("Visibility revalidation failed, signing out");
         await handleAuthStateChange('VISIBILITY_REVALIDATION_FAILED', null);
         try { 
