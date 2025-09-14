@@ -5,7 +5,7 @@
 // 4) Bouton "Retour aux sessions" vers /map
 // 5) Phrase d’info "hanging indent" + texte mis à jour
 // 6) ❗️Aucun marker de départ pour les non-abonnés / non-payeurs
-// 7) 🛡️ Panneau de prévention en bas de la carte (overlay)
+// 7) 🛡️ Panneau de prévention en bas de la carte avec 4 messages
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -404,7 +404,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg.green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
                           <User className="w-4 h-4" />
                         </div>
                       )}
@@ -575,18 +575,53 @@ const SessionDetails = () => {
                     </div>
                   </div>
 
-                  {/* Overlay prévention (bas) */}
+                  {/* Overlay prévention (bas) — grille 4 messages */}
                   <div className="absolute bottom-4 left-4 right-4">
                     <div className="bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg text-xs text-gray-700">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                        <p>
-                          Rappel sécurité : privilégiez un point de rendez-vous public et éclairé, prévenez un proche, 
-                          et emportez de quoi vous hydrater.
-                          {canSeeExactLocation
-                            ? " Partagez le point exact uniquement avec les participants confirmés."
-                            : " Le point exact sera visible après abonnement ou paiement unique."}
-                        </p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <span className="font-medium">Rappels & sécurité</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">⏰</span>
+                          <div>
+                            <p className="font-medium">Ponctualité</p>
+                            <p className="text-[11px] leading-snug">
+                              Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">🤝</span>
+                          <div>
+                            <p className="font-medium">Bienveillance</p>
+                            <p className="text-[11px] leading-snug">
+                              MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
+                              <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">📱</span>
+                          <div>
+                            <p className="font-medium">Préviens en cas d’empêchement</p>
+                            <p className="text-[11px] leading-snug">
+                              Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
+                              <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">🌙</span>
+                          <div>
+                            <p className="font-medium">Vigilance en soirée</p>
+                            <p className="text-[11px] leading-snug">
+                              Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
+                              <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
