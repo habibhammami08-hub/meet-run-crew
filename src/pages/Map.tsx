@@ -296,9 +296,7 @@ function MapPageInner() {
 
   const mapContainerStyle = useMemo(() => ({ 
     width: "100%", 
-    height: "60vh",
-    minHeight: "400px",
-    borderRadius: "16px"
+    height: "100%"
   }), []);
 
   const pathFromPolyline = (p?: string | null): LatLng[] => {  
@@ -540,10 +538,11 @@ function MapPageInner() {
           <div className="lg:col-span-2">
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
-                <GoogleMap  
-                  mapContainerStyle={mapContainerStyle}  
-                  center={center}  
-                  zoom={13}  
+                <div className="w-full h-[60vh] lg:h-[75vh] min-h-[400px] lg:min-h-[600px] rounded-2xl overflow-hidden">
+                  <GoogleMap  
+                    mapContainerStyle={{ width: "100%", height: "100%" }}  
+                    center={center}  
+                    zoom={13}
                   options={{ 
                     mapTypeControl: false, 
                     streetViewControl: false, 
@@ -626,6 +625,7 @@ function MapPageInner() {
                     );  
                   })}  
                 </GoogleMap>  
+                </div>
               </CardContent>
             </Card>
 
