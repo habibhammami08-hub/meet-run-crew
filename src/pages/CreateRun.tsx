@@ -1,7 +1,8 @@
+// src/pages/CreateRun.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
-import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { LocationInput } from "@/components/ui/location-input";
@@ -14,6 +15,17 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Zap, Timer, Route, Calendar } from "lucide-react";
 
 type Pt = google.maps.LatLngLiteral;
+
+// ✅ Helper: rejouer une requête après refresh si 401/expired
+async function withAuthRetry<T>(fn: () => Promise<T>) {
+  const supabase = getSupabase();
+  try {
+    return await fn();
+  } catch {
+    try { await supabase.auth.refreshSession(); } catch {}
+    return await fn();
+  }
+}
 
 export default function CreateRun() {
   const navigate = useNavigate();
@@ -45,7 +57,7 @@ export default function CreateRun() {
     }
   }, []);
 
-  // Vérification d'authentification robuste
+  // Vérification d'authentification robuste (refresh avant getUser)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -53,16 +65,13 @@ export default function CreateRun() {
         if (alive) setUserReady("none"); 
         return; 
       }
-      
       try {
+        await supabase.auth.refreshSession().catch(() => {});
         const { data: { user } } = await supabase.auth.getUser();
         if (!alive) return;
-        
-        console.log("[CreateRun] User check result:", user?.id || "no user");
         setCurrentUser(user);
         setUserReady(user ? "ok" : "none");
       } catch (error) {
-        console.error("[CreateRun] Auth error:", error);
         if (alive) setUserReady("none");
       }
     })();
@@ -139,22 +148,25 @@ export default function CreateRun() {
     if (!currentUser) return false;
     
     try {
-      const { data: prof, error: pe } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', currentUser.id)
-        .maybeSingle();
+      const { data: prof } = await withAuthRetry(() =>
+        supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', currentUser.id)
+          .maybeSingle()
+      ) as any;
 
       if (!prof) {
-        console.log("[CreateRun] Creating profile for user:", currentUser.id);
-        const { error: upErr } = await supabase.from('profiles').upsert({ 
-          id: currentUser.id, 
-          email: currentUser.email || '',
-          full_name: currentUser.email?.split('@')[0] || 'Runner',
-          sessions_hosted: 0,
-          sessions_joined: 0,
-          total_km: 0
-        });
+        const { error: upErr } = await withAuthRetry(() =>
+          supabase.from('profiles').upsert({ 
+            id: currentUser.id, 
+            email: currentUser.email || '',
+            full_name: currentUser.email?.split('@')[0] || 'Runner',
+            sessions_hosted: 0,
+            sessions_joined: 0,
+            total_km: 0
+          })
+        ) as any;
         
         if (upErr) {
           console.error("[CreateRun] Profile creation error:", upErr);
@@ -210,7 +222,6 @@ export default function CreateRun() {
     const startAddr = legs[0]?.start_address ?? null;
     const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
-    // CORRECTION: Mapping des valeurs UI vers les valeurs DB pour session_type
     const sessionTypeMapping: { [key: string]: string } = {
       "mixed": "mixed",
       "women": "women_only",
@@ -221,16 +232,16 @@ export default function CreateRun() {
       host_id: currentUser.id,
       title: title.trim(),
       scheduled_at: scheduledIso,
-      start_lat: Number(start.lat), 
-      start_lng: Number(start.lng),
-      end_lat: Number(end.lat), 
-      end_lng: Number(end.lng),
+      start_lat: Number(start!.lat), 
+      start_lng: Number(start!.lng),
+      end_lat: Number(end!.lat), 
+      end_lng: Number(end!.lng),
       distance_km: Math.round((meters / 1000) * 100) / 100,
       route_distance_m: meters,
       route_polyline: poly || null,
       start_place: startAddr, 
       end_place: endAddr,
-      location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
+      location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start!.lat.toFixed(3)}, ${start!.lng.toFixed(3)}`,
       intensity: uiToDbIntensity(intensityState),
       session_type: sessionTypeMapping[sessionTypeState] || "mixed",
       max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
@@ -244,32 +255,32 @@ export default function CreateRun() {
       payload.description = description.trim();
     }
 
-    console.log("[CreateRun] Session type mapping:", sessionTypeState, "->", sessionTypeMapping[sessionTypeState]);
-
     return payload;
   };
 
-  // Fonction de post-traitement après création
+  // Post-traitement après création
   const handlePostCreation = async (sessionData: any) => {
     try {
-      // Forcer la mise à jour du profil
-      const { data: currentProfile } = await supabase
-        .from('profiles')
-        .select('sessions_hosted')
-        .eq('id', currentUser.id)
-        .single();
+      const { data: currentProfile } = await withAuthRetry(() =>
+        supabase
+          .from('profiles')
+          .select('sessions_hosted')
+          .eq('id', currentUser.id)
+          .single()
+      ) as any;
       
       if (currentProfile) {
-        await supabase
-          .from('profiles')
-          .update({ 
-            sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', currentUser.id);
+        await withAuthRetry(() =>
+          supabase
+            .from('profiles')
+            .update({ 
+              sessions_hosted: (currentProfile.sessions_hosted || 0) + 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id)
+        );
       }
       
-      // Déclencher les événements de mise à jour
       window.dispatchEvent(new CustomEvent('profileRefresh', { 
         detail: { 
           userId: currentUser.id,
@@ -284,8 +295,6 @@ export default function CreateRun() {
           userId: currentUser.id 
         } 
       }));
-      
-      console.log("[CreateRun] Update events dispatched");
     } catch (profileError) {
       console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
     }
@@ -306,7 +315,7 @@ export default function CreateRun() {
     setMaxParticipantsState(10);
   };
 
-  // Fonction onSubmit refactorisée
+  // onSubmit avec refresh + retry
   async function onSubmit() {
     if (!supabase) { 
       alert("Configuration Supabase manquante."); 
@@ -315,15 +324,6 @@ export default function CreateRun() {
     
     setIsSaving(true);
     try {
-      console.info("[CreateRun] Starting session creation", { 
-        title, 
-        dateTime, 
-        hasStart: !!start, 
-        hasEnd: !!end, 
-        hasDir: !!dirResult 
-      });
-
-      // Vérification utilisateur
       if (!currentUser) {
         alert("Veuillez vous connecter pour créer une session.");
         return;
@@ -347,16 +347,20 @@ export default function CreateRun() {
         }
       }
 
+      // 🔁 refresh avant insert (au cas où)
+      await supabase.auth.refreshSession().catch(() => {});
+
       // Créer le payload
       const payload = createSessionPayload(scheduledIso);
       
-      console.info("[CreateRun] Inserting session payload:", payload);
-      
-      const { data, error } = await supabase
-        .from("sessions")
-        .insert(payload)
-        .select("id,title,scheduled_at")
-        .single();
+      // Insertion avec retry
+      const { data, error } = await withAuthRetry(() =>
+        supabase
+          .from("sessions")
+          .insert(payload)
+          .select("id,title,scheduled_at")
+          .single()
+      ) as any;
       
       if (error) { 
         console.error("[CreateRun] Insert error:", error); 
@@ -364,18 +368,12 @@ export default function CreateRun() {
         return; 
       }
 
-      console.info("[CreateRun] Session created successfully:", data);
-      
-      // Post-traitement
       await handlePostCreation(data);
       
-      // Message de succès
       alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
       
-      // Reset du formulaire
       resetForm();
       
-      // Navigation fluide avec React Router
       setTimeout(() => {
         navigate("/map", { 
           state: { 
