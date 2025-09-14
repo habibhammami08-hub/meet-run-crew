@@ -1,11 +1,10 @@
-// src/pages/SessionDetails.tsx — correctif :
-// 1) Tracé (polyline) coupé au début pour ne pas dévoiler le départ aux non-abonnés
-// 2) Couleur du parcours en BLEU (#3b82f6)
-// 3) Hooks stables + recentrage dynamique
-// 4) Bouton "Retour aux sessions" vers /map
-// 5) Phrase d’info "hanging indent" + texte mis à jour
-// 6) ❗️Aucun marker de départ pour les non-abonnés / non-payeurs
-// 7) 🛡️ Panneau de prévention en bas de la carte avec 4 messages
+// src/pages/SessionDetails.tsx
+// - Google Maps avec parcours BLEU + départ masqué pour non-abonnés/paiement
+// - Trim du début de la polyline
+// - Bouton "Retour aux sessions"
+// - Callout en "hanging indent" avec texte mis à jour
+// - Panneau de prévention : overlay sur desktop, bloc normal sur mobile
+// - Mobile: la carte passe en premier, puis le bloc "Rejoindre cette session" (version mobile dédiée)
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -22,9 +21,9 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import polyline from "@mapbox/polyline";
 
-// ————————————————————————————————————————————————————————————
+// ------------------------------------
 // Utils
-// ————————————————————————————————————————————————————————————
+// ------------------------------------
 type LatLng = { lat: number; lng: number };
 
 function seededNoise(seed: string) {
@@ -69,9 +68,9 @@ function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
   return path.slice(-1);
 }
 
-// ————————————————————————————————————————————————————————————
+// ------------------------------------
 // Page
-// ————————————————————————————————————————————————————————————
+// ------------------------------------
 const SessionDetails = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -179,7 +178,7 @@ const SessionDetails = () => {
     else window.location.href = `/payment/session/${id}`;
   };
 
-  // ————————— Dérivées stables —————————
+  // ----------------- Dérivées stables -----------------
   const isHost = !!(user && session && session.host_id === user.id);
   const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));
 
@@ -191,7 +190,7 @@ const SessionDetails = () => {
     session && session.end_lat && session.end_lng ? { lat: session.end_lat, lng: session.end_lng } : null
   ), [session]);
 
-  // ❗️Ne montrer le marker de départ que si l’utilisateur a droit au point exact
+  // ❗️Aucun marker de départ si l’utilisateur n’a pas accès au point exact
   const shownStart = useMemo<LatLng | null>(() => {
     if (!session || !start) return null;
     return canSeeExactLocation ? start : null;
@@ -264,7 +263,7 @@ const SessionDetails = () => {
       : { url };
   }, []);
 
-  // ————————— Loading —————————
+  // ----------------- Loading -----------------
   if (!session || !center) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -282,7 +281,7 @@ const SessionDetails = () => {
 
   const isSessionFull = participants.length >= session.max_participants;
 
-  // ————————————————————————————————— UI —————————————————————————————————
+  // ----------------- UI -----------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -318,9 +317,262 @@ const SessionDetails = () => {
           </div>
         </div>
 
+        {/* Grille responsive : mobile = carte d'abord ; desktop = colonne gauche + carte */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Colonne gauche */}
-          <div className="lg:col-span-1 space-y-6">
+          {/* ----- Carte Google Maps ----- */}
+          <div className="order-1 lg:order-2 lg:col-span-2">
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm h-full">
+              <CardContent className="p-0 h-full">
+                <div className="relative">
+                  {/* Hauteur adaptée : + haute sur mobile pour être prioritaire */}
+                  <div className="w-full h-[360px] sm:h-[420px] lg:h-[600px]">
+                    <GoogleMap
+                      center={center}
+                      zoom={13}
+                      mapContainerStyle={{ width: "100%", height: "100%" }}
+                      options={mapOptions}
+                    >
+                      {/* ❗️Marker départ uniquement si droit au point exact */}
+                      {shownStart && (
+                        <MarkerF position={shownStart} icon={startMarkerIcon} title="Point de départ (exact)" />
+                      )}
+
+                      {/* Arrivée si définie (toujours exacte) */}
+                      {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
+
+                      {/* Parcours exact (BLEU) — tronqué au début si nécessaire */}
+                      {trimmedRoutePath.length > 1 && (
+                        <Polyline
+                          path={trimmedRoutePath}
+                          options={{ clickable: false, strokeOpacity: 0.95, strokeWeight: 4, strokeColor: "#3b82f6" }}
+                        />
+                      )}
+                    </GoogleMap>
+                  </div>
+
+                  {/* Overlay infos (haut) — on garde aussi sur mobile */}
+                  <div className="absolute top-4 left-4 right-4">
+                    <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+                      <h3 className="font-semibold mb-2">Lieu de rendez-vous</h3>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium">Départ: </span>
+                            {canSeeExactLocation
+                              ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
+                              : `Le point de départ exact est masqué`}
+                          </div>
+                        </div>
+                        {end && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <span className="font-medium">Arrivée: </span>
+                              {session.end_place || "Point d'arrivée défini"}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 💡 Callout en “hanging indent” */}
+                      {!canSeeExactLocation && (
+                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700 grid grid-cols-[auto,1fr] gap-2 items-start">
+                          <span aria-hidden="true">💡</span>
+                          <span>
+                            Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
+                            (une partie du parcours reste visible pour tous, mais son début est masqué)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Overlay prévention (bas) — uniquement desktop */}
+                  <div className="hidden lg:block absolute bottom-6 left-4 right-4">
+                    <div className="bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg text-xs text-gray-700">
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                        <span className="font-semibold text-center text-sm md:text-base text-gray-900">
+                          Rappels & sécurité
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">⏰</span>
+                          <div>
+                            <p className="font-medium">Ponctualité</p>
+                            <p className="text-[11px] leading-snug">
+                              Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">🤝</span>
+                          <div>
+                            <p className="font-medium">Bienveillance</p>
+                            <p className="text-[11px] leading-snug">
+                              MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
+                              <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">📱</span>
+                          <div>
+                            <p className="font-medium">Préviens en cas d’empêchement</p>
+                            <p className="text-[11px] leading-snug">
+                              Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
+                              <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="select-none">🌙</span>
+                          <div>
+                            <p className="font-medium">Vigilance en soirée</p>
+                            <p className="text-[11px] leading-snug">
+                              Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
+                              <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Panneau prévention — version mobile (sous la carte) */}
+            <div className="lg:hidden mt-4">
+              <Card className="shadow-lg border-0">
+                <CardContent className="p-4 text-xs text-gray-700">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
+                    <span className="font-semibold text-center text-sm text-gray-900">
+                      Rappels & sécurité
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-start gap-2">
+                      <span className="select-none">⏰</span>
+                      <div>
+                        <p className="font-medium">Ponctualité</p>
+                        <p className="text-[11px] leading-snug">
+                          Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="select-none">🤝</span>
+                      <div>
+                        <p className="font-medium">Bienveillance</p>
+                        <p className="text-[11px] leading-snug">
+                          MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
+                          <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="select-none">📱</span>
+                      <div>
+                        <p className="font-medium">Préviens en cas d’empêchement</p>
+                        <p className="text-[11px] leading-snug">
+                          Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
+                          <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="select-none">🌙</span>
+                      <div>
+                        <p className="font-medium">Vigilance en soirée</p>
+                        <p className="text-[11px] leading-snug">
+                          Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
+                          <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Rejoindre — version mobile sous la carte */}
+            {!isEnrolled && !isHost && (
+              <div className="lg:hidden mt-4">
+                <Card className="shadow-lg border-0">
+                  <CardContent className="p-6">
+                    <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                    {isSessionFull ? (
+                      <div className="text-center py-6">
+                        <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                        <p className="text-gray-600 font-medium">Session complète</p>
+                        <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                      </div>
+                    ) : hasActiveSubscription ? (
+                      <Button
+                        onClick={handleSubscribeOrEnroll}
+                        disabled={isLoading}
+                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Inscription...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Rejoindre gratuitement
+                          </div>
+                        )}
+                      </Button>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Crown className="w-5 h-5 text-blue-600" />
+                            <span className="font-semibold text-blue-900">Recommandé</span>
+                          </div>
+                          <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                          </p>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                            <Badge variant="secondary">Économique</Badge>
+                          </div>
+                          <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
+                            <Crown className="w-4 h-4 mr-2" />
+                            S'abonner
+                          </Button>
+                        </div>
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-semibold mb-1">Paiement unique</h4>
+                          <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-bold">4,50€</span>
+                            <span className="text-xs text-gray-500">une fois</span>
+                          </div>
+                          <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Payer maintenant
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {/* ----- Colonne gauche (desktop) / Section infos (mobile) ----- */}
+          <div className="order-2 lg:order-1 lg:col-span-1 space-y-6">
+            {/* Détails de la session */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
                 <div className="space-y-4">
@@ -395,6 +647,7 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
+            {/* Participants */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-4">Participants ({participants.length + 1}/{session.max_participants})</h3>
@@ -422,70 +675,73 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
+            {/* Rejoindre — version desktop (dans la colonne gauche) */}
             {!isEnrolled && !isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : hasActiveSubscription ? (
-                    <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
-                        </div>
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
-                          <Crown className="w-4 h-4 mr-2" />
-                          S'abonner
-                        </Button>
+              <div className="hidden lg:block">
+                <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                  <CardContent className="p-6">
+                    <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                    {isSessionFull ? (
+                      <div className="text-center py-6">
+                        <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                        <p className="text-gray-600 font-medium">Session complète</p>
+                        <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
                       </div>
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
+                    ) : hasActiveSubscription ? (
+                      <Button
+                        onClick={handleSubscribeOrEnroll}
+                        disabled={isLoading}
+                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Inscription...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Rejoindre gratuitement
+                          </div>
+                        )}
+                      </Button>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Crown className="w-5 h-5 text-blue-600" />
+                            <span className="font-semibold text-blue-900">Recommandé</span>
+                          </div>
+                          <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                          </p>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                            <Badge variant="secondary">Économique</Badge>
+                          </div>
+                          <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
+                            <Crown className="w-4 h-4 mr-2" />
+                            S'abonner
+                          </Button>
                         </div>
-                        <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Payer maintenant
-                        </Button>
+                        <div className="p-4 border rounded-lg">
+                          <h4 className="font-semibold mb-1">Paiement unique</h4>
+                          <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-bold">4,50€</span>
+                            <span className="text-xs text-gray-500">une fois</span>
+                          </div>
+                          <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Payer maintenant
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {(isEnrolled || isHost) && (
@@ -501,134 +757,6 @@ const SessionDetails = () => {
                 </CardContent>
               </Card>
             )}
-          </div>
-
-          {/* Colonne droite : carte Google Maps */}
-          <div className="lg:col-span-2">
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm h-full">
-              <CardContent className="p-0 h-full min-h-[600px]">
-                <div className="h-full relative">
-                  <div className="h-[600px] w-full">
-                    <GoogleMap
-                      center={center}
-                      zoom={13}
-                      mapContainerStyle={{ width: "100%", height: "100%" }}
-                      options={mapOptions}
-                    >
-                      {/* ❗️Marker départ uniquement si droit au point exact */}
-                      {shownStart && (
-                        <MarkerF
-                          position={shownStart}
-                          icon={startMarkerIcon}
-                          title="Point de départ (exact)"
-                        />
-                      )}
-
-                      {/* Arrivée si définie (toujours exacte) */}
-                      {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
-
-                      {/* Parcours exact (BLEU) — tronqué au début si nécessaire */}
-                      {trimmedRoutePath.length > 1 && (
-                        <Polyline
-                          path={trimmedRoutePath}
-                          options={{ clickable: false, strokeOpacity: 0.95, strokeWeight: 4, strokeColor: "#3b82f6" }}
-                        />
-                      )}
-                    </GoogleMap>
-                  </div>
-
-                  {/* Overlay infos (haut) */}
-                  <div className="absolute top-4 left-4 right-4">
-                    <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
-                      <h3 className="font-semibold mb-2">Lieu de rendez-vous</h3>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="font-medium">Départ: </span>
-                            {canSeeExactLocation
-                              ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
-                              : `Le point de départ exact est masqué`}
-                          </div>
-                        </div>
-                        {end && (
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <span className="font-medium">Arrivée: </span>
-                              {session.end_place || "Point d'arrivée défini"}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 💡 Callout en “hanging indent” */}
-                      {!canSeeExactLocation && (
-                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700 grid grid-cols-[auto,1fr] gap-2 items-start">
-                          <span aria-hidden="true">💡</span>
-                          <span>
-                            Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
-                            (une partie du parcours reste visible pour tous, mais son début est masqué)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Overlay prévention (bas) — grille 4 messages */}
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg text-xs text-gray-700">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-600" />
-                        <span className="font-medium">Rappels & sécurité</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">⏰</span>
-                          <div>
-                            <p className="font-medium">Ponctualité</p>
-                            <p className="text-[11px] leading-snug">
-                              Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">🤝</span>
-                          <div>
-                            <p className="font-medium">Bienveillance</p>
-                            <p className="text-[11px] leading-snug">
-                              MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
-                              <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">📱</span>
-                          <div>
-                            <p className="font-medium">Préviens en cas d’empêchement</p>
-                            <p className="text-[11px] leading-snug">
-                              Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
-                              <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">🌙</span>
-                          <div>
-                            <p className="font-medium">Vigilance en soirée</p>
-                            <p className="text-[11px] leading-snug">
-                              Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
-                              <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
