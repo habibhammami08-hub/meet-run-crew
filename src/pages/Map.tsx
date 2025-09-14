@@ -352,7 +352,7 @@ function MapPageInner() {
           <div className="lg:col-span-2 order-1 lg:order-2">
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
-                <div className="h-[60vh] lg:h-[85vh] min-h-[400px] lg:min-h-[700px]">
+                <div className="h-[40vh] lg:h-[60vh] min-h-[300px] lg:min-h-[400px]">
                   <GoogleMap  
                     mapContainerStyle={{ width: "100%", height: "100%" }}  
                     center={center}  
