@@ -1,10 +1,10 @@
-// src/pages/SessionDetails.tsx
+// src/pages/SessionDetails.tsx — Desktop: prévention sous la carte, pas en overlay; Mobile optimisé
 // - Google Maps avec parcours BLEU + départ masqué pour non-abonnés/paiement
 // - Trim du début de la polyline
 // - Bouton "Retour aux sessions"
 // - Callout en "hanging indent" avec texte mis à jour
-// - Panneau de prévention : overlay sur desktop, bloc normal sur mobile
-// - Mobile: la carte passe en premier, puis le bloc "Rejoindre cette session" (version mobile dédiée)
+// - Prévention: overlay uniquement sur mobile? → Non : bloc normal sous la carte sur mobile ET desktop
+// - Mobile: la carte passe en premier, puis bloc prévention (sous la carte), puis le bloc "Rejoindre cette session"
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -13,8 +13,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  MapPin, Calendar, Clock, Users, Trash2, Crown, CreditCard,
-  CheckCircle, User, ArrowLeft, AlertTriangle
+  MapPin,
+  Calendar,
+  Clock,
+  Users,
+  Trash2,
+  Crown,
+  CreditCard,
+  CheckCircle,
+  User,
+  ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -28,7 +37,10 @@ type LatLng = { lat: number; lng: number };
 
 function seededNoise(seed: string) {
   let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
   const u = ((h >>> 0) % 10000) / 10000;
   const v = (((h * 48271) >>> 0) % 10000) / 10000;
   return { u, v };
@@ -39,13 +51,17 @@ function jitterDeterministic(lat: number, lng: number, meters: number, seed: str
   const w = meters * Math.sqrt(u);
   const t = 2 * Math.PI * v;
   const dLat = w / 111320; // deg/m
-  const dLng = w / (111320 * Math.cos(lat * Math.PI / 180)); // deg/m
+  const dLng = w / (111320 * Math.cos((lat * Math.PI) / 180)); // deg/m
   return { lat: lat + dLat * Math.cos(t), lng: lng + dLng * Math.sin(t) };
 }
 
 const pathFromPolyline = (p?: string | null): LatLng[] => {
   if (!p) return [];
-  try { return polyline.decode(p).map(([lat, lng]) => ({ lat, lng })); } catch { return []; }
+  try {
+    return polyline.decode(p).map(([lat, lng]) => ({ lat, lng }));
+  } catch {
+    return [];
+  }
 };
 
 // Couper les X premiers mètres du tracé pour éviter de déduire le départ
@@ -54,11 +70,12 @@ function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
   const R = 6371000; // m
   let acc = 0;
   for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1], b = path[i];
-    const dLat = (b.lat - a.lat) * Math.PI / 180;
-    const dLng = (b.lng - a.lng) * Math.PI / 180;
-    const la1 = a.lat * Math.PI / 180;
-    const la2 = b.lat * Math.PI / 180;
+    const a = path[i - 1];
+    const b = path[i];
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const la1 = (a.lat * Math.PI) / 180;
+    const la2 = (b.lat * Math.PI) / 180;
     const hav = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
     const d = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav)) * R; // meters
     acc += d;
@@ -87,7 +104,10 @@ const SessionDetails = () => {
   // Map state
   const [center, setCenter] = useState<LatLng | null>(null);
 
-  useEffect(() => { if (id) fetchSessionDetails(); }, [id, user]);
+  useEffect(() => {
+    if (id) fetchSessionDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user]);
 
   useEffect(() => {
     const paymentStatus = searchParams.get("payment");
@@ -113,7 +133,6 @@ const SessionDetails = () => {
 
     if (sessionData) {
       setSession(sessionData);
-      // le centrage sera géré plus bas selon droits et tracé
     }
 
     const { data: participantsData } = await supabase
@@ -148,7 +167,9 @@ const SessionDetails = () => {
       } catch (error: any) {
         console.error("Error enrolling:", error);
         toast({ title: "Erreur", description: error.message, variant: "destructive" });
-      } finally { setIsLoading(false); }
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -165,7 +186,9 @@ const SessionDetails = () => {
     } catch (error: any) {
       console.error("[SessionDetails] Delete error:", error);
       toast({ title: "Erreur", description: "Impossible de supprimer la session: " + error.message, variant: "destructive" });
-    } finally { setIsDeleting(false); }
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handlePaymentRedirect = (type: "session" | "subscription") => {
@@ -182,13 +205,8 @@ const SessionDetails = () => {
   const isHost = !!(user && session && session.host_id === user.id);
   const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));
 
-  const start = useMemo<LatLng | null>(() => (
-    session ? { lat: session.start_lat, lng: session.start_lng } : null
-  ), [session]);
-
-  const end = useMemo<LatLng | null>(() => (
-    session && session.end_lat && session.end_lng ? { lat: session.end_lat, lng: session.end_lng } : null
-  ), [session]);
+  const start = useMemo<LatLng | null>(() => (session ? { lat: session.start_lat, lng: session.start_lng } : null), [session]);
+  const end = useMemo<LatLng | null>(() => (session && session.end_lat && session.end_lng ? { lat: session.end_lat, lng: session.end_lng } : null), [session]);
 
   // ❗️Aucun marker de départ si l’utilisateur n’a pas accès au point exact
   const shownStart = useMemo<LatLng | null>(() => {
@@ -196,9 +214,7 @@ const SessionDetails = () => {
     return canSeeExactLocation ? start : null;
   }, [session, start, canSeeExactLocation]);
 
-  const fullRoutePath = useMemo<LatLng[]>(() => (
-    session?.route_polyline ? pathFromPolyline(session.route_polyline) : []
-  ), [session]);
+  const fullRoutePath = useMemo<LatLng[]>(() => (session?.route_polyline ? pathFromPolyline(session.route_polyline) : []), [session]);
 
   // Tronquer le début si l'utilisateur ne voit pas le point exact
   const trimmedRoutePath = useMemo<LatLng[]>(() => {
@@ -223,25 +239,29 @@ const SessionDetails = () => {
     }
   }, [session, canSeeExactLocation, start?.lat, start?.lng, trimmedRoutePath.length]);
 
-  const mapOptions = useMemo(() => ({
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-    gestureHandling: "greedy" as const,
-    zoomControl: true,
-    scaleControl: false,
-    rotateControl: false,
-    styles: [
-      { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-      { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
-    ],
-  }), []);
+  const mapOptions = useMemo(
+    () => ({
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      gestureHandling: "greedy" as const,
+      zoomControl: true,
+      scaleControl: false,
+      rotateControl: false,
+      styles: [
+        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+        { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
+      ],
+    }),
+    []
+  );
 
   const startMarkerIcon = useMemo(() => {
-    const size = 18; const color = "#dc2626";
+    const size = 18;
+    const color = "#dc2626";
     const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-      <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
-      <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
+      <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${size - 2} Z" fill="${color}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
     </svg>`;
     const url = "data:image/svg+xml," + encodeURIComponent(svg);
     const g = typeof window !== "undefined" ? (window as any).google : undefined;
@@ -251,10 +271,11 @@ const SessionDetails = () => {
   }, []);
 
   const endMarkerIcon = useMemo(() => {
-    const size = 18; const color = "#ef4444";
+    const size = 18;
+    const color = "#ef4444";
     const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-      <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
-      <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
+      <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${size - 2} Z" fill="${color}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
     </svg>`;
     const url = "data:image/svg+xml," + encodeURIComponent(svg);
     const g = typeof window !== "undefined" ? (window as any).google : undefined;
@@ -326,31 +347,21 @@ const SessionDetails = () => {
                 <div className="relative">
                   {/* Hauteur adaptée : + haute sur mobile pour être prioritaire */}
                   <div className="w-full h-[360px] sm:h-[420px] lg:h-[600px]">
-                    <GoogleMap
-                      center={center}
-                      zoom={13}
-                      mapContainerStyle={{ width: "100%", height: "100%" }}
-                      options={mapOptions}
-                    >
+                    <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
                       {/* ❗️Marker départ uniquement si droit au point exact */}
-                      {shownStart && (
-                        <MarkerF position={shownStart} icon={startMarkerIcon} title="Point de départ (exact)" />
-                      )}
+                      {shownStart && <MarkerF position={shownStart} icon={startMarkerIcon} title="Point de départ (exact)" />}
 
                       {/* Arrivée si définie (toujours exacte) */}
                       {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
 
                       {/* Parcours exact (BLEU) — tronqué au début si nécessaire */}
                       {trimmedRoutePath.length > 1 && (
-                        <Polyline
-                          path={trimmedRoutePath}
-                          options={{ clickable: false, strokeOpacity: 0.95, strokeWeight: 4, strokeColor: "#3b82f6" }}
-                        />
+                        <Polyline path={trimmedRoutePath} options={{ clickable: false, strokeOpacity: 0.95, strokeWeight: 4, strokeColor: "#3b82f6" }} />
                       )}
                     </GoogleMap>
                   </div>
 
-                  {/* Overlay infos (haut) — on garde aussi sur mobile */}
+                  {/* Overlay infos (haut) — visible mobile & desktop */}
                   <div className="absolute top-4 left-4 right-4">
                     <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
                       <h3 className="font-semibold mb-2">Lieu de rendez-vous</h3>
@@ -360,7 +371,7 @@ const SessionDetails = () => {
                           <div>
                             <span className="font-medium">Départ: </span>
                             {canSeeExactLocation
-                              ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
+                              ? session.location_hint || session.start_place || "Coordonnées exactes disponibles"
                               : `Le point de départ exact est masqué`}
                           </div>
                         </div>
@@ -387,82 +398,24 @@ const SessionDetails = () => {
                       )}
                     </div>
                   </div>
-
-                  {/* Overlay prévention (bas) — uniquement desktop */}
-                  <div className="hidden lg:block absolute bottom-6 left-4 right-4">
-                    <div className="bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg text-xs text-gray-700">
-                      <div className="flex items-center justify-center gap-2 mb-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-600" />
-                        <span className="font-semibold text-center text-sm md:text-base text-gray-900">
-                          Rappels & sécurité
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">⏰</span>
-                          <div>
-                            <p className="font-medium">Ponctualité</p>
-                            <p className="text-[11px] leading-snug">
-                              Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">🤝</span>
-                          <div>
-                            <p className="font-medium">Bienveillance</p>
-                            <p className="text-[11px] leading-snug">
-                              MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
-                              <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">📱</span>
-                          <div>
-                            <p className="font-medium">Préviens en cas d’empêchement</p>
-                            <p className="text-[11px] leading-snug">
-                              Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
-                              <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="select-none">🌙</span>
-                          <div>
-                            <p className="font-medium">Vigilance en soirée</p>
-                            <p className="text-[11px] leading-snug">
-                              Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
-                              <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                 </div>
               </CardContent>
             </Card>
 
-            {/* Panneau prévention — version mobile (sous la carte) */}
-            <div className="lg:hidden mt-4">
+            {/* Panneau prévention — SOUS la carte (desktop & mobile) */}
+            <div className="mt-4">
               <Card className="shadow-lg border-0">
                 <CardContent className="p-4 text-xs text-gray-700">
                   <div className="flex items-center justify-center gap-2 mb-3">
                     <AlertTriangle className="w-5 h-5 text-amber-600" />
-                    <span className="font-semibold text-center text-sm text-gray-900">
-                      Rappels & sécurité
-                    </span>
+                    <span className="font-semibold text-center text-sm md:text-base text-gray-900">Rappels & sécurité</span>
                   </div>
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex items-start gap-2">
                       <span className="select-none">⏰</span>
                       <div>
                         <p className="font-medium">Ponctualité</p>
-                        <p className="text-[11px] leading-snug">
-                          Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
-                        </p>
+                        <p className="text-[11px] leading-snug">Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">
@@ -513,11 +466,7 @@ const SessionDetails = () => {
                         <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
                       </div>
                     ) : hasActiveSubscription ? (
-                      <Button
-                        onClick={handleSubscribeOrEnroll}
-                        disabled={isLoading}
-                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                      >
+                      <Button onClick={handleSubscribeOrEnroll} disabled={isLoading} className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                         {isLoading ? (
                           <div className="flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -538,9 +487,7 @@ const SessionDetails = () => {
                             <span className="font-semibold text-blue-900">Recommandé</span>
                           </div>
                           <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                          <p className="text-sm text-gray-600 mb-3">
-                            Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                          </p>
+                          <p className="text-sm text-gray-600 mb-3">Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session</p>
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
                             <Badge variant="secondary">Économique</Badge>
@@ -584,20 +531,8 @@ const SessionDetails = () => {
                       </Badge>
                     )}
                     {session.intensity && (
-                      <Badge
-                        variant={
-                          session.intensity === "marche"
-                            ? "default"
-                            : session.intensity === "course modérée"
-                            ? "secondary"
-                            : "destructive"
-                        }
-                      >
-                        {session.intensity === "marche"
-                          ? "Marche"
-                          : session.intensity === "course modérée"
-                          ? "Course modérée"
-                          : "Course intensive"}
+                      <Badge variant={session.intensity === "marche" ? "default" : session.intensity === "course modérée" ? "secondary" : "destructive"}>
+                        {session.intensity === "marche" ? "Marche" : session.intensity === "course modérée" ? "Course modérée" : "Course intensive"}
                       </Badge>
                     )}
                     {session.max_participants && (
@@ -609,11 +544,7 @@ const SessionDetails = () => {
                     {session.session_type && (
                       <Badge variant={session.session_type === "mixed" ? "outline" : "secondary"} className="flex items-center gap-1">
                         <User className="w-3 h-3" />
-                        {session.session_type === "mixed"
-                          ? "Mixte"
-                          : session.session_type === "women_only"
-                          ? "Femmes uniquement"
-                          : "Hommes uniquement"}
+                        {session.session_type === "mixed" ? "Mixte" : session.session_type === "women_only" ? "Femmes uniquement" : "Hommes uniquement"}
                       </Badge>
                     )}
                   </div>
@@ -657,7 +588,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 bg.green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
                           <User className="w-4 h-4" />
                         </div>
                       )}
@@ -688,11 +619,7 @@ const SessionDetails = () => {
                         <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
                       </div>
                     ) : hasActiveSubscription ? (
-                      <Button
-                        onClick={handleSubscribeOrEnroll}
-                        disabled={isLoading}
-                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                      >
+                      <Button onClick={handleSubscribeOrEnroll} disabled={isLoading} className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                         {isLoading ? (
                           <div className="flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -713,9 +640,7 @@ const SessionDetails = () => {
                             <span className="font-semibold text-blue-900">Recommandé</span>
                           </div>
                           <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                          <p className="text-sm text-gray-600 mb-3">
-                            Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                          </p>
+                          <p className="text-sm text-gray-600 mb-3">Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session</p>
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
                             <Badge variant="secondary">Économique</Badge>
@@ -749,9 +674,7 @@ const SessionDetails = () => {
                 <CardContent className="p-6">
                   <div className="text-center py-4">
                     <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-600" />
-                    <p className="font-semibold text-green-700">
-                      {isHost ? "Vous êtes l'organisateur" : "Vous participez à cette session"}
-                    </p>
+                    <p className="font-semibold text-green-700">{isHost ? "Vous êtes l'organisateur" : "Vous participez à cette session"}</p>
                     <p className="text-sm text-gray-600 mt-1">Rendez-vous au point de départ à l'heure prévue</p>
                   </div>
                 </CardContent>
