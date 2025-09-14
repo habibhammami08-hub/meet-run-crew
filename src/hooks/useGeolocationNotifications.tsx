@@ -88,27 +88,9 @@ export function useGeolocationNotifications(): UseGeolocationNotificationsReturn
         title = "Géolocalisation refusée";
         
         if (isMobile) {
-          if (isIOS) {
-            if (isSafari) {
-              description = "Allez dans Réglages > Safari > Confidentialité et sécurité > Services de localisation et activez Safari.";
-              actionText = "Ouvrir les réglages iOS";
-            } else if (isChrome) {
-              description = "Allez dans Réglages > Chrome > Confidentialité et sécurité > Paramètres des sites > Localisation.";
-              actionText = "Paramètres Chrome";
-            } else {
-              description = "Activez la géolocalisation dans les réglages de votre navigateur.";
-            }
-          } else if (isAndroid) {
-            if (isChrome) {
-              description = "Appuyez sur l'icône de cadenas dans la barre d'adresse et activez la localisation.";
-              actionText = "Voir les instructions";
-            } else if (isFirefox) {
-              description = "Allez dans les paramètres de Firefox > Paramètres du site > Localisation.";
-              actionText = "Paramètres Firefox";
-            } else {
-              description = "Activez la géolocalisation dans les paramètres de votre navigateur.";
-            }
-          }
+          // Message simplifié pour mobile
+          description = "Activez la géolocalisation dans vos réglages pour voir les sessions près de chez vous.";
+          actionText = "Réessayer";
         } else {
           // Version desktop
           if (isChrome) {

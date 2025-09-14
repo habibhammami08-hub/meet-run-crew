@@ -347,20 +347,6 @@ function MapPageInner() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Bouton pour demander les notifications (mobile) */}
-              {/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && 
-               permissionStatus !== 'granted' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={requestNotificationPermission}
-                  className="flex items-center gap-2 text-xs"
-                >
-                  <Bell className="w-4 h-4" />
-                  Notifications
-                </Button>
-              )}
-              
               {/* Bouton pour réessayer la géolocalisation */}
               {!userLocation && hasTriedGeolocation && (
                 <Button
