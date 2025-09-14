@@ -3,7 +3,7 @@
 // 2) Couleur du parcours en BLEU (#3b82f6)
 // 3) Hooks stables + recentrage dynamique
 // 4) Bouton "Retour aux sessions" vers /map
-// 5) Phrase d’info mise à jour (abonnement ou paiement unique)
+// 5) Phrase d’info mise à jour + "hanging indent" (emoji aligné)
 // 6) ❗️Aucun marker de départ pour les non-abonnés / non-payeurs
 
 import { useState, useEffect, useMemo } from "react";
@@ -113,7 +113,7 @@ const SessionDetails = () => {
 
     if (sessionData) {
       setSession(sessionData);
-      // ne pas centrer ici — on centre ensuite selon droits et tracé
+      // le centrage sera géré plus bas selon droits et tracé
     }
 
     const { data: participantsData } = await supabase
@@ -209,7 +209,7 @@ const SessionDetails = () => {
     return trimRouteStart(fullRoutePath, trimMeters);
   }, [fullRoutePath, canSeeExactLocation, session]);
 
-  // Recentrage : si point exact visible => départ ; sinon => au milieu du tracé tronqué ; fallback => zone approx.
+  // Recentrage : si point exact visible => départ ; sinon => milieu du tracé tronqué ; fallback => zone approx.
   useEffect(() => {
     if (!session) return;
     if (canSeeExactLocation && start) {
@@ -561,10 +561,15 @@ const SessionDetails = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* 💡 Callout en “hanging indent” (emoji dans sa colonne) */}
                       {!canSeeExactLocation && (
-                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                          💡 Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
-                          (une partie du parcours reste visible pour tous, mais son début est masqué)
+                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700 grid grid-cols-[auto,1fr] gap-2 items-start">
+                          <span aria-hidden="true">💡</span>
+                          <span>
+                            Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
+                            (une partie du parcours reste visible pour tous, mais son début est masqué)
+                          </span>
                         </div>
                       )}
                     </div>
