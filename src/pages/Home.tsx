@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown } from "lucide-react";
+import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -231,14 +231,10 @@ const Home = () => {
           />
           <div className="flex items-center gap-2">
             {user ? (
-              <>
-                <Button variant="ghost" onClick={() => navigate("/profile")}>
-                  Profil
-                </Button>
-                <Button variant="ghost" onClick={signOut}>
-                  Déconnexion
-                </Button>
-              </>
+              <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2">
+                <User size={16} />
+                Profil
+              </Button>
             ) : (
               <div className="flex items-center gap-2">
                 <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-primary font-semibold">
