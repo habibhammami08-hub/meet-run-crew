@@ -33,7 +33,11 @@ export function getSupabase(): SupabaseClient<Database> | null {
     },
   });
 
-  // Remove duplicate auth listener - will be handled in AuthProvider only
+  // Enregistrer ici l'abonnement (une seule fois)
+  _client.auth.onAuthStateChange(async () => {
+    try { await ensureUserProfile(); } 
+    catch (e) { console.error('[profile]', e); }
+  });
 
   return _client;
 }
@@ -128,51 +132,23 @@ export const ensureUserProfile = async () => {
   const client = getSupabase();
   if (!client) return null;
   
-  try {
-    const { data: { user }, error: userError } = await client.auth.getUser();
-    if (userError || !user) {
-      console.warn("[profile] No authenticated user found:", userError);
-      return null;
-    }
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return null;
 
-    const { data: profile, error: selErr } = await client
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
-      
-    if (selErr && selErr.code !== 'PGRST116') {
-      console.error("[profile] Error fetching profile:", selErr);
-      throw selErr;
-    }
-    
-    if (profile) {
-      console.debug("[profile] Existing profile found:", profile.id);
-      return profile;
-    }
+  const { data: profile, error: selErr } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (selErr && selErr.code !== 'PGRST116') throw selErr;
+  if (profile) return profile;
 
-    console.debug("[profile] Creating new profile for user:", user.id);
-    const payload = {
-      id: user.id,
-      email: user.email ?? '',
-      full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
-    };
-    
-    const { data: created, error: insErr } = await client
-      .from('profiles')
-      .insert(payload)
-      .select('*')
-      .single();
-      
-    if (insErr) {
-      console.error("[profile] Error creating profile:", insErr);
-      throw insErr;
-    }
-    
-    console.debug("[profile] Profile created successfully:", created.id);
-    return created;
-  } catch (error) {
-    console.error("[profile] ensureUserProfile error:", error);
-    throw error;
-  }
+  const payload = {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+  };
+  const { data: created, error: insErr } = await client.from('profiles').insert(payload).select('*').single();
+  if (insErr) throw insErr;
+  return created;
 };
