@@ -402,55 +402,53 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
-            {/* Panneau prévention — SOUS la carte (desktop & mobile) */}
-            <div className="mt-4">
-              <Card className="shadow-lg border-0">
-                <CardContent className="p-4 text-xs text-gray-700">
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-600" />
-                    <span className="font-semibold text-center text-sm md:text-base text-gray-900">Rappels & sécurité</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="flex items-start gap-2">
-                      <span className="select-none">⏰</span>
-                      <div>
-                        <p className="font-medium">Ponctualité</p>
-                        <p className="text-[11px] leading-snug">Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="select-none">🤝</span>
-                      <div>
-                        <p className="font-medium">Bienveillance</p>
-                        <p className="text-[11px] leading-snug">
-                          MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
-                          <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="select-none">📱</span>
-                      <div>
-                        <p className="font-medium">Préviens en cas d’empêchement</p>
-                        <p className="text-[11px] leading-snug">
-                          Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
-                          <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="select-none">🌙</span>
-                      <div>
-                        <p className="font-medium">Vigilance en soirée</p>
-                        <p className="text-[11px] leading-snug">
-                          Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
-                          <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
-                        </p>
-                      </div>
+            {/* Panneau prévention — SANS cadre/bloc blanc (desktop & mobile) */}
+            <div className="mt-3">
+              <div className="px-1">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <h3 className="font-semibold text-center text-sm md:text-base text-gray-900">Rappels & sécurité</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-700">
+                  <div className="flex items-start gap-2">
+                    <span className="select-none">⏰</span>
+                    <div>
+                      <p className="font-medium">Ponctualité</p>
+                      <p className="text-[11px] leading-snug">Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="flex items-start gap-2">
+                    <span className="select-none">🤝</span>
+                    <div>
+                      <p className="font-medium">Bienveillance</p>
+                      <p className="text-[11px] leading-snug">
+                        MeetRun = sport + rencontre. Encourage les autres, respecte leur rythme et profite de l’expérience collective.
+                        <span className="block">(<em>Tout comportement inapproprié ou irrespectueux peut entraîner une exclusion de la communauté.</em>)</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="select-none">📱</span>
+                    <div>
+                      <p className="font-medium">Préviens en cas d’empêchement</p>
+                      <p className="text-[11px] leading-snug">
+                        Désinscris-toi avant le départ si tu ne peux plus venir. Ça aide l’hôte et les autres participants.
+                        <span className="block">(<em>L’absence sans désinscription préalable peut entraîner une exclusion de la communauté.</em>)</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="select-none">🌙</span>
+                    <div>
+                      <p className="font-medium">Vigilance en soirée</p>
+                      <p className="text-[11px] leading-snug">
+                        Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
+                        <span className="block">(<em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>)</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Rejoindre — version mobile sous la carte */}
@@ -588,7 +586,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg.green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
                           <User className="w-4 h-4" />
                         </div>
                       )}
