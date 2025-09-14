@@ -1,15 +1,14 @@
-// src/pages/SessionDetails.tsx — version Google Maps (parcours exact + départ flouté si besoin)
+// src/pages/SessionDetails.tsx — correctif : hooks stables (Erreur #310), recentrage dynamique, Google Maps
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, Clock, Users, Trash2, Crown, CreditCard, CheckCircle, User, Navigation } from "lucide-react";
+import { MapPin, Calendar, Clock, Users, Trash2, Crown, CreditCard, CheckCircle, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-// import SessionDetailMap from "@/components/SessionDetailMap"; // ❌ supprimé (Leaflet)
 import polyline from "@mapbox/polyline";
 
 // ————————————————————————————————————————————————————————————
@@ -103,10 +102,10 @@ const SessionDetails = () => {
 
     if (sessionData) {
       setSession(sessionData);
-      // Centrer la carte sur le point de départ (flouté si besoin)
-      const canSeeExactLocation = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
+      // Centrer la carte sur le point de départ (flouté si besoin) — centre provisoire, sera affiné via hooks
+      const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
-      const shown = canSeeExactLocation ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1000, sessionData.id);
+      const shown = canSeeExact ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1000, sessionData.id);
       setCenter(shown);
     }
 
@@ -175,45 +174,35 @@ const SessionDetails = () => {
     }
   };
 
-  if (!session || !center) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Chargement de la session...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // ————————— Dérivées stables AVANT tout return (fix #310) —————————
+  const isHost = !!(user && session && session.host_id === user.id);
+  const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));
 
-  const isHost = user && session.host_id === user.id;
-  const canSeeExactLocation = isHost || hasActiveSubscription;
-  const isSessionFull = participants.length >= session.max_participants;
+  const start = useMemo<LatLng | null>(() => (
+    session ? { lat: session.start_lat, lng: session.start_lng } : null
+  ), [session]);
 
-  // ————————— Map data —————————
-  const start: LatLng | null = useMemo(() => 
-    session ? ({ lat: session.start_lat, lng: session.start_lng }) : null, 
-    [session?.start_lat, session?.start_lng]
-  );
-  
-  const end: LatLng | null = useMemo(() => 
-    (session?.end_lat && session?.end_lng) ? ({ lat: session.end_lat, lng: session.end_lng }) : null, 
-    [session?.end_lat, session?.end_lng]
-  );
-  
-  const shownStart: LatLng | null = useMemo(() => {
+  const end = useMemo<LatLng | null>(() => (
+    session && session.end_lat && session.end_lng ? { lat: session.end_lat, lng: session.end_lng } : null
+  ), [session]);
+
+  const shownStart = useMemo<LatLng | null>(() => {
     if (!session || !start) return null;
-    return canSeeExactLocation ? start : jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id);
-  }, [canSeeExactLocation, start, session?.blur_radius_m, session?.id]);
-  
-  const routePath: LatLng[] = useMemo(() => 
-    session ? pathFromPolyline(session.route_polyline) : [], 
-    [session?.route_polyline]
-  );
+    if (canSeeExactLocation) return start;
+    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id);
+    return { lat: j.lat, lng: j.lng };
+  }, [session, start, canSeeExactLocation]);
+
+  const routePath = useMemo<LatLng[]>(() => (
+    session?.route_polyline ? pathFromPolyline(session.route_polyline) : []
+  ), [session]);
+
+  // Recentrage si le point de départ visible change (ex: l'utilisateur devient abonné)
+  useEffect(() => {
+    if (shownStart && (center?.lat !== shownStart.lat || center?.lng !== shownStart.lng)) {
+      setCenter(shownStart);
+    }
+  }, [shownStart?.lat, shownStart?.lng]);
 
   const mapOptions = useMemo(() => ({
     mapTypeControl: false,
@@ -229,9 +218,26 @@ const SessionDetails = () => {
     ],
   }), []);
 
-  const userMarkerIcon = useMemo(() => createCustomMarkerIcon('#3b82f6', '<circle cx="9" cy="9" r="2" fill="white"/>'), []);
   const startMarkerIcon = useMemo(() => createCustomMarkerIcon(canSeeExactLocation ? '#dc2626' : '#047857'), [canSeeExactLocation]);
   const endMarkerIcon = useMemo(() => createCustomMarkerIcon('#ef4444'), []);
+
+  // ————————— Early return APRÈS tous les hooks —————————
+  if (!session || !shownStart || !center) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Chargement de la session...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isSessionFull = participants.length >= session.max_participants;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -397,9 +403,7 @@ const SessionDetails = () => {
                   <div className="h-[600px] w-full">
                     <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
                       {/* Départ (flouté si non abonné/non hôte) */}
-                      {shownStart && (
-                        <MarkerF position={shownStart} icon={startMarkerIcon} title={canSeeExactLocation ? "Point de départ (exact)" : "Point de départ (zone approximative)"} />
-                      )}
+                      <MarkerF position={shownStart} icon={startMarkerIcon} title={canSeeExactLocation ? "Point de départ (exact)" : "Point de départ (zone approximative)"} />
 
                       {/* Arrivée si définie (toujours exacte) */}
                       {end && (
