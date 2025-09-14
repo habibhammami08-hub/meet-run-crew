@@ -1,3 +1,4 @@
+// src/pages/Profile.tsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,19 @@ type Session = {
   status: string;
 };
 
+// ✅ Helpers refresh + retry
+function getSb() { return getSupabase(); }
+
+async function withAuthRetry<T>(fn: () => Promise<T>) {
+  const supabase = getSb();
+  try {
+    return await fn();
+  } catch {
+    try { await supabase.auth.refreshSession(); } catch {}
+    return await fn();
+  }
+}
+
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -58,49 +72,50 @@ export default function ProfilePage() {
 
   const supabase = getSupabase();
 
-  // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
+  // Refs cleanup
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // CORRECTION: Redirection avec cleanup
+  // Redirection avec cleanup
   useEffect(() => {
     if (user === null) {
       navigate('/auth?returnTo=/profile');
       return;
     }
-    
     if (user === undefined) {
       return;
     }
-    
     if (user && loading && mountedRef.current) {
       loadProfile(user.id);
     }
-  }, [user, navigate]);
+  }, [user, navigate]); // eslint-disable-line
 
-  // CORRECTION: Fonction de chargement des sessions avec AbortController
+  // Chargement des sessions (avec retry)
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
 
     try {
-      console.log("[Profile] Fetching sessions for user:", userId);
-      
-      const { data: sessions, error } = await supabase
-        .from('sessions')
-        .select(`
-          id,
-          title,
-          scheduled_at,
-          start_place,
-          distance_km,
-          intensity,
-          max_participants,
-          status
-        `)
-        .eq('host_id', userId)
-        .in('status', ['published', 'active'])
-        .not('scheduled_at', 'is', null)
-        .order('scheduled_at', { ascending: false });
+      // refresh silencieux
+      await supabase.auth.refreshSession().catch(() => {});
+
+      const { data: sessions, error } = await withAuthRetry(() =>
+        supabase
+          .from('sessions')
+          .select(`
+            id,
+            title,
+            scheduled_at,
+            start_place,
+            distance_km,
+            intensity,
+            max_participants,
+            status
+          `)
+          .eq('host_id', userId)
+          .in('status', ['published', 'active'])
+          .not('scheduled_at', 'is', null)
+          .order('scheduled_at', { ascending: false })
+      ) as any;
 
       if (!mountedRef.current) return;
 
@@ -111,24 +126,24 @@ export default function ProfilePage() {
 
       if (!sessions) return;
 
-      // Compter les participants avec gestion d'erreur
+      // Compter les participants
       const sessionsWithCounts = await Promise.all(
-        sessions.map(async (session) => {
+        sessions.map(async (session: Session) => {
           if (!mountedRef.current) return null;
-          
           try {
-            const { count } = await supabase
-              .from('enrollments')
-              .select('*', { count: 'exact' })
-              .eq('session_id', session.id)
-              .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-
+            const { count } = await withAuthRetry(() =>
+              supabase
+                .from('enrollments')
+                .select('*', { count: 'exact' })
+                .eq('session_id', session.id)
+                .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+            ) as any;
             return {
               ...session,
               current_participants: (count || 0) + 1
             };
-          } catch (error) {
-            console.warn(`[Profile] Error counting participants for session ${session.id}:`, error);
+          } catch (err) {
+            console.warn(`[Profile] Error counting participants for session ${session.id}:`, err);
             return {
               ...session,
               current_participants: 1
@@ -137,11 +152,8 @@ export default function ProfilePage() {
         })
       );
 
-      // Filtrer les null et vérifier si le composant est encore monté
-      const validSessions = sessionsWithCounts.filter(Boolean);
-      
+      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
       if (mountedRef.current) {
-        console.log("[Profile] Sessions loaded:", validSessions.length);
         setMySessions(validSessions);
       }
     } catch (error) {
@@ -151,38 +163,42 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de mise à jour des stats avec vérification mounted
+  // Update stats profil (avec retry)
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
 
     try {
-      console.log("[Profile] Updating profile statistics for user:", userId);
+      await supabase.auth.refreshSession().catch(() => {});
       
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
-        supabase
-          .from('sessions')
-          .select('*', { count: 'exact' })
-          .eq('host_id', userId)
-          .eq('status', 'published'),
-        supabase
-          .from('enrollments')
-          .select('*', { count: 'exact' })
-          .eq('user_id', userId)
-          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+        withAuthRetry(() =>
+          supabase
+            .from('sessions')
+            .select('*', { count: 'exact' })
+            .eq('host_id', userId)
+            .eq('status', 'published')
+        ) as any,
+        withAuthRetry(() =>
+          supabase
+            .from('enrollments')
+            .select('*', { count: 'exact' })
+            .eq('user_id', userId)
+            .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+        ) as any
       ]);
 
       if (!mountedRef.current) return;
 
-      await supabase
-        .from('profiles')
-        .update({ 
-          sessions_hosted: sessionsHosted || 0,
-          sessions_joined: sessionsJoined || 0,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-
-      console.log("[Profile] Stats updated successfully");
+      await withAuthRetry(() =>
+        supabase
+          .from('profiles')
+          .update({ 
+            sessions_hosted: sessionsHosted || 0,
+            sessions_joined: sessionsJoined || 0,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+      );
     } catch (error) {
       if (mountedRef.current) {
         console.error('[Profile] Error updating profile stats:', error);
@@ -190,7 +206,7 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de chargement du profil avec AbortController
+  // Chargement du profil (avec refresh + retry)
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase || !mountedRef.current) {
       setLoading(false);
@@ -201,21 +217,21 @@ export default function ProfilePage() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-
-    // Créer un nouveau controller
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
     setLoading(true);
     
     try {
-      console.log("[Profile] Loading profile for user:", userId);
+      await supabase.auth.refreshSession().catch(() => {});
 
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
-        .eq("id", userId)
-        .maybeSingle();
+      const { data: profileData, error: profileError } = await withAuthRetry(() =>
+        supabase
+          .from("profiles")
+          .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
+          .eq("id", userId)
+          .maybeSingle()
+      ) as any;
 
       if (signal.aborted || !mountedRef.current) return;
 
@@ -227,26 +243,26 @@ export default function ProfilePage() {
           variant: "destructive"
         });
       } else if (profileData) {
-        console.log("Profile loaded:", profileData);
         setProfile(profileData);
         setFullName(profileData.full_name || "");
         setAge(profileData.age ?? "");
         setCity(profileData.city || "");
         setSportLevel("Occasionnel");
       } else {
-        console.log("No profile found, creating one...");
-        const { data: newProfile, error: createError } = await supabase
-          .from("profiles")
-          .upsert({
-            id: userId,
-            email: user?.email || '',
-            full_name: user?.email?.split('@')[0] || 'Runner',
-            sessions_hosted: 0,
-            sessions_joined: 0,
-            total_km: 0
-          })
-          .select()
-          .single();
+        const { data: newProfile, error: createError } = await withAuthRetry(() =>
+          supabase
+            .from("profiles")
+            .upsert({
+              id: userId,
+              email: user?.email || '',
+              full_name: user?.email?.split('@')[0] || 'Runner',
+              sessions_hosted: 0,
+              sessions_joined: 0,
+              total_km: 0
+            })
+            .select()
+            .single()
+        ) as any;
 
         if (signal.aborted || !mountedRef.current) return;
 
@@ -261,7 +277,6 @@ export default function ProfilePage() {
 
       if (signal.aborted || !mountedRef.current) return;
 
-      // Charger les sessions et mettre à jour les stats
       await Promise.all([
         fetchMySessions(userId),
         updateProfileStats(userId)
@@ -285,19 +300,21 @@ export default function ProfilePage() {
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
-  // CORRECTION: Fonction de suppression avec vérification mounted
+  // Suppression session (avec retry)
   const handleDeleteSession = async (sessionId: string) => {
     if (!supabase || !user?.id || !mountedRef.current) return;
 
     setDeletingSession(sessionId);
     try {
-      console.log("[Profile] Deleting session:", sessionId);
+      await supabase.auth.refreshSession().catch(() => {});
       
-      const { error: sessionError } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId)
-        .eq('host_id', user.id);
+      const { error: sessionError } = await withAuthRetry(() =>
+        supabase
+          .from('sessions')
+          .delete()
+          .eq('id', sessionId)
+          .eq('host_id', user.id)
+      ) as any;
 
       if (sessionError) {
         throw sessionError;
@@ -329,12 +346,14 @@ export default function ProfilePage() {
     }
   };
 
-  // CORRECTION: Fonction de sauvegarde avec vérification mounted
+  // Sauvegarde profil (inchangée sur le fond, juste refresh avant)
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
     
     setSaving(true);
     try {
+      await supabase.auth.refreshSession().catch(() => {});
+
       let avatarUrl = profile.avatar_url || null;
 
       if (avatarFile) {
@@ -363,16 +382,18 @@ export default function ProfilePage() {
       if (!mountedRef.current) return;
 
       const ageValue = age === "" ? null : Number(age);
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          age: ageValue,
-          city: city,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
+      const { error } = await withAuthRetry(() =>
+        supabase
+          .from("profiles")
+          .update({
+            full_name: fullName,
+            age: ageValue,
+            city: city,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", user.id)
+      ) as any;
 
       if (!mountedRef.current) return;
 
@@ -415,15 +436,12 @@ export default function ProfilePage() {
     }
   }
 
-  // CORRECTION: Cleanup général strict
+  // Cleanup
   useEffect(() => {
     mountedRef.current = true;
-    
     return () => {
       console.log("[Profile] Component unmounting - cleaning up all resources");
       mountedRef.current = false;
-      
-      // Cleanup AbortController
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -431,12 +449,9 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Si l'utilisateur n'est pas connecté, on ne render rien (redirection en cours)
-  if (user === null) {
-    return null;
-  }
+  // États d'UI
+  if (user === null) return null;
 
-  // Si on est en cours de chargement de l'auth
   if (user === undefined) {
     return (
       <div className="container mx-auto p-4 space-y-6">
@@ -450,7 +465,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Si on est en cours de chargement du profil
   if (loading) {
     return (
       <div className="container mx-auto p-4 space-y-6">
@@ -604,7 +618,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* My Sessions */}
+      {/* Mes sessions */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
