@@ -1,5 +1,5 @@
 // src/pages/Map.tsx - Version moderne avec authentification intégrée
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -10,8 +10,9 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, Users, Filter, RefreshCw, Navigation, Calendar, Zap } from "lucide-react";
+import { MapPin, Clock, Users, Filter, RefreshCw, Navigation, Calendar, Zap, Bell } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 
 type LatLng = { lat: number; lng: number; };  
 type SessionRow = {  
@@ -77,12 +78,20 @@ function MapPageInner() {
   const [filterRadius, setFilterRadius] = useState<string>("all");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
+  const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
 
   // Refs pour cleanup
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const channelRef = useRef<any>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Hook pour les notifications de géolocalisation
+  const { 
+    requestNotificationPermission, 
+    handleGeolocationError, 
+    permissionStatus 
+  } = useGeolocationNotifications();
 
   // Fonction pour convertir l'intensité UI vers DB
   const uiToDbIntensity = (uiIntensity: string): string | null => {
@@ -116,9 +125,11 @@ function MapPageInner() {
     return { url: 'data:image/svg+xml,' + encodeURIComponent(svg) };
   };
 
-  // Geolocalisation
-  useEffect(() => {  
+  // Fonction pour demander la géolocalisation
+  const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation || !mountedRef.current) return;
+    
+    setHasTriedGeolocation(true);
     
     const successCallback = (position: GeolocationPosition) => {
       if (!mountedRef.current) return;
@@ -130,13 +141,29 @@ function MapPageInner() {
     const errorCallback = (error: GeolocationPositionError) => {
       if (!mountedRef.current) return;
       console.warn("[map] Geolocation error:", error);
+      handleGeolocationError(error);
     };
     
+    // Paramètres optimisés pour mobile
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     navigator.geolocation.getCurrentPosition(
-      successCallback, errorCallback,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      successCallback, 
+      errorCallback,
+      { 
+        enableHighAccuracy: isMobile, 
+        timeout: isMobile ? 15000 : 10000, 
+        maximumAge: 300000 
+      }
     );
-  }, []);
+  }, [handleGeolocationError]);
+
+  // Geolocalisation automatique au montage
+  useEffect(() => {  
+    if (!hasTriedGeolocation) {
+      requestGeolocation();
+    }
+  }, [requestGeolocation, hasTriedGeolocation]);
 
   // Fetch sessions
   const fetchSessions = async () => {  
@@ -320,6 +347,33 @@ function MapPageInner() {
             </div>
             
             <div className="flex items-center gap-3">
+              {/* Bouton pour demander les notifications (mobile) */}
+              {/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && 
+               permissionStatus !== 'granted' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestNotificationPermission}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <Bell className="w-4 h-4" />
+                  Notifications
+                </Button>
+              )}
+              
+              {/* Bouton pour réessayer la géolocalisation */}
+              {!userLocation && hasTriedGeolocation && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestGeolocation}
+                  className="flex items-center gap-2"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Me localiser
+                </Button>
+              )}
+              
               <Button
                 variant="outline"
                 size="sm"
