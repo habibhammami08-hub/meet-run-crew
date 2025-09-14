@@ -2,14 +2,16 @@
 // 1) Tracé (polyline) coupé au début pour ne pas dévoiler le départ aux non-abonnés
 // 2) Couleur du parcours en BLEU (#3b82f6)
 // 3) Hooks stables (évite l'erreur React #310) + recentrage dynamique
+// 4) Bouton "Retour aux sessions" vers /map
+// 5) Phrase d'info mise à jour (abonnement ou paiement unique)
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, Clock, Users, Trash2, Crown, CreditCard, CheckCircle, User } from "lucide-react";
+import { MapPin, Calendar, Clock, Users, Trash2, Crown, CreditCard, CheckCircle, User, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -220,7 +222,7 @@ const SessionDetails = () => {
     if (shownStart && (center?.lat !== shownStart.lat || center?.lng !== shownStart.lng)) {
       setCenter(shownStart);
     }
-  }, [shownStart?.lat, shownStart?.lng]);
+  }, [shownStart?.lat, shownStart?.lng]); // eslint-disable-line
 
   const mapOptions = useMemo(() => ({
     mapTypeControl: false,
@@ -283,7 +285,7 @@ const SessionDetails = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
-        {/* Header */}
+        {/* Header + bouton retour */}
         <div className="mb-6">
           <div className="flex items-start justify-between">
             <div>
@@ -299,12 +301,19 @@ const SessionDetails = () => {
                 </div>
               </div>
             </div>
-            {isHost && (
-              <Button variant="outline" size="sm" disabled={isDeleting} onClick={handleDeleteSession}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Supprimer
+
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigate('/map')}>
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Retour aux sessions
               </Button>
-            )}
+              {isHost && (
+                <Button variant="outline" size="sm" disabled={isDeleting} onClick={handleDeleteSession}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Supprimer
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -370,7 +379,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold"><User className="w-4 h-4" /></div>
+                        <div className="w-8 h-8 bg.green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold"><User className="w-4 h-4" /></div>
                       )}
                       <div className="flex-1">
                         <p className="text-sm font-medium">{(canSeeExactLocation || isHost) ? participant.profiles?.full_name || `Participant ${index + 1}` : `Participant ${index + 1}`}</p>
@@ -481,7 +490,9 @@ const SessionDetails = () => {
                         )}
                       </div>
                       {!canSeeExactLocation && (
-                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">💡 Abonnez-vous pour voir le lieu exact (le parcours reste visible pour tous, mais son début est masqué).</div>
+                        <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                          💡 Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact (une partie du parcours reste visible pour tous, mais son début est masqué)
+                        </div>
                       )}
                     </div>
                   </div>
