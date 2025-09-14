@@ -365,7 +365,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // CORRECTION: Initialisation avec gestion d'erreur améliorée
+    // CORRECTION: Initialisation avec détection d'expiration et refresh forcé
     const initAuth = async () => {
       if (!supabase) {
         logger.warn("[auth] Client Supabase indisponible - authentification désactivée");
@@ -380,10 +380,49 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             window.location.pathname !== '/goodbye') {
           window.history.replaceState(null, '', window.location.pathname);
         }
+
+        // CORRECTION: Nettoyage des flags localStorage résiduels
+        localStorage.removeItem('deletion_in_progress');
+        localStorage.removeItem('logout_in_progress');
         
-        const { data: { session }, error } = await supabase.auth.getSession();
+        logger.debug("[auth] Getting initial session...");
+        let { data: { session }, error } = await supabase.auth.getSession();
+        
         if (error) {
           logger.error("Error getting initial session:", error);
+        }
+
+        // CORRECTION: Si session undefined/null, tenter un refresh puis re-récupérer
+        if (!session) {
+          logger.debug("[auth] No initial session found, attempting refresh...");
+          try {
+            const { data: refreshResult, error: refreshError } = await supabase.auth.refreshSession();
+            if (!refreshError && refreshResult.session) {
+              session = refreshResult.session;
+              logger.debug("[auth] Session refreshed successfully");
+            } else {
+              logger.debug("[auth] Refresh failed or no session:", refreshError?.message);
+            }
+          } catch (refreshErr) {
+            logger.warn("[auth] Refresh session error:", refreshErr);
+          }
+        }
+
+        // CORRECTION: Validation supplémentaire - vérifier si le token est valide
+        if (session?.access_token) {
+          try {
+            // Test avec un appel API simple pour valider le token
+            const { data: testUser, error: userError } = await supabase.auth.getUser();
+            if (userError || !testUser.user) {
+              logger.warn("[auth] Token seems invalid, clearing session");
+              session = null;
+            } else {
+              logger.debug("[auth] Token validated successfully");
+            }
+          } catch (tokenError) {
+            logger.warn("[auth] Token validation failed:", tokenError);
+            session = null;
+          }
         }
         
         await handleAuthStateChange('INITIAL_SESSION', session);
