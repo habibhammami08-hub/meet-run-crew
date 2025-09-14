@@ -291,9 +291,11 @@ const Auth = () => {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
-            <h1 className="text-3xl font-bold text-primary">
-              MeetRun
-            </h1>
+            <img 
+              src="/src/assets/meetrun-logo-green.png" 
+              alt="MeetRun" 
+              className="h-10 w-auto"
+            />
           </div>
           
           <div className="space-y-2 mb-6">
