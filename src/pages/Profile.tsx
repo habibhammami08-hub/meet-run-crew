@@ -42,7 +42,6 @@ export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-
   const [profile, setProfile] = useState<Profile | null>(null);
   const [mySessions, setMySessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,9 +68,11 @@ export default function ProfilePage() {
       navigate('/auth?returnTo=/profile');
       return;
     }
+    
     if (user === undefined) {
       return;
     }
+    
     if (user && loading && mountedRef.current) {
       loadProfile(user.id);
     }
@@ -83,10 +84,18 @@ export default function ProfilePage() {
 
     try {
       console.log("[Profile] Fetching sessions for user:", userId);
+      
       const { data: sessions, error } = await supabase
         .from('sessions')
         .select(`
-          id, title, scheduled_at, start_place, distance_km, intensity, max_participants, status
+          id,
+          title,
+          scheduled_at,
+          start_place,
+          distance_km,
+          intensity,
+          max_participants,
+          status
         `)
         .eq('host_id', userId)
         .in('status', ['published', 'active'])
@@ -106,6 +115,7 @@ export default function ProfilePage() {
       const sessionsWithCounts = await Promise.all(
         sessions.map(async (session) => {
           if (!mountedRef.current) return null;
+          
           try {
             const { count } = await supabase
               .from('enrollments')
@@ -113,17 +123,23 @@ export default function ProfilePage() {
               .eq('session_id', session.id)
               .in('status', ['paid', 'included_by_subscription', 'confirmed']);
 
-            return { ...session, current_participants: (count || 0) + 1 };
+            return {
+              ...session,
+              current_participants: (count || 0) + 1
+            };
           } catch (error) {
             console.warn(`[Profile] Error counting participants for session ${session.id}:`, error);
-            return { ...session, current_participants: 1 };
+            return {
+              ...session,
+              current_participants: 1
+            };
           }
         })
       );
 
       // Filtrer les null et vérifier si le composant est encore monté
-      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
-
+      const validSessions = sessionsWithCounts.filter(Boolean);
+      
       if (mountedRef.current) {
         console.log("[Profile] Sessions loaded:", validSessions.length);
         setMySessions(validSessions);
@@ -141,7 +157,7 @@ export default function ProfilePage() {
 
     try {
       console.log("[Profile] Updating profile statistics for user:", userId);
-
+      
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase
           .from('sessions')
@@ -159,7 +175,7 @@ export default function ProfilePage() {
 
       await supabase
         .from('profiles')
-        .update({
+        .update({ 
           sessions_hosted: sessionsHosted || 0,
           sessions_joined: sessionsJoined || 0,
           updated_at: new Date().toISOString()
@@ -191,7 +207,7 @@ export default function ProfilePage() {
     const signal = abortControllerRef.current.signal;
 
     setLoading(true);
-
+    
     try {
       console.log("[Profile] Loading profile for user:", userId);
 
@@ -250,6 +266,7 @@ export default function ProfilePage() {
         fetchMySessions(userId),
         updateProfileStats(userId)
       ]);
+
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log("[Profile] Request aborted");
@@ -275,7 +292,7 @@ export default function ProfilePage() {
     setDeletingSession(sessionId);
     try {
       console.log("[Profile] Deleting session:", sessionId);
-
+      
       const { error: sessionError } = await supabase
         .from('sessions')
         .delete()
@@ -291,9 +308,11 @@ export default function ProfilePage() {
           title: "Session supprimée",
           description: "La session a été supprimée avec succès."
         });
+
         await fetchMySessions(user.id);
         updateProfileStats(user.id);
       }
+      
     } catch (error: any) {
       if (mountedRef.current) {
         console.error('[Profile] Delete error:', error);
@@ -313,7 +332,7 @@ export default function ProfilePage() {
   // CORRECTION: Fonction de sauvegarde avec vérification mounted
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
-
+    
     setSaving(true);
     try {
       let avatarUrl = profile.avatar_url || null;
@@ -321,6 +340,7 @@ export default function ProfilePage() {
       if (avatarFile) {
         const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
         const path = `avatars/${user.id}/avatar.${ext}`;
+
         const { error: uploadError } = await supabase.storage
           .from("avatars")
           .upload(path, avatarFile, { upsert: true });
@@ -343,7 +363,6 @@ export default function ProfilePage() {
       if (!mountedRef.current) return;
 
       const ageValue = age === "" ? null : Number(age);
-
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -366,10 +385,17 @@ export default function ProfilePage() {
         return;
       }
 
-      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city: city, avatar_url: avatarUrl } : null);
+      setProfile(prev => prev ? {
+        ...prev,
+        full_name: fullName,
+        age: ageValue,
+        city: city,
+        avatar_url: avatarUrl
+      } : null);
+
       setEditing(false);
       setAvatarFile(null);
-
+      
       toast({
         title: "Profil mis à jour",
         description: "Vos modifications ont été sauvegardées."
@@ -392,10 +418,11 @@ export default function ProfilePage() {
   // CORRECTION: Cleanup général strict
   useEffect(() => {
     mountedRef.current = true;
+    
     return () => {
       console.log("[Profile] Component unmounting - cleaning up all resources");
       mountedRef.current = false;
-
+      
       // Cleanup AbortController
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -525,8 +552,8 @@ export default function ProfilePage() {
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? "Sauvegarde..." : "Sauvegarder"}
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   onClick={() => {
                     setEditing(false);
                     setAvatarFile(null);
@@ -540,9 +567,9 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 {profile.avatar_url && (
-                  <img
-                    src={profile.avatar_url}
-                    alt="Avatar"
+                  <img 
+                    src={profile.avatar_url} 
+                    alt="Avatar" 
                     className="w-16 h-16 rounded-full object-cover"
                   />
                 )}
@@ -584,11 +611,14 @@ export default function ProfilePage() {
             <Calendar className="w-5 h-5" />
             Mes Sessions ({mySessions.length})
           </h2>
-
+          
           {mySessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>Vous n'avez pas encore organisé de sessions.</p>
-              <Button onClick={() => navigate('/create')} className="mt-4">
+              <Button 
+                onClick={() => navigate('/create')} 
+                className="mt-4"
+              >
                 Créer ma première session
               </Button>
             </div>
@@ -599,7 +629,6 @@ export default function ProfilePage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-lg">{session.title}</h3>
-
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
@@ -611,23 +640,19 @@ export default function ProfilePage() {
                             minute: '2-digit'
                           })}
                         </div>
-
                         {session.start_place && (
                           <div className="flex items-center gap-1">
                             <MapPin className="w-4 h-4" />
                             {session.start_place}
                           </div>
                         )}
-
                         {session.distance_km && (
                           <span>{session.distance_km} km</span>
                         )}
-
                         {session.intensity && (
                           <Badge variant="secondary">{session.intensity}</Badge>
                         )}
                       </div>
-
                       <div className="flex items-center gap-2 mt-2">
                         <div className="flex items-center gap-1 text-sm">
                           <Users className="w-4 h-4" />
@@ -638,7 +663,6 @@ export default function ProfilePage() {
                         </Badge>
                       </div>
                     </div>
-
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -647,7 +671,6 @@ export default function ProfilePage() {
                       >
                         Voir
                       </Button>
-
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
@@ -699,7 +722,6 @@ export default function ProfilePage() {
                 Se déconnecter
               </Button>
             </div>
-
             <AccountDeletionComponent />
           </div>
         </CardContent>
