@@ -116,7 +116,7 @@ function MapPageInner() {
     return { url: 'data:image/svg+xml,' + encodeURIComponent(svg) };
   };
 
-  // Geolocalisation
+  // Geolocalisation avec prompt pour mobile
   useEffect(() => {  
     if (!navigator.geolocation || !mountedRef.current) return;
     
@@ -130,11 +130,24 @@ function MapPageInner() {
     const errorCallback = (error: GeolocationPositionError) => {
       if (!mountedRef.current) return;
       console.warn("[map] Geolocation error:", error);
+      
+      // Sur mobile, proposer d'activer la géolocalisation
+      if (window.innerWidth <= 768 && error.code === error.PERMISSION_DENIED) {
+        // Fallback sur Paris si géolocalisation refusée sur mobile
+        setCenter({ lat: 48.8566, lng: 2.3522 });
+      }
     };
     
+    // Sur mobile, demander la géolocalisation de manière plus proactive
+    const isMobile = window.innerWidth <= 768;
     navigator.geolocation.getCurrentPosition(
-      successCallback, errorCallback,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      successCallback, 
+      errorCallback,
+      { 
+        enableHighAccuracy: isMobile, // Plus précis sur mobile
+        timeout: isMobile ? 15000 : 10000, // Plus de temps sur mobile
+        maximumAge: isMobile ? 60000 : 300000 // Cache plus court sur mobile pour plus de précision
+      }
     );
   }, []);
 
@@ -229,12 +242,16 @@ function MapPageInner() {
     return filtered;
   }, [sessions, userLocation, filterRadius, filterIntensity, filterSessionType]);
 
-  // Sessions les plus proches filtrées
+  // Sessions les plus proches filtrées - optimisé pour mobile
   const filteredNearestSessions = useMemo(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const maxResults = isMobile ? 4 : 6; // Moins de résultats sur mobile
+    const maxDistance = isMobile ? 15 : 25; // Rayon plus restreint sur mobile pour plus de pertinence
+    
     return filteredSessions
-      .filter(s => s.distanceFromUser !== null && s.distanceFromUser <= 25)
+      .filter(s => s.distanceFromUser !== null && s.distanceFromUser <= maxDistance)
       .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-      .slice(0, 6);
+      .slice(0, maxResults);
   }, [filteredSessions]);
 
   // Effects
@@ -539,7 +556,13 @@ function MapPageInner() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Navigation className="w-5 h-5 text-green-600" />
-                  Sessions près de vous
+                  <span className="hidden lg:inline">Sessions près de vous</span>
+                  <span className="lg:hidden">Sessions proches</span>
+                  {userLocation && (
+                    <Badge variant="secondary" className="text-xs lg:hidden">
+                      Géolocalisé
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -550,15 +573,32 @@ function MapPageInner() {
                     ))}
                   </div>
                 ) : filteredNearestSessions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Aucune session proche trouvée</p>
-                    <p className="text-xs mt-1">
-                      {filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all"
-                        ? "Essayez d'élargir vos filtres"
-                        : "Activez la géolocalisation"
-                      }
-                    </p>
+                  <div className="text-center py-6 lg:py-8 text-gray-500">
+                    <MapPin className="w-8 h-8 lg:w-12 lg:h-12 mx-auto mb-3 opacity-50" />
+                    {!userLocation ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Géolocalisation nécessaire</p>
+                        <p className="text-xs">Activez votre position pour voir les sessions proches</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 lg:hidden"
+                          onClick={() => window.location.reload()}
+                        >
+                          Réessayer
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-sm">Aucune session proche trouvée</p>
+                        <p className="text-xs">
+                          {filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all"
+                            ? "Essayez d'élargir vos filtres"
+                            : "Élargissez votre rayon de recherche"
+                          }
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
