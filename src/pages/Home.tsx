@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Shield, Calendar, Clock, Star, Trash2, Crown, User, CreditCard, Heart, ArrowRight } from "lucide-react";
+import { MapPin, Users, Shield, Calendar, Star, Trash2, Crown, User, CreditCard, Heart, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ import { logger } from "@/utils/logger";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user, signOut, hasActiveSubscription } = useAuth();
+  const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,11 +47,10 @@ const Home = () => {
     try {
       console.log("[Home] Fetching user activity for user:", userId);
       
-      // Vérifier si la requête a été annulée
       if (signal.aborted || !mountedRef.current) return;
       
       // Récupérer les sessions créées par l'utilisateur
-      const { data: createdSessions, error: sessionsError } = await supabase
+      const { data: createdSessions } = await supabase
         .from('sessions')
         .select(`
           *,
@@ -62,11 +61,9 @@ const Home = () => {
         .limit(3);
       
       if (signal.aborted || !mountedRef.current) return;
-      
-      console.log("[Home] Created sessions result:", { createdSessions, sessionsError });
 
       // Récupérer les sessions auxquelles l'utilisateur est inscrit
-      const { data: enrolledSessions, error: enrollmentsError } = await supabase
+      const { data: enrolledSessions } = await supabase
         .from('enrollments')
         .select(`
           *,
@@ -77,11 +74,9 @@ const Home = () => {
         .limit(3);
       
       if (signal.aborted || !mountedRef.current) return;
-      
-      console.log("[Home] Enrolled sessions result:", { enrolledSessions, enrollmentsError });
 
       // Combiner les activités avec un type
-      const activities = [];
+      const activities: any[] = [];
       
       if (createdSessions) {
         activities.push(...createdSessions.map(session => ({
@@ -92,7 +87,7 @@ const Home = () => {
       }
       
       if (enrolledSessions) {
-        activities.push(...enrolledSessions.map(enrollment => ({
+        activities.push(...enrolledSessions.map((enrollment: any) => ({
           ...enrollment.sessions,
           enrollment_status: enrollment.status,
           activity_type: 'joined',
@@ -102,8 +97,6 @@ const Home = () => {
 
       // Trier par date
       activities.sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime());
-      
-      console.log("[Home] Final activities:", activities);
       
       if (!signal.aborted && mountedRef.current) {
         setUserActivity(activities.slice(0, 5));
@@ -137,7 +130,7 @@ const Home = () => {
       if (mountedRef.current && user?.id) {
         fetchUserActivity(user.id);
       }
-    }, 2000); // Debounce de 2 secondes
+    }, 2000);
   }, [user?.id, fetchUserActivity]);
 
   // CORRECTION: Écouter les mises à jour de profil avec cleanup
@@ -199,7 +192,6 @@ const Home = () => {
           description: "La session a été supprimée avec succès.",
         });
 
-        // Actualiser les activités seulement si le composant est encore monté
         if (user.id) {
           fetchUserActivity(user.id);
         }
@@ -263,31 +255,18 @@ const Home = () => {
             <h1 className="text-4xl font-bold mb-2 text-center">MeetRun</h1>
             <p className="text-lg font-bold opacity-95 mb-6 text-center">Marche. Cours. Rencontre.</p>
             <div className="flex flex-col sm:flex-row gap-4">
-              {user ? (
-                <>
-                  <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Voir les sessions
-                  </Button>
-                  <Button variant="sport" size="lg" onClick={() => navigate("/create")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Créer une session
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Voir les sessions
-                  </Button>
-                  <Button variant="sport" size="lg" onClick={() => {
-                    if (!user) {
-                      navigate("/auth?returnTo=/create");
-                    } else {
-                      navigate("/create");
-                    }
-                  }} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
-                    Créer une session
-                  </Button>
-                </>
-              )}
+              <Button variant="sport" size="lg" onClick={() => navigate("/map")} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                Voir les sessions
+              </Button>
+              <Button variant="sport" size="lg" onClick={() => {
+                if (!user) {
+                  navigate("/auth?returnTo=/create");
+                } else {
+                  navigate("/create");
+                }
+              }} className="font-semibold px-8 py-4 rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 bg-gradient-to-r from-primary to-primary-variant border-2 border-white/20 backdrop-blur-sm">
+                Créer une session
+              </Button>
             </div>
           </div>
         </div>
@@ -296,10 +275,12 @@ const Home = () => {
         <div className="p-6 bg-gradient-to-b from-gray-50/50 to-white">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-primary to-primary-variant bg-clip-text text-transparent">
+              {/* MODIF: titre couleur uniforme au lieu du dégradé */}
+              <h2 className="text-3xl font-bold mb-4 text-primary">
                 Comment ça marche ?
               </h2>
-              <p className="text-muted-foreground text-lg">Rejoins la communauté MeetRun en 3 étapes simples</p>
+              {/* MODIF: nouveau sous-titre */}
+              <p className="text-muted-foreground text-lg">Marche, cours et fais des rencontres naturelle en 3 étapes simples</p>
             </div>
             
             {/* Progress bar */}
@@ -387,14 +368,7 @@ const Home = () => {
                   <p className="text-muted-foreground mb-6 leading-relaxed">
                     Rejoins ton groupe au point de rendez-vous, profite de l'énergie collective et fais des rencontres naturelles.
                   </p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate("/create")}
-                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
-                  >
-                    Créer ma session <Star size={16} className="ml-2" />
-                  </Button>
+                  {/* MODIF: suppression du bouton "Créer ma session" dans cette carte */}
                   <div className="mt-4 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Heart size={12} />
@@ -421,13 +395,16 @@ const Home = () => {
                   <div className="text-muted-foreground">Note moyenne</div>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
-                <Button variant="sportSecondary" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/map")}>
+
+              {/* MODIF: un seul bouton centré, plus distinctif, pas de vert */}
+              <div className="max-w-md mx-auto">
+                <Button 
+                  variant="sport" 
+                  size="lg" 
+                  className="w-full sm:w-auto mx-auto px-8 py-6 rounded-xl font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 ring-2 ring-primary/30 hover:ring-primary/50 backdrop-blur-sm"
+                  onClick={() => navigate("/map")}
+                >
                   Voir toutes les sessions
-                </Button>
-                <Button variant="sport" size="lg" className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate("/subscription")}>
-                  <Crown size={16} className="mr-2" />
-                  Commencer maintenant
                 </Button>
               </div>
             </div>
@@ -518,18 +495,18 @@ const Home = () => {
                                )}
                              </div>
                            </div>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                              <Calendar size={12} />
+                            <p className="text-sm text-muted-foreground mb-1">
+                              <Calendar size={12} className="inline-block mr-1" />
                               {new Date(activity.scheduled_at || activity.date).toLocaleDateString('fr-FR', {
                                 day: 'numeric',
                                 month: 'long'
                               })}
                             </p>
-                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <MapPin size={12} />
+                           <p className="text-sm text-muted-foreground">
+                              <MapPin size={12} className="inline-block mr-1" />
                               {activity.location_hint || 'Localisation masquée'}
                              {activity.activity_type === 'created' && activity.enrollments && (
-                               <span className="ml-2 flex items-center gap-1">
+                               <span className="ml-2 inline-flex items-center gap-1">
                                  <Users size={12} />
                                  {activity.enrollments[0]?.count || 0}/{activity.max_participants}
                                </span>
