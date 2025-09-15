@@ -1,7 +1,6 @@
-// src/pages/SessionDetails.tsx — Edge Functions only (create-session-payment / create-subscription-session / verify-payment)
-// - Départ protégé (cercle 1200m) pour non-abonnés
-// - Marker vert pour abonnés/hôte
-// - Bloc "Rejoindre" mobile placé en dernier (après Participants)
+// src/pages/SessionDetails.tsx
+// — Infos au-dessus de la carte, départ protégé (cercle 1200m pour non-abonnés), parcours bleu
+// — Paiement unique & abonnement via Edge Functions (Authorization JWT), layout mobile/desktop OK
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -19,7 +18,7 @@ import {
   CreditCard,
   CheckCircle,
   User,
-  ArrowLeft,
+  ArrowLeft
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -103,8 +102,10 @@ const SessionDetails = () => {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSubLoading, setIsSubLoading] = useState(false);
+
+  // Checkout states
   const [isOneOffLoading, setIsOneOffLoading] = useState(false);
+  const [isSubLoading, setIsSubLoading] = useState(false);
 
   const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
@@ -118,32 +119,88 @@ const SessionDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
-  // Retour Stripe → vérification serveur (best effort)
+  // --------- Edge Functions checkout handlers ----------
+  const redirectToAuth = () => {
+    const currentPath = `/session/${id}`;
+    window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+  };
+
+  // Paiement à la séance — utilise exclusivement l'EF create-session-payment (avec JWT)
+  const startOneOffCheckout = async () => {
+    if (!user) return redirectToAuth();
+    if (!id) return;
+
+    setIsOneOffLoading(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+
+      // Seul param utile attendu côté EF : session_id (l’EF construit success/cancel à partir de APP_BASE_URL)
+      const { data, error } = await supabase.functions.invoke("create-session-payment", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: { session_id: id },
+      });
+      if (error) throw error;
+
+      const url = (data as any)?.url || (data as any)?.checkout_url || (data as any)?.checkoutUrl;
+      if (!url) throw new Error("L’Edge Function n’a pas renvoyé d’URL de paiement.");
+      window.location.assign(url);
+    } catch (e: any) {
+      toast({
+        title: "Paiement indisponible",
+        description: e?.message || "La création de la session de paiement a échoué.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOneOffLoading(false);
+    }
+  };
+
+  // Abonnement mensuel — utilise exclusivement l'EF create-subscription-session (avec JWT)
+  // Pas de success/cancel_url passées par le client : l’EF gère et redirige vers /subscription/success | /subscription/cancel
+  const startSubscriptionCheckout = async () => {
+    if (!user) return redirectToAuth();
+
+    setIsSubLoading(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+
+      const { data, error } = await supabase.functions.invoke("create-subscription-session", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: {}, // rien à passer : l’EF choisit le price et les URLs
+      });
+      if (error) throw error;
+
+      const url = (data as any)?.checkout_url || (data as any)?.url;
+      if (!url) throw new Error("Impossible d’ouvrir la page d’abonnement (URL manquante).");
+
+      window.location.assign(url);
+    } catch (e: any) {
+      toast({
+        title: "Abonnement indisponible",
+        description: e?.message || "Impossible d’ouvrir la page d’abonnement.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubLoading(false);
+    }
+  };
+
+  // Gestion des retours de Stripe sur cette page (cas paiement unique si l’EF redirige ici)
   useEffect(() => {
     const paymentStatus = searchParams.get("payment");
-    if (!paymentStatus) return;
+    if (!id) return;
 
-    const src = searchParams.get("src") || "unknown";
     if (paymentStatus === "success") {
-      toast({ title: "Paiement réussi !", description: "Vérification en cours..." });
-      (async () => {
-        try {
-          const { data, error } = await supabase.functions.invoke("verify-payment", {
-            body: { session_id: id, source: src },
-          });
-          if (error) throw error;
-          toast({ title: "Paiement confirmé", description: "Vous êtes inscrit à cette session." });
-          fetchSessionDetails();
-        } catch (e: any) {
-          console.warn("[verify-payment] échec (non bloquant):", e?.message || e);
-          fetchSessionDetails();
-        }
-      })();
+      // On s’appuie sur le webhook pour basculer l’enrollment => on rafraîchit juste l’écran
+      toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
+      fetchSessionDetails();
     } else if (paymentStatus === "canceled") {
       toast({ title: "Paiement annulé", description: "Votre inscription n'a pas été finalisée.", variant: "destructive" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // -----------------------------------------------------
 
   const fetchSessionDetails = async () => {
     const { data: sessionData, error } = await supabase
@@ -162,7 +219,10 @@ const SessionDetails = () => {
       setSession(sessionData);
       const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
-      const shown = canSeeExact ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1000, sessionData.id);
+      // Non abonnés : centre sur un point jitter pour ne pas pointer le centre exact
+      const shown = canSeeExact
+        ? start
+        : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1200, sessionData.id);
       setCenter(shown);
     }
 
@@ -175,6 +235,32 @@ const SessionDetails = () => {
     if (participantsData) {
       setParticipants(participantsData);
       if (user) setIsEnrolled(!!participantsData.find((p: any) => p.user_id === user.id));
+    }
+  };
+
+  const handleSubscribeOrEnroll = async () => {
+    if (!user) {
+      const currentPath = `/session/${id}`;
+      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+      return;
+    }
+    if (!session) return;
+
+    if (hasActiveSubscription) {
+      setIsLoading(true);
+      try {
+        const { error } = await supabase
+          .from("enrollments")
+          .insert({ session_id: session.id, user_id: user.id, status: "included_by_subscription" });
+        if (error) throw error;
+        toast({ title: "Inscription réussie !", description: "Vous êtes maintenant inscrit à cette session." });
+        fetchSessionDetails();
+      } catch (err: any) {
+        console.error("Error enrolling:", err);
+        toast({ title: "Erreur", description: err.message, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -196,84 +282,6 @@ const SessionDetails = () => {
     }
   };
 
-  // ---------- Helpers ----------
-  const getReturnUrls = (source: "oneoff" | "subscription") => ({
-    success_url: `${window.location.origin}/session/${id}?payment=success&src=${source}`,
-    cancel_url: `${window.location.origin}/session/${id}?payment=canceled&src=${source}`,
-  });
-
-  const extractCheckoutUrl = (data: any): string | undefined => {
-    if (!data) return undefined;
-    return data.url || data.checkout_url || data.checkoutUrl || data.session_url;
-  };
-
-  const tryInvoke = async (fn: string, body: any) => {
-    const res = await supabase.functions.invoke(fn, { body });
-    if (res.error) throw res.error;
-    const url = extractCheckoutUrl(res.data);
-    if (!url) throw new Error(`La fonction ${fn} n'a pas renvoyé d'URL de paiement.`);
-    return url as string;
-  };
-
-  // ---------- ABONNEMENT (Edge Function ONLY) ----------
-  const startSubscriptionCheckout = async () => {
-    if (!user) {
-      const currentPath = `/session/${id}`;
-      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
-      return;
-    }
-    setIsSubLoading(true);
-    try {
-      const { success_url, cancel_url } = getReturnUrls("subscription");
-      const url = await tryInvoke("create-subscription-session", {
-        user_id: user.id,
-        success_url,
-        cancel_url,
-      });
-      window.location.assign(url);
-    } catch (e: any) {
-      console.error("[subscription] create-subscription-session error:", e);
-      toast({
-        title: "Abonnement indisponible",
-        description: "Erreur serveur. Réessayez plus tard ou contactez le support.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubLoading(false);
-    }
-  };
-
-  // ---------- Paiement UNIQUE (Edge Function ONLY) ----------
-  const startOneOffCheckout = async () => {
-    if (!user) {
-      const currentPath = `/session/${id}`;
-      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
-      return;
-    }
-    if (!id) return;
-
-    setIsOneOffLoading(true);
-    try {
-      const { success_url, cancel_url } = getReturnUrls("oneoff");
-      const url = await tryInvoke("create-session-payment", {
-        session_id: id,
-        user_id: user.id,
-        success_url,
-        cancel_url,
-      });
-      window.location.assign(url);
-    } catch (e: any) {
-      console.error("[checkout] create-session-payment error:", e);
-      toast({
-        title: "Paiement indisponible",
-        description: "Erreur serveur. Réessayez plus tard ou contactez le support.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsOneOffLoading(false);
-    }
-  };
-
   // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
   const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));
@@ -287,7 +295,7 @@ const SessionDetails = () => {
   const shownStart = useMemo<LatLng | null>(() => {
     if (!session || !start) return null;
     if (canSeeExactLocation) return start;
-    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id);
+    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1200, session.id);
     return { lat: j.lat, lng: j.lng };
   }, [session, start, canSeeExactLocation]);
 
@@ -320,14 +328,14 @@ const SessionDetails = () => {
       rotateControl: false,
       styles: [
         { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-        { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
-      ],
+        { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] }
+      ]
     }),
     []
   );
 
-  // Start vert (abonné/hôte), End rouge
-  const startMarkerIcon = useMemo(() => makeMarkerIcon("#059669"), []);
+  // Vert (abonnés/hôte) pour départ exact
+  const startMarkerIcon = useMemo(() => makeMarkerIcon("#16a34a"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
 
   // ------- Early return après hooks -------
@@ -397,9 +405,15 @@ const SessionDetails = () => {
                     )}
                     {session.intensity && (
                       <Badge
-                        variant={session.intensity === "marche" ? "default" : session.intensity === "course modérée" ? "secondary" : "destructive"}
+                        variant={
+                          session.intensity === "marche" ? "default" : session.intensity === "course modérée" ? "secondary" : "destructive"
+                        }
                       >
-                        {session.intensity === "marche" ? "Marche" : session.intensity === "course modérée" ? "Course modérée" : "Course intensive"}
+                        {session.intensity === "marche"
+                          ? "Marche"
+                          : session.intensity === "course modérée"
+                          ? "Course modérée"
+                          : "Course intensive"}
                       </Badge>
                     )}
                     {session.max_participants && (
@@ -452,9 +466,7 @@ const SessionDetails = () => {
             {/* Participants */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">
-                  Participants ({participants.length + 1}/{session.max_participants})
-                </h3>
+                <h3 className="font-semibold mb-4">Participants ({participants.length + 1}/{session.max_participants})</h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {participants.map((participant, index) => (
                     <div key={participant.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
@@ -494,24 +506,7 @@ const SessionDetails = () => {
                     </div>
                   ) : hasActiveSubscription ? (
                     <Button
-                      onClick={async () => {
-                        if (hasActiveSubscription) {
-                          setIsLoading(true);
-                          try {
-                            const { error } = await getSupabase()
-                              .from("enrollments")
-                              .insert({ session_id: session.id, user_id: user!.id, status: "included_by_subscription" });
-                            if (error) throw error;
-                            toast({ title: "Inscription réussie !", description: "Vous êtes maintenant inscrit à cette session." });
-                            fetchSessionDetails();
-                          } catch (err: any) {
-                            toast({ title: "Erreur", description: err.message, variant: "destructive" });
-                          } finally {
-                            setIsLoading(false);
-                          }
-                          return;
-                        }
-                      }}
+                      onClick={handleSubscribeOrEnroll}
                       disabled={isLoading}
                       className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                     >
@@ -542,18 +537,12 @@ const SessionDetails = () => {
                           <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
                           <Badge variant="secondary">Économique</Badge>
                         </div>
-                        <Button onClick={startSubscriptionCheckout} disabled={isSubLoading} className="w-full bg-blue-600 hover:bg-blue-700">
-                          {isSubLoading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Redirection...
-                            </div>
-                          ) : (
-                            <>
-                              <Crown className="w-4 h-4 mr-2" />
-                              S'abonner
-                            </>
-                          )}
+                        <Button
+                          onClick={startSubscriptionCheckout}
+                          disabled={isSubLoading}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
                         </Button>
                       </div>
 
@@ -564,18 +553,13 @@ const SessionDetails = () => {
                           <span className="text-lg font-bold">4,50€</span>
                           <span className="text-xs text-gray-500">une fois</span>
                         </div>
-                        <Button variant="outline" onClick={startOneOffCheckout} disabled={isOneOffLoading} className="w-full">
-                          {isOneOffLoading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                              Ouverture de Stripe...
-                            </div>
-                          ) : (
-                            <>
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Payer maintenant
-                            </>
-                          )}
+                        <Button
+                          variant="outline"
+                          onClick={startOneOffCheckout}
+                          disabled={isOneOffLoading}
+                          className="w-full"
+                        >
+                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
                         </Button>
                       </div>
                     </div>
@@ -585,7 +569,7 @@ const SessionDetails = () => {
             )}
           </div>
 
-          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile, en dernier) */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile) */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
             {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
@@ -610,7 +594,7 @@ const SessionDetails = () => {
                     <span className="font-medium">Départ : </span>
                     {canSeeExactLocation
                       ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
-                      : "Lieu de départ masqué pour les non-abonné"}
+                      : "Départ masqué"}
                   </div>
                 </div>
                 {end && (
@@ -630,26 +614,28 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ : cercle 1200m si non abonné (pas de marker), marker vert si abonné/hôte */}
-                    {!canSeeExactLocation && shownStart && (
+                    {/* Départ exact — seulement abonnés / hôte */}
+                    {canSeeExactLocation && start && (
+                      <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
+                    )}
+
+                    {/* Cercle d'approximation — non abonnés */}
+                    {!canSeeExactLocation && start && (
                       <Circle
-                        center={shownStart}
+                        center={start}
                         radius={1200}
                         options={{
-                          strokeColor: "#3b82f6",
-                          strokeOpacity: 0.45,
-                          strokeWeight: 2,
                           fillColor: "#3b82f6",
-                          fillOpacity: 0.12,
+                          fillOpacity: 0.08,
+                          strokeColor: "#3b82f6",
+                          strokeOpacity: 0.35,
+                          strokeWeight: 2,
                           clickable: false,
                           draggable: false,
                           editable: false,
-                          zIndex: 1,
+                          zIndex: 1
                         }}
                       />
-                    )}
-                    {canSeeExactLocation && start && (
-                      <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
 
                     {/* Arrivée (si définie) */}
@@ -675,7 +661,9 @@ const SessionDetails = () => {
                   <span className="select-none">⏰</span>
                   <div>
                     <p className="font-medium">Ponctualité</p>
-                    <p className="text-[12px] leading-snug">Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.</p>
+                    <p className="text-[12px] leading-snug">
+                      Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
@@ -707,9 +695,12 @@ const SessionDetails = () => {
                   <div>
                     <p className="font-medium">Vigilance en soirée</p>
                     <p className="text-[12px] leading-snug">
-                      Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
+                      Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et
+                      exercez votre vigilance.
                       <span className="block">
-                        <em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>
+                        <em>
+                          Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.
+                        </em>
                       </span>
                     </p>
                   </div>
@@ -717,7 +708,7 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* Rejoindre — Mobile only (EN DERNIER, après Participants) */}
+            {/* Rejoindre — Mobile only (EN DERNIER) */}
             {!isEnrolled && !isHost && (
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
                 <CardContent className="p-6">
@@ -730,24 +721,7 @@ const SessionDetails = () => {
                     </div>
                   ) : hasActiveSubscription ? (
                     <Button
-                      onClick={async () => {
-                        if (hasActiveSubscription) {
-                          setIsLoading(true);
-                          try {
-                            const { error } = await getSupabase()
-                              .from("enrollments")
-                              .insert({ session_id: session.id, user_id: user!.id, status: "included_by_subscription" });
-                            if (error) throw error;
-                            toast({ title: "Inscription réussie !", description: "Vous êtes maintenant inscrit à cette session." });
-                            fetchSessionDetails();
-                          } catch (err: any) {
-                            toast({ title: "Erreur", description: err.message, variant: "destructive" });
-                          } finally {
-                            setIsLoading(false);
-                          }
-                          return;
-                        }
-                      }}
+                      onClick={handleSubscribeOrEnroll}
                       disabled={isLoading}
                       className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                     >
@@ -771,23 +745,19 @@ const SessionDetails = () => {
                           <span className="font-semibold text-blue-900">Recommandé</span>
                         </div>
                         <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session</p>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                        </p>
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
                           <Badge variant="secondary">Économique</Badge>
                         </div>
-                        <Button onClick={startSubscriptionCheckout} disabled={isSubLoading} className="w-full bg-blue-600 hover:bg-blue-700">
-                          {isSubLoading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Redirection...
-                            </div>
-                          ) : (
-                            <>
-                              <Crown className="w-4 h-4 mr-2" />
-                              S'abonner
-                            </>
-                          )}
+                        <Button
+                          onClick={startSubscriptionCheckout}
+                          disabled={isSubLoading}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
                         </Button>
                       </div>
 
@@ -798,18 +768,13 @@ const SessionDetails = () => {
                           <span className="text-lg font-bold">4,50€</span>
                           <span className="text-xs text-gray-500">une fois</span>
                         </div>
-                        <Button variant="outline" onClick={startOneOffCheckout} disabled={isOneOffLoading} className="w-full">
-                          {isOneOffLoading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                              Ouverture de Stripe...
-                            </div>
-                          ) : (
-                            <>
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Payer maintenant
-                            </>
-                          )}
+                        <Button
+                          variant="outline"
+                          onClick={startOneOffCheckout}
+                          disabled={isOneOffLoading}
+                          className="w-full"
+                        >
+                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
                         </Button>
                       </div>
                     </div>
