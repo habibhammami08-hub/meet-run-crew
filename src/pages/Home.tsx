@@ -423,7 +423,7 @@ const Home = () => {
                       <h3 className="font-bold text-lg whitespace-nowrap">MeetRun Unlimited</h3>
                     </div>
                     <p className="text-muted-foreground mb-3 text-sm sm:text-base">
-                      Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course
+                      Accès illimité aux sessions • Lieux exacts • Aucun paiement à la course • Résiliable à tout moment
                     </p>
                     <div className="text-2xl font-bold text-primary whitespace-nowrap">9,99 €/mois</div>
                   </div>
