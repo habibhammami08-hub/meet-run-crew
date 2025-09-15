@@ -561,9 +561,84 @@ const SessionDetails = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Rejoindre — Mobile only (EN DERNIER, juste après Participants) */}
+            {!isEnrolled && !isHost && (
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                  {isSessionFull ? (
+                    <div className="text-center py-6">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600 font-medium">Session complète</p>
+                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                    </div>
+                  ) : hasActiveSubscription ? (
+                    <Button
+                      onClick={handleSubscribeOrEnroll}
+                      disabled={isLoading}
+                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Inscription...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Rejoindre gratuitement
+                        </div>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-blue-900">Recommandé</span>
+                        </div>
+                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                          <Badge variant="secondary">Économique</Badge>
+                        </div>
+                        <Button
+                          onClick={startSubscriptionCheckout}
+                          disabled={isSubLoading}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                        </Button>
+                      </div>
+
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-1">Paiement unique</h4>
+                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold">4,50€</span>
+                          <span className="text-xs text-gray-500">une fois</span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={startOneOffCheckout}
+                          disabled={isOneOffLoading}
+                          className="w-full"
+                        >
+                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile) */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
             {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
@@ -703,80 +778,7 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* Rejoindre — Mobile only (EN DERNIER) */}
-            {!isEnrolled && !isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : hasActiveSubscription ? (
-                    <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
-                        </div>
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button
-                          onClick={startSubscriptionCheckout}
-                          disabled={isSubLoading}
-                          className="w-full bg-blue-600 hover:bg-blue-700"
-                        >
-                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
-                        </Button>
-                      </div>
-
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={startOneOffCheckout}
-                          disabled={isOneOffLoading}
-                          className="w-full"
-                        >
-                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+            {/* NOTE : plus de bloc "Rejoindre (mobile)" ici — il a été déplacé après Participations, côté colonne gauche */}
           </div>
         </div>
       </div>
