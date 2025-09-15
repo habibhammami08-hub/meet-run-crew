@@ -275,6 +275,42 @@ const SessionDetails = () => {
     }
   };
 
+  // ---------- SUPPRESSION DE SESSION ----------
+  const handleDeleteSession = async () => {
+    if (!session || !isHost) return;
+
+    const confirmed = window.confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.");
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    
+    try {
+      const { error } = await supabase
+        .from("sessions")
+        .delete()
+        .eq("id", session.id)
+        .eq("host_id", user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Session supprimée",
+        description: "La session a été supprimée avec succès.",
+      });
+
+      navigate("/map");
+    } catch (error: any) {
+      console.error("Erreur suppression session:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la session.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
   const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));

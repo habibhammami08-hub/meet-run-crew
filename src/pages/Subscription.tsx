@@ -24,6 +24,7 @@ declare global {
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
   const [isPortalLoading, setIsPortalLoading] = useState(false);
+  const [isSubscribeLoading, setIsSubscribeLoading] = useState(false);
   const [stripeBuyButtonLoaded, setStripeBuyButtonLoaded] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -117,6 +118,46 @@ const Subscription = () => {
       });
     } finally {
       setIsPortalLoading(false);
+    }
+  };
+
+  const handleSubscribeToMeetRun = async () => {
+    if (!user) {
+      toast({
+        title: "Connexion requise",
+        description: "Connectez-vous pour vous abonner.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubscribeLoading(true);
+
+    try {
+      const payload = {
+        success_url: `${window.location.origin}/subscription?payment=success`,
+        cancel_url: `${window.location.origin}/subscription?payment=canceled`,
+      };
+
+      const { data, error } = await supabase.functions.invoke("create-subscription-session", { body: payload });
+      if (error) throw error;
+
+      const url = data?.url || data?.checkout_url || data?.checkoutUrl;
+
+      if (!url) {
+        throw new Error("La création de la session d'abonnement n'a pas renvoyé d'URL.");
+      }
+
+      window.location.assign(url);
+    } catch (error: any) {
+      console.error("Erreur abonnement:", error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de créer la session d'abonnement.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubscribeLoading(false);
     }
   };
 
@@ -352,19 +393,15 @@ const Subscription = () => {
               </div>
 
               <div className="text-center space-y-4">
-                {/* CORRECTION: Stripe Buy Button pour utilisateurs connectés */}
-                {stripeBuyButtonLoaded ? (
-                  <div className="stripe-buy-button-container w-full">
-                    <stripe-buy-button
-                      buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1RvtvYKP4tLYoLjrySSiu2m2"}
-                      publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full p-4 bg-gray-100 rounded-lg text-center">
-                    <div className="animate-pulse">Chargement du paiement...</div>
-                  </div>
-                )}
+                {/* Bouton d'abonnement connecté à l'edge function */}
+                <Button 
+                  onClick={handleSubscribeToMeetRun}
+                  disabled={isSubscribeLoading}
+                  size="lg"
+                  className="w-full"
+                >
+                  {isSubscribeLoading ? "Redirection..." : "S'abonner à MeetRun Unlimited - 9,99€/mois"}
+                </Button>
                 
                 <p className="text-xs text-sport-gray">
                   Résiliable à tout moment
