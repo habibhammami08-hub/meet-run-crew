@@ -3,6 +3,8 @@
 // — route visible seulement si sélectionnée
 // — met en avant les sessions où l’utilisateur est INSCRIT (one-off ou sub) : icône dorée + étoile
 // — bloc "Vos prochaines sessions" sous la carte
+// — icône sélectionnée en VERT (distincte de la position bleue)
+// — libellés boutons/ légende ajustés
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
@@ -109,18 +111,18 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
 // Icône personnalisée :
 // - rouge = sa propre session (host)
 // - doré + étoile = sessions où l’utilisateur est inscrit (one-off/sub)
-// - bleu = sélectionnée
-// - vert = autre (vert foncé si abonné pour un peu plus de contraste)
+// - vert vif = sélectionnée (distincte de la position bleue)
+// - vert foncé = autre session
 function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
   const { own, enrolled, selected, hasSub } = opts;
   const size = own ? 20 : (selected ? 18 : 16);
   const color = own
-    ? "#dc2626"
+    ? "#dc2626"        // red-600
     : enrolled
-      ? "#f59e0b"
+      ? "#f59e0b"      // amber-500
       : selected
-        ? "#3b82f6"
-        : (hasSub ? "#065f46" : "#047857");
+        ? "#22c55e"    // green-500 (== sélectionnée, distincte de la position bleue)
+        : (hasSub ? "#065f46" : "#047857"); // emerald-900 / emerald-700
 
   const cx = size / 2;
   const cy = size / 2;
@@ -137,14 +139,14 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
     " fill="white" />
   `;
 
-  // petit point si "selected"
+  // petit point si "selected" (uniquement quand non inscrit)
   const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
 
   const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
 
   const svg = `
     <svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-      <path d="${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
+      <path d="M ${cx} ${size + 6} L ${cx - 4} ${size - 2} Q ${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
       <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
       ${innerOwn}
       ${enrolled ? star : ""}
@@ -601,7 +603,7 @@ function MapPageInner() {
                             )}
                           </div>
                         </div>
-                        <Button onClick={() => navigate(`/session/${session.id}`)} className="ml-4">Voir détails</Button>
+                        <Button onClick={() => navigate(`/session/${session.id}`)} className="ml-4">Détails</Button>
                       </div>
                     );
                   })()}
@@ -649,9 +651,9 @@ function MapPageInner() {
                                   setCenter({ lat: s.start_lat, lng: s.start_lng });
                                 }}
                               >
-                                Zoomer
+                                Sélectionner
                               </Button>
-                              <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Voir</Button>
+                              <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Détails</Button>
                             </div>
                           </div>
                         </div>
@@ -671,8 +673,8 @@ function MapPageInner() {
                         <span>Votre session (hôte)</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
-                        <span>Sélectionnée</span>
+                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#22c55e" }} />
+                        <span>Session disponible</span>
                       </div>
                     </div>
                   </div>
@@ -748,8 +750,13 @@ function MapPageInner() {
                                   <span className="text-gray-500 text-xs">{session.distance_km} km</span>
                                 )}
                               </div>
-                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}`); }}>
-                                Voir
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs h-6 px-2"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}`); }}
+                              >
+                                Détails
                               </Button>
                             </div>
                           </div>
