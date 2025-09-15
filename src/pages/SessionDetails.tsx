@@ -117,8 +117,7 @@ const SessionDetails = () => {
 
   useEffect(() => {
     if (id) fetchSessionDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
+  }, [id, user]); // eslint-disable-line
 
   // --------- Edge Functions checkout handlers ----------
   const redirectToAuth = () => {
@@ -126,7 +125,6 @@ const SessionDetails = () => {
     window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
   };
 
-  // PAIEMENT UNIQUE — appelle l'EF create-session-payment avec { sessionId }
   const startOneOffCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
@@ -152,7 +150,6 @@ const SessionDetails = () => {
     }
   };
 
-  // ABONNEMENT — avec overrides success/cancel pour revenir sur CETTE page
   const startSubscriptionCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
@@ -185,15 +182,13 @@ const SessionDetails = () => {
   useEffect(() => {
     if (!id) return;
 
-    // 1) Paiement one-off
     const paymentStatus = searchParams.get("payment");
-    const sid = searchParams.get("sid"); // ID de la Checkout Session Stripe (one-off)
+    const sid = searchParams.get("sid");
     if (paymentStatus === "success" && sid) {
       supabase.functions
         .invoke("verify-payment", { body: { sessionId: sid } })
         .finally(() => fetchSessionDetails());
       toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
-      // Nettoie l'URL
       navigate(`/session/${id}`, { replace: true });
       return;
     } else if (paymentStatus === "canceled") {
@@ -202,10 +197,8 @@ const SessionDetails = () => {
       return;
     }
 
-    // 2) Abonnement (success/cancel)
     const sub = searchParams.get("sub");
     if (sub === "success") {
-      // le webhook va mettre le profil à jour ; on force le refresh côté client
       Promise.resolve(refreshSubscription?.())
         .catch(() => {})
         .finally(() => {
@@ -220,8 +213,7 @@ const SessionDetails = () => {
       toast({ title: "Abonnement annulé", description: "Aucun changement n'a été effectué.", variant: "destructive" });
       navigate(`/session/${id}`, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams]); // eslint-disable-line
 
   // -----------------------------------------------------
 
@@ -306,7 +298,6 @@ const SessionDetails = () => {
 
   // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
-  // IMPORTANT : accès au lieu exact si hôte, abonné, OU déjà inscrit (ex: paiement unique)
   const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription || isEnrolled));
 
   const start = useMemo<LatLng | null>(() => (session ? { lat: session.start_lat, lng: session.start_lng } : null), [session]);
@@ -332,13 +323,32 @@ const SessionDetails = () => {
     return trimRouteStart(fullRoutePath, trimMeters);
   }, [fullRoutePath, canSeeExactLocation, session]);
 
+  // ✅ Date/heure formatées (utilisées dans le badge)
+  const formattedDate = useMemo(
+    () =>
+      session
+        ? new Date(session.scheduled_at).toLocaleDateString("fr-FR", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          })
+        : "",
+    [session]
+  );
+  const formattedTime = useMemo(
+    () =>
+      session
+        ? new Date(session.scheduled_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+        : "",
+    [session]
+  );
+
   // Recentrage si le point visible change
   useEffect(() => {
     if (shownStart && (center?.lat !== shownStart.lat || center?.lng !== shownStart.lng)) {
       setCenter(shownStart);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownStart?.lat, shownStart?.lng]);
+  }, [shownStart?.lat, shownStart?.lng]); // eslint-disable-line
 
   const mapOptions = useMemo(
     () => ({
@@ -357,7 +367,6 @@ const SessionDetails = () => {
     []
   );
 
-  // Vert pour abonnés/hôte
   const startMarkerIcon = useMemo(() => makeMarkerIcon("#16a34a"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
 
@@ -386,14 +395,17 @@ const SessionDetails = () => {
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{session.title}</h1>
-            <div className="flex items-center gap-4 text-gray-600">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
-                {new Date(session.scheduled_at).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="w-4 h-4" />
-                {new Date(session.scheduled_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+
+            {/* ✅ Badge date/heure (desktop & mobile) */}
+            <div className="flex items-center">
+              <div
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-blue-700 font-semibold whitespace-nowrap overflow-x-auto"
+                aria-label="Date et heure de la session"
+              >
+                <Calendar className="w-4 h-4 flex-shrink-0 text-blue-600" />
+                <span className="text-sm md:text-base">
+                  {formattedDate} • {formattedTime}
+                </span>
               </div>
             </div>
           </div>
@@ -637,12 +649,9 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ exact — seulement abonnés / hôte / inscrit (marker VERT) */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
-
-                    {/* Cercle d'approximation — non abonnés & non inscrits */}
                     {!canSeeExactLocation && start && (
                       <Circle
                         center={start}
@@ -660,11 +669,7 @@ const SessionDetails = () => {
                         }}
                       />
                     )}
-
-                    {/* Arrivée (si définie) */}
                     {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
-
-                    {/* Parcours bleu — tronqué si non abonné & non inscrit */}
                     {trimmedRoutePath.length > 1 && (
                       <Polyline
                         path={trimmedRoutePath}
