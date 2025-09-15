@@ -3,8 +3,6 @@
 // — route visible seulement si sélectionnée
 // — met en avant les sessions où l’utilisateur est INSCRIT (one-off ou sub) : icône dorée + étoile
 // — bloc "Vos prochaines sessions" sous la carte
-// — icône sélectionnée en VERT (distincte de la position bleue)
-// — libellés boutons/ légende ajustés
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
@@ -21,12 +19,19 @@ import {
   MapPin,
   Users,
   Filter,
-  RefreshCw,
   Navigation,
   Calendar,
   Zap,
+  User,
+  LogIn,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 
 // ————————————————————————————————————————————
@@ -40,8 +45,10 @@ type SessionRow = {
   title: string;
   description?: string | null;
   scheduled_at: string;
-  start_lat: number; start_lng: number;
-  end_lat: number | null; end_lng: number | null;
+  start_lat: number;
+  start_lng: number;
+  end_lat: number | null;
+  end_lng: number | null;
   distance_km: number | null;
   route_polyline: string | null;
   intensity: string | null;
@@ -59,42 +66,63 @@ type SessionRow = {
 // Utils
 // ————————————————————————————————————————————
 
-function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
 function seededNoise(seed: string) {
   let h = 2166136261;
-  for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
   const u = ((h >>> 0) % 10000) / 10000;
   const v = (((h * 48271) >>> 0) % 10000) / 10000;
   return { u, v };
 }
 
-function jitterDeterministic(lat:number, lng:number, meters:number, seed:string): LatLng {
+function jitterDeterministic(
+  lat: number,
+  lng: number,
+  meters: number,
+  seed: string
+): LatLng {
   const { u, v } = seededNoise(seed);
   const w = meters * Math.sqrt(u);
   const t = 2 * Math.PI * v;
   const dLat = w / 111320;
-  const dLng = w / (111320 * Math.cos(lat * Math.PI/180));
-  return { lat: lat + dLat * Math.cos(t), lng: lng + dLng * Math.sin(t) };
+  const dLng = w / (111320 * Math.cos((lat * Math.PI) / 180));
+  return {
+    lat: lat + dLat * Math.cos(t),
+    lng: lng + dLng * Math.sin(t),
+  };
 }
 
 const uiToDbIntensity = (uiIntensity: string): string | null => {
   const mapping: Record<string, string> = {
-    "marche": "low",
+    marche: "low",
     "course modérée": "medium",
     "course intensive": "high",
   };
   return mapping[uiIntensity] || null;
 };
 
-const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
+const isOwnSession = (s: SessionRow, userId?: string) =>
+  !!(userId && s.host_id === userId);
 
 const polyCache = new Map<string, LatLng[]>();
 const pathFromPolyline = (p?: string | null): LatLng[] => {
@@ -105,24 +133,33 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
     const path = polyline.decode(p).map(([lat, lng]) => ({ lat, lng }));
     polyCache.set(p, path);
     return path;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 };
 
 // Icône personnalisée :
 // - rouge = sa propre session (host)
 // - doré + étoile = sessions où l’utilisateur est inscrit (one-off/sub)
-// - vert vif = sélectionnée (distincte de la position bleue)
-// - vert foncé = autre session
-function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
+// - bleu = sélectionnée
+// - vert = autre (vert foncé si abonné pour un peu plus de contraste)
+function createCustomMarkerIcon(opts: {
+  own: boolean;
+  enrolled: boolean;
+  selected: boolean;
+  hasSub: boolean;
+}) {
   const { own, enrolled, selected, hasSub } = opts;
-  const size = own ? 20 : (selected ? 18 : 16);
+  const size = own ? 20 : selected ? 18 : 16;
   const color = own
-    ? "#dc2626"        // red-600
+    ? "#dc2626"
     : enrolled
-      ? "#f59e0b"      // amber-500
-      : selected
-        ? "#22c55e"    // green-500 (== sélectionnée, distincte de la position bleue)
-        : (hasSub ? "#065f46" : "#047857"); // emerald-900 / emerald-700
+    ? "#f59e0b"
+    : selected
+    ? "#3b82f6"
+    : hasSub
+    ? "#065f46"
+    : "#047857";
 
   const cx = size / 2;
   const cy = size / 2;
@@ -139,15 +176,17 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
     " fill="white" />
   `;
 
-  // petit point si "selected" (uniquement quand non inscrit)
+  // petit point si "selected" (pas d’étoile déjà)
   const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
 
-  const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
+  const innerOwn = own
+    ? `<circle cx="${cx}" cy="${cy}" r="${size / 4}" fill="white"/>`
+    : "";
 
   const svg = `
     <svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-      <path d="M ${cx} ${size + 6} L ${cx - 4} ${size - 2} Q ${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
-      <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
+      <path d="M${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
+      <circle cx="${cx}" cy="${cy}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
       ${innerOwn}
       ${enrolled ? star : ""}
       ${selected && !enrolled ? dot : ""}
@@ -156,7 +195,11 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
   const g = typeof window !== "undefined" ? (window as any).google : undefined;
   return g?.maps?.Size && g?.maps?.Point
-    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
+    ? {
+        url,
+        scaledSize: new g.maps.Size(size, size + 6),
+        anchor: new g.maps.Point(size / 2, size + 6),
+      }
     : { url };
 }
 
@@ -175,14 +218,22 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
     return {
       label: "Femmes uniquement",
       badgeVariant: "secondary",
-      renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♀</span>,
+      renderIcon: (cls = "") => (
+        <span className={`mr-1 ${cls}`} aria-hidden>
+          ♀
+        </span>
+      ),
     };
   }
   if (t === "men_only") {
     return {
       label: "Hommes uniquement",
       badgeVariant: "secondary",
-      renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♂</span>,
+      renderIcon: (cls = "") => (
+        <span className={`mr-1 ${cls}`} aria-hidden>
+          ♂
+        </span>
+      ),
     };
   }
   // mixed par défaut
@@ -200,7 +251,11 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
+  const {
+    user: currentUser,
+    hasActiveSubscription: hasSub,
+    loading: authLoading,
+  } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -213,7 +268,7 @@ function MapPageInner() {
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
   const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
 
-  // Nouveaux états : sessions où l’utilisateur est INSCRIT
+  // Sessions où l’utilisateur est INSCRIT
   const [mySessionIds, setMySessionIds] = useState<Set<string>>(new Set());
 
   const mountedRef = useRef(false);
@@ -223,19 +278,22 @@ function MapPageInner() {
 
   const { handleGeolocationError } = useGeolocationNotifications();
 
-  const mapOptions = useMemo(() => ({
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-    gestureHandling: "greedy" as const,
-    zoomControl: true,
-    scaleControl: false,
-    rotateControl: false,
-    styles: [
-      { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-      { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
-    ],
-  }), []);
+  const mapOptions = useMemo(
+    () => ({
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      gestureHandling: "greedy" as const,
+      zoomControl: true,
+      scaleControl: false,
+      rotateControl: false,
+      styles: [
+        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+        { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
+      ],
+    }),
+    []
+  );
 
   const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation) return;
@@ -243,7 +301,10 @@ function MapPageInner() {
 
     const successCallback = (position: GeolocationPosition) => {
       if (!mountedRef.current) return;
-      const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
+      const userPos = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      };
       setCenter(userPos);
       setUserLocation(userPos);
     };
@@ -253,7 +314,10 @@ function MapPageInner() {
       handleGeolocationError(err);
     };
 
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isMobile =
+      /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
     navigator.geolocation.getCurrentPosition(successCallback, errorCallback, {
       enableHighAccuracy: isMobile,
       timeout: isMobile ? 15000 : 10000,
@@ -261,7 +325,9 @@ function MapPageInner() {
     });
   }, [handleGeolocationError]);
 
-  useEffect(() => { if (!hasTriedGeolocation) requestGeolocation(); }, [requestGeolocation, hasTriedGeolocation]);
+  useEffect(() => {
+    if (!hasTriedGeolocation) requestGeolocation();
+  }, [requestGeolocation, hasTriedGeolocation]);
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
@@ -279,14 +345,19 @@ function MapPageInner() {
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
       const { data, error } = await supabase
         .from("sessions")
-        .select("id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants")
+        .select(
+          "id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants"
+        )
         .gte("scheduled_at", cutoffDate.toISOString())
         .eq("status", "published")
         .order("scheduled_at", { ascending: true })
         .limit(500);
 
       if (signal.aborted || !mountedRef.current) return;
-      if (error) { setError(`Erreur lors du chargement des sessions: ${error.message}`); return; }
+      if (error) {
+        setError(`Erreur lors du chargement des sessions: ${error.message}`);
+        return;
+      }
 
       const mapped = (data ?? []).map((s) => ({
         ...s,
@@ -295,7 +366,8 @@ function MapPageInner() {
       })) as SessionRow[];
       setSessions(mapped);
     } catch (e: any) {
-      if (e?.name !== "AbortError" && mountedRef.current) setError(`Une erreur est survenue: ${e.message}`);
+      if (e?.name !== "AbortError" && mountedRef.current)
+        setError(`Une erreur est survenue: ${e.message}`);
     } finally {
       if (!signal.aborted && mountedRef.current) setLoading(false);
     }
@@ -337,17 +409,27 @@ function MapPageInner() {
   }, [fetchSessions]);
 
   const sessionsWithDistance = useMemo(() => {
-    if (!userLocation) return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
-    return sessions.map(s => ({
+    if (!userLocation)
+      return sessions.map((s) => ({
+        ...s,
+        distanceFromUser: null as number | null,
+      }));
+    return sessions.map((s) => ({
       ...s,
-      distanceFromUser: calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng),
+      distanceFromUser: calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        s.start_lat,
+        s.start_lng
+      ),
     }));
   }, [sessions, userLocation]);
 
   // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
   const isEnrolledIn = useCallback((id: string) => mySessionIds.has(id), [mySessionIds]);
   const shouldBlur = useCallback(
-    (s: SessionRow) => !(hasSub || isOwnSession(s, currentUser?.id) || isEnrolledIn(s.id)),
+    (s: SessionRow) =>
+      !(hasSub || isOwnSession(s, currentUser?.id) || isEnrolledIn(s.id)),
     [hasSub, currentUser?.id, isEnrolledIn]
   );
 
@@ -356,27 +438,50 @@ function MapPageInner() {
 
     if (userLocation && filterRadius !== "all") {
       const radius = parseInt(filterRadius);
-      filtered = filtered.filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= radius);
+      filtered = filtered.filter(
+        (s) =>
+          s.distanceFromUser !== null &&
+          (s.distanceFromUser as number) <= radius
+      );
     }
     if (filterIntensity !== "all") {
       const dbIntensity = uiToDbIntensity(filterIntensity);
-      if (dbIntensity) filtered = filtered.filter(s => s.intensity === dbIntensity);
+      if (dbIntensity) filtered = filtered.filter((s) => s.intensity === dbIntensity);
     }
-    if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
+    if (filterSessionType !== "all")
+      filtered = filtered.filter((s) => s.session_type === filterSessionType);
     return filtered;
-  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType]);
+  }, [
+    sessionsWithDistance,
+    userLocation,
+    filterRadius,
+    filterIntensity,
+    filterSessionType,
+  ]);
 
-  const filteredNearestSessions = useMemo(() => (
-    filteredSessions
-      .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= 25)
-      .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-      .slice(0, 6)
-  ), [filteredSessions]);
+  const filteredNearestSessions = useMemo(
+    () =>
+      filteredSessions
+        .filter(
+          (s) =>
+            s.distanceFromUser !== null &&
+            (s.distanceFromUser as number) <= 25
+        )
+        .sort(
+          (a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0)
+        )
+        .slice(0, 6),
+    [filteredSessions]
+  );
 
   // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
   const myEnrolledSessions = useMemo(() => {
-    const arr = sessionsWithDistance.filter(s => mySessionIds.has(s.id));
-    return arr.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+    const arr = sessionsWithDistance.filter((s) => mySessionIds.has(s.id));
+    return arr.sort(
+      (a, b) =>
+        new Date(a.scheduled_at).getTime() -
+        new Date(b.scheduled_at).getTime()
+    );
   }, [sessionsWithDistance, mySessionIds]);
 
   useEffect(() => {
@@ -387,12 +492,23 @@ function MapPageInner() {
     return () => {
       mountedRef.current = false;
       if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
-      if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null; }
-      if (channelRef.current && supabase) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (channelRef.current && supabase) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [fetchSessions, fetchMyEnrollments, supabase, currentUser]);
 
-  useEffect(() => { if (!authLoading && currentUser && mountedRef.current) { fetchSessions(); fetchMyEnrollments(); } }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
+  useEffect(() => {
+    if (!authLoading && currentUser && mountedRef.current) {
+      fetchSessions();
+      fetchMyEnrollments();
+    }
+  }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
 
   useEffect(() => {
     if (!supabase || !mountedRef.current) return;
@@ -400,27 +516,50 @@ function MapPageInner() {
 
     const ch = supabase
       .channel(`sessions-map-${Date.now()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => { if (mountedRef.current) debouncedRefresh(); })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sessions" },
+        () => {
+          if (mountedRef.current) debouncedRefresh();
+        }
+      )
       // réagit aussi aux changements sur les enrollments de l’utilisateur (pour refléter un paiement one-off / désinscription)
-      .on("postgres_changes", { event: "*", schema: "public", table: "enrollments", filter: currentUser ? `user_id=eq.${currentUser.id}` : undefined }, () => {
-        if (mountedRef.current) fetchMyEnrollments();
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "enrollments",
+          filter: currentUser ? `user_id=eq.${currentUser.id}` : undefined,
+        },
+        () => {
+          if (mountedRef.current) fetchMyEnrollments();
+        }
+      )
       .subscribe();
 
     channelRef.current = ch;
-    return () => { if (channelRef.current && supabase) supabase.removeChannel(channelRef.current); };
+    return () => {
+      if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
+    };
   }, [supabase, debouncedRefresh, fetchMyEnrollments, currentUser]);
 
   const userMarkerIcon = useMemo(() => {
-    const url = 'data:image/svg+xml,' + encodeURIComponent(`
+    const url =
+      "data:image/svg+xml," +
+      encodeURIComponent(`
       <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
         <circle cx="8" cy="8" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
         <circle cx="8" cy="8" r="3" fill="white"/>
       </svg>
     `);
-    const g = typeof window !== 'undefined' ? (window as any).google : undefined;
+    const g = typeof window !== "undefined" ? (window as any).google : undefined;
     return g?.maps?.Size && g?.maps?.Point
-      ? { url, scaledSize: new g.maps.Size(16, 16), anchor: new g.maps.Point(8, 8) }
+      ? {
+          url,
+          scaledSize: new g.maps.Size(16, 16),
+          anchor: new g.maps.Point(8, 8),
+        }
       : { url };
   }, []);
 
@@ -437,34 +576,60 @@ function MapPageInner() {
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Sessions disponibles</h1>
                 {currentUser && (
-                  <p className="text-sm text-gray-600">Connecté{hasSub && ' • Abonnement actif'}</p>
+                  <p className="text-sm text-gray-600">
+                    Connecté{hasSub && " • Abonnement actif"}
+                  </p>
                 )}
               </div>
             </div>
 
             <div className="flex items-center gap-3">
               {!userLocation && hasTriedGeolocation && (
-                <Button variant="outline" size="sm" onClick={requestGeolocation} className="flex items-center gap-2" aria-label="Me localiser">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestGeolocation}
+                  className="flex items-center gap-2"
+                  aria-label="Me localiser"
+                >
                   <Navigation className="w-4 h-4" />
                   Me localiser
                 </Button>
               )}
 
-              {/* Masqué sur mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchSessions()}
-                disabled={loading}
-                className="hidden md:inline-flex items-center gap-2"
-                aria-label="Actualiser les sessions"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Actualiser
-              </Button>
+              {/* À la place d'“Actualiser” : */}
+              {!currentUser ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    navigate(`/auth?returnTo=${encodeURIComponent("/map")}`)
+                  }
+                  className="hidden md:inline-flex items-center gap-2"
+                  aria-label="Se connecter"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Se connecter
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => navigate("/profile")}
+                  className="hidden md:inline-flex"
+                  aria-label="Mon profil"
+                  title="Mon profil"
+                >
+                  <User className="w-4 h-4" />
+                </Button>
+              )}
 
               {!hasSub && (
-                <Button size="sm" onClick={() => navigate("/subscription")} className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
+                <Button
+                  size="sm"
+                  onClick={() => navigate("/subscription")}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                >
                   S'abonner
                 </Button>
               )}
@@ -488,35 +653,70 @@ function MapPageInner() {
                     onClick={() => setSelectedSession(null)}
                   >
                     {userLocation && (
-                      <MarkerF position={userLocation} icon={userMarkerIcon} title="Votre position" />
+                      <MarkerF
+                        position={userLocation}
+                        icon={userMarkerIcon}
+                        title="Votre position"
+                      />
                     )}
 
                     {filteredSessions.map((s) => {
                       const own = isOwnSession(s, currentUser?.id);
                       const blur = shouldBlur(s);
-                      const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };
-                      const startShown = blur ? jitterDeterministic(start.lat, start.lng, s.blur_radius_m ?? 1000, s.id) : start;
+                      const start = {
+                        lat: s.location_lat ?? s.start_lat,
+                        lng: s.location_lng ?? s.start_lng,
+                      };
+                      const startShown = blur
+                        ? jitterDeterministic(
+                            start.lat,
+                            start.lng,
+                            s.blur_radius_m ?? 1000,
+                            s.id
+                          )
+                        : start;
                       const selected = selectedSession === s.id;
                       const enrolled = isEnrolledIn(s.id);
 
                       // Le tracé n'apparaît que pour la session sélectionnée, et pour hôte/abonné OU si inscrit à cette session
-                      const allowPolyline = (hasSub || own || enrolled) && selected && !!s.route_polyline;
-                      const path = allowPolyline ? pathFromPolyline(s.route_polyline) : [];
+                      const allowPolyline =
+                        (hasSub || own || enrolled) &&
+                        selected &&
+                        !!s.route_polyline;
+                      const path = allowPolyline
+                        ? pathFromPolyline(s.route_polyline)
+                        : [];
 
-                      const markerIcon = createCustomMarkerIcon({ own, enrolled, selected, hasSub });
+                      const markerIcon = createCustomMarkerIcon({
+                        own,
+                        enrolled,
+                        selected,
+                        hasSub,
+                      });
 
                       return (
                         <div key={s.id}>
                           <MarkerF
                             position={startShown}
-                            title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
+                            title={`${s.title} • ${dbToUiIntensity(
+                              s.intensity || undefined
+                            )}${own ? " (Votre session)" : enrolled ? " (Inscrit)" : ""}`}
                             icon={markerIcon}
-                            onClick={(e) => { e.domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
+                            onClick={(e) => {
+                              // @ts-ignore - google maps event typing
+                              e.domEvent?.stopPropagation?.();
+                              setSelectedSession(selected ? null : s.id);
+                            }}
                           />
                           {allowPolyline && path.length > 1 && (
                             <Polyline
                               path={path}
-                              options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#3b82f6' }}
+                              options={{
+                                clickable: false,
+                                strokeOpacity: 0.9,
+                                strokeWeight: 4,
+                                strokeColor: "#3b82f6",
+                              }}
                             />
                           )}
                         </div>
@@ -532,17 +732,25 @@ function MapPageInner() {
               <Card className="mt-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-4">
                   {(() => {
-                    const session = sessionsWithDistance.find(s => s.id === selectedSession);
+                    const session = sessionsWithDistance.find(
+                      (s) => s.id === selectedSession
+                    );
                     if (!session) return null;
 
                     const blur = shouldBlur(session);
-                    const { label: typeLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
+                    const {
+                      label: typeLabel,
+                      badgeVariant,
+                      renderIcon,
+                    } = getTypeMeta(session.session_type);
                     const enrolled = isEnrolledIn(session.id);
 
                     return (
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900 mb-1">{session.title}</h3>
+                          <h3 className="font-semibold text-lg text-gray-900 mb-1">
+                            {session.title}
+                          </h3>
 
                           {/* Description sous le titre */}
                           {session.description && (
@@ -554,11 +762,21 @@ function MapPageInner() {
                           <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4" />
-                              {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(session.scheduled_at).toLocaleDateString(
+                                "fr-FR",
+                                {
+                                  day: "numeric",
+                                  month: "long",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4" />
-                              {blur ? 'Zone approximative' : (session.location_hint || 'Lieu exact')}
+                              {blur
+                                ? "Zone approximative"
+                                : session.location_hint || "Lieu exact"}
                             </div>
                             {session.distance_km && (
                               <div className="flex items-center gap-2">
@@ -569,14 +787,19 @@ function MapPageInner() {
                             {session.distanceFromUser !== null && (
                               <div className="flex items-center gap-2">
                                 <Navigation className="w-4 h-4" />
-                                À {Number(session.distanceFromUser).toFixed(1)} km de vous
+                                À {Number(session.distanceFromUser).toFixed(1)} km
+                                de vous
                               </div>
                             )}
                           </div>
 
                           {/* Badges: intensité, distance, type, capacité + Inscrit */}
                           <div className="flex items-center gap-2 mb-4 flex-wrap">
-                            {enrolled && <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>}
+                            {enrolled && (
+                              <Badge className="bg-amber-100 text-amber-800">
+                                Inscrit
+                              </Badge>
+                            )}
                             {session.intensity && (
                               <Badge variant="secondary">
                                 <Zap className="w-3 h-3 mr-1" />
@@ -603,7 +826,12 @@ function MapPageInner() {
                             )}
                           </div>
                         </div>
-                        <Button onClick={() => navigate(`/session/${session.id}`)} className="ml-4">Détails</Button>
+                        <Button
+                          onClick={() => navigate(`/session/${session.id}`)}
+                          className="ml-4"
+                        >
+                          Voir détails
+                        </Button>
                       </div>
                     );
                   })()}
@@ -631,15 +859,30 @@ function MapPageInner() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
-                                <h4 className="font-semibold text-sm text-gray-900">{s.title}</h4>
-                                <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>
+                                <h4 className="font-semibold text-sm text-gray-900">
+                                  {s.title}
+                                </h4>
+                                <Badge className="bg-amber-100 text-amber-800">
+                                  Inscrit
+                                </Badge>
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
-                                {when.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · {when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                                {when.toLocaleDateString("fr-FR", {
+                                  weekday: "short",
+                                  day: "numeric",
+                                  month: "short",
+                                })}{" "}
+                                ·{" "}
+                                {when.toLocaleTimeString("fr-FR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 <MapPin className="inline w-3 h-3 mr-1" />
-                                {blur ? "Zone approximative" : (s.location_hint || "Lieu exact")}
+                                {blur
+                                  ? "Zone approximative"
+                                  : s.location_hint || "Lieu exact"}
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
@@ -651,9 +894,14 @@ function MapPageInner() {
                                   setCenter({ lat: s.start_lat, lng: s.start_lng });
                                 }}
                               >
-                                Sélectionner
+                                Zoomer
                               </Button>
-                              <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Détails</Button>
+                              <Button
+                                  size="sm"
+                                  onClick={() => navigate(`/session/${s.id}`)}
+                                >
+                                Voir
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -665,16 +913,25 @@ function MapPageInner() {
                   <div className="text-[11px] text-gray-500 mt-2">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#f59e0b" }} />
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: "#f59e0b" }}
+                        />
                         <span>Inscrit (icône dorée)</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#dc2626" }} />
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: "#dc2626" }}
+                        />
                         <span>Votre session (hôte)</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#22c55e" }} />
-                        <span>Session disponible</span>
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{ backgroundColor: "#3b82f6" }}
+                        />
+                        <span>Sélectionnée</span>
                       </div>
                     </div>
                   </div>
@@ -694,43 +951,92 @@ function MapPageInner() {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="space-y-3">{[1,2,3].map(i => (<div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>))}</div>
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="animate-pulse bg-gray-200 h-20 rounded-lg"
+                      ></div>
+                    ))}
+                  </div>
                 ) : filteredNearestSessions.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
                     <p className="text-sm">Aucune session proche trouvée</p>
-                    <p className="text-xs mt-1">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres" : "Activez la géolocalisation"}</p>
+                    <p className="text-xs mt-1">
+                      {filterRadius !== "all" ||
+                      filterIntensity !== "all" ||
+                      filterSessionType !== "all"
+                        ? "Essayez d'élargir vos filtres"
+                        : "Activez la géolocalisation"}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {filteredNearestSessions.map(session => {
+                    {filteredNearestSessions.map((session) => {
                       const blur = shouldBlur(session);
-                      const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
+                      const {
+                        label: tLabel,
+                        badgeVariant,
+                        renderIcon,
+                      } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
 
                       return (
                         <div
                           key={session.id}
-                          className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${selectedSession === session.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                          onClick={() => { setSelectedSession(selectedSession === session.id ? null : session.id); setCenter({ lat: session.start_lat, lng: session.start_lng }); }}
+                          className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                            selectedSession === session.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                          onClick={() => {
+                            setSelectedSession(
+                              selectedSession === session.id ? null : session.id
+                            );
+                            setCenter({
+                              lat: session.start_lat,
+                              lng: session.start_lng,
+                            });
+                          }}
                         >
                           <div className="flex justify-between items-start mb-2">
                             <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
                               {session.title}
                             </h3>
                             <div className="flex items-center gap-2">
-                              {enrolled && <Badge className="bg-amber-100 text-amber-800 h-5">Inscrit</Badge>}
-                              {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
+                              {enrolled && (
+                                <Badge className="bg-amber-100 text-amber-800 h-5">
+                                  Inscrit
+                                </Badge>
+                              )}
+                              {session.distanceFromUser !== null && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {Number(session.distanceFromUser).toFixed(1)} km
+                                </Badge>
+                              )}
                             </div>
                           </div>
                           <div className="space-y-1 text-xs text-gray-600">
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(session.scheduled_at).toLocaleDateString(
+                                "fr-FR",
+                                {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
                             </div>
                             <div className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
-                              {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || 'Lieu exact')}
+                              {blur
+                                ? `Zone approximative (${
+                                    session.blur_radius_m || 1000
+                                  }m)`
+                                : session.location_hint || "Lieu exact"}
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -741,22 +1047,30 @@ function MapPageInner() {
                                   </Badge>
                                 )}
                                 {session.session_type && (
-                                  <Badge variant={badgeVariant} className="text-xs py-0">
+                                  <Badge
+                                    variant={badgeVariant}
+                                    className="text-xs py-0"
+                                  >
                                     {renderIcon("text-[11px] leading-none")}
                                     {tLabel}
                                   </Badge>
                                 )}
                                 {session.distance_km && (
-                                  <span className="text-gray-500 text-xs">{session.distance_km} km</span>
+                                  <span className="text-gray-500 text-xs">
+                                    {session.distance_km} km
+                                  </span>
                                 )}
                               </div>
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="text-xs h-6 px-2"
-                                onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}`); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/session/${session.id}`);
+                                }}
                               >
-                                Détails
+                                Voir
                               </Button>
                             </div>
                           </div>
@@ -777,9 +1091,13 @@ function MapPageInner() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Rayon de recherche</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Rayon de recherche
+                  </label>
                   <Select value={filterRadius} onValueChange={setFilterRadius}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Toutes les sessions</SelectItem>
                       <SelectItem value="5">5 km</SelectItem>
@@ -790,9 +1108,13 @@ function MapPageInner() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Intensité</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Intensité
+                  </label>
                   <Select value={filterIntensity} onValueChange={setFilterIntensity}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Toutes les intensités</SelectItem>
                       <SelectItem value="marche">Marche</SelectItem>
@@ -802,9 +1124,16 @@ function MapPageInner() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Type de session</label>
-                  <Select value={filterSessionType} onValueChange={setFilterSessionType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Type de session
+                  </label>
+                  <Select
+                    value={filterSessionType}
+                    onValueChange={setFilterSessionType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tous types</SelectItem>
                       <SelectItem value="mixed">Mixte</SelectItem>
@@ -828,7 +1157,9 @@ function MapPageInner() {
         {error && (
           <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 shadow-lg rounded-lg p-4 max-w-sm">
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"><span className="text-white text-xs">!</span></div>
+              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs">!</span>
+              </div>
               <div>
                 <p className="text-sm font-medium text-red-800">Erreur de chargement</p>
                 <p className="text-xs text-red-600">{error}</p>
@@ -840,10 +1171,27 @@ function MapPageInner() {
           <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent className="text-center py-12">
               <MapPin className="mx-auto h-16 w-16 mb-4 text-gray-300" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune session trouvée</h3>
-              <p className="text-gray-500 mb-6">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres de recherche" : "Il n'y a pas de sessions disponibles pour le moment"}</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Aucune session trouvée
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {filterRadius !== "all" ||
+                filterIntensity !== "all" ||
+                filterSessionType !== "all"
+                  ? "Essayez d'élargir vos filtres de recherche"
+                  : "Il n'y a pas de sessions disponibles pour le moment"}
+              </p>
               <div className="flex justify-center gap-3">
-                <Button variant="outline" onClick={() => { setFilterRadius("all"); setFilterIntensity("all"); setFilterSessionType("all"); }}>Réinitialiser les filtres</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilterRadius("all");
+                    setFilterIntensity("all");
+                    setFilterSessionType("all");
+                  }}
+                >
+                  Réinitialiser les filtres
+                </Button>
                 <Button onClick={() => navigate("/create")}>Créer une session</Button>
               </div>
             </CardContent>
