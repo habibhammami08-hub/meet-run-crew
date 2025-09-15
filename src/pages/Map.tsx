@@ -1,8 +1,10 @@
-// src/pages/Map.tsx — Version sans tracés : uniquement des marqueurs rouges (sessions) + bleu (position)
+// src/pages/Map.tsx — Marqueurs rouges uniquement par défaut.
+// Si hôte/abonné : au clic sur une session -> affiche SEUL l’itinéraire de cette session (clic carte = désélection)
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { GoogleMap, MarkerF } from "@react-google-maps/api";
+import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
+import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
 import { useAuth } from "@/hooks/useAuth";
 import { MapErrorBoundary } from "@/components/MapErrorBoundary";
@@ -25,7 +27,7 @@ type SessionRow = {
   start_lat: number; start_lng: number;
   end_lat: number | null; end_lng: number | null;
   distance_km: number | null;
-  route_polyline: string | null; // présent en DB mais non affiché
+  route_polyline: string | null;
   intensity: string | null;
   session_type: string | null;
   blur_radius_m?: number | null;
@@ -74,7 +76,20 @@ function jitterDeterministic(lat:number, lng:number, meters:number, seed:string)
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
 const shouldBlur = (s: SessionRow, userId?: string, hasSub?: boolean) => !(hasSub || isOwnSession(s, userId));
 
-// Icône marker custom SSR-safe — toujours ROUGE pour les sessions
+// Cache décodage polyline (pour la session sélectionnée uniquement)
+const polyCache = new Map<string, LatLng[]>();
+const pathFromPolyline = (p?: string | null): LatLng[] => {
+  if (!p) return [];
+  const cached = polyCache.get(p);
+  if (cached) return cached;
+  try {
+    const path = polyline.decode(p).map(([lat, lng]) => ({ lat, lng }));
+    polyCache.set(p, path);
+    return path;
+  } catch { return []; }
+};
+
+// Icônes
 const createSessionMarkerIcon = () => {
   const size = 16;
   const color = '#dc2626'; // rouge
@@ -225,10 +240,8 @@ function MapPageInner() {
       filtered = filtered.filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= radius);
     }
     if (filterIntensity !== "all") {
-      const dbIntensity = (() => {
-        const mapping: Record<string, string> = { "marche": "low", "course modérée": "medium", "course intensive": "high" };
-        return mapping[filterIntensity] || null;
-      })();
+      const mapping: Record<string, string> = { "marche": "low", "course modérée": "medium", "course intensive": "high" };
+      const dbIntensity = mapping[filterIntensity] || null;
       if (dbIntensity) filtered = filtered.filter(s => s.intensity === dbIntensity);
     }
     if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
@@ -272,7 +285,7 @@ function MapPageInner() {
     return () => { if (channelRef.current && supabase) supabase.removeChannel(channelRef.current); };
   }, [supabase, debouncedRefresh]);
 
-  // Icône utilisateur (bleu)
+  // Icônes
   const userMarkerIcon = useMemo(() => {
     const url = 'data:image/svg+xml,' + encodeURIComponent(`
       <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
@@ -285,9 +298,25 @@ function MapPageInner() {
       ? { url, scaledSize: new g.maps.Size(16, 16), anchor: new g.maps.Point(8, 8) }
       : { url };
   }, []);
-
-  // Icône session (rouge)
   const sessionMarkerIcon = useMemo(() => createSessionMarkerIcon(), []);
+
+  // ——— Itinéraire affiché UNIQUEMENT pour la session sélectionnée si hôte/abonné ———
+  const selectedSessionObj = useMemo(
+    () => sessions.find(s => s.id === selectedSession) || null,
+    [sessions, selectedSession]
+  );
+
+  const canShowSelectedRoute = useMemo(() => {
+    if (!selectedSessionObj) return false;
+    if (!selectedSessionObj.route_polyline) return false;
+    // Visible si abonné OU hôte de cette session
+    return !!(hasSub || isOwnSession(selectedSessionObj, currentUser?.id));
+  }, [selectedSessionObj, hasSub, currentUser?.id]);
+
+  const selectedRoutePath = useMemo<LatLng[]>(() => {
+    if (!canShowSelectedRoute) return [];
+    return pathFromPolyline(selectedSessionObj?.route_polyline);
+  }, [canShowSelectedRoute, selectedSessionObj?.route_polyline]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -338,13 +367,19 @@ function MapPageInner() {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="h-[40vh] lg:h-[60vh] min-h-[300px] lg:min-h-[400px]">
-                  <GoogleMap mapContainerStyle={{ width: "100%", height: "100%" }} center={center} zoom={13} options={mapOptions}>
+                  <GoogleMap
+                    mapContainerStyle={{ width: "100%", height: "100%" }}
+                    center={center}
+                    zoom={13}
+                    options={mapOptions}
+                    onClick={() => setSelectedSession(null)}   // ← clic sur la carte = désélection
+                  >
                     {/* Position utilisateur */}
                     {userLocation && (
                       <MarkerF position={userLocation} icon={userMarkerIcon} title="Votre position" />
                     )}
 
-                    {/* Markers sessions — rouges uniquement, sans tracés */}
+                    {/* Markers sessions — rouges. Clic = sélection (et affiche itinéraire si autorisé) */}
                     {filteredSessions.map((s) => {
                       const blur = shouldBlur(s, currentUser?.id, hasSub);
                       const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };
@@ -356,10 +391,23 @@ function MapPageInner() {
                           position={startShown}
                           title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
                           icon={sessionMarkerIcon}
-                          onClick={() => setSelectedSession(s.id)}
+                          onClick={() => setSelectedSession(s.id)} // ← clic sur le marker = sélection
                         />
                       );
                     })}
+
+                    {/* Itinéraire de la session SÉLECTIONNÉE uniquement (si autorisé) */}
+                    {selectedRoutePath.length > 1 && (
+                      <Polyline
+                        path={selectedRoutePath}
+                        options={{
+                          clickable: false,
+                          strokeOpacity: 0.9,
+                          strokeWeight: 4,
+                          strokeColor: "#3b82f6", // bleu
+                        }}
+                      />
+                    )}
                   </GoogleMap>
                 </div>
               </CardContent>
