@@ -58,7 +58,7 @@ const Subscription = () => {
 
     setIsSubLoading(true);
     try {
-      // L’Edge Function gère success/cancel URL automatiquement (Option B)
+      // L’Edge Function gère les URLs de succès/annulation (Option B)
       const { data, error } = await supabase.functions.invoke("create-subscription-session");
       if (error) throw error;
 
@@ -90,12 +90,12 @@ const Subscription = () => {
         <div className="p-4 space-y-6 main-content">
           <Card className="shadow-card border-primary/20">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary text-center">
+              <CardTitle className="flex items-center gap-2 text-primary justify-center">
                 <Crown size={24} />
                 MeetRun Unlimited
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary mb-2">9,99 €</div>
                 <div className="text-sport-gray">par mois</div>
@@ -123,7 +123,8 @@ const Subscription = () => {
                 </ul>
               </div>
 
-              <div className="space-y-3 text-center">
+              {/* CTA centré et contenu étroit sur desktop */}
+              <div className="space-y-3 text-center max-w-sm mx-auto">
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm text-yellow-800 font-medium">🔒 Connexion requise pour s'abonner</p>
                   <p className="text-xs text-yellow-700 mt-1">Créez un compte pour sécuriser votre abonnement</p>
@@ -139,16 +140,14 @@ const Subscription = () => {
                   Se connecter / Créer un compte
                 </Button>
 
-                <div className="text-center">
-                  <p className="text-xs text-sport-gray">Résiliable à tout moment • Facturation mensuelle</p>
-                </div>
+                <p className="text-xs text-sport-gray">Résiliable à tout moment • Facturation mensuelle</p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle>Pourquoi MeetRun Unlimited ?</CardTitle>
+              <CardTitle className="text-center">Pourquoi MeetRun Unlimited ?</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -187,13 +186,13 @@ const Subscription = () => {
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary">
+              <CardTitle className="flex items-center gap-2 text-primary justify-center">
                 <Crown size={20} />
                 Abonnement MeetRun Unlimited
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-center gap-2">
                 <Badge variant="default" className="bg-green-100 text-green-800">
                   <Check size={14} className="mr-1" />
                   Actif
@@ -202,11 +201,13 @@ const Subscription = () => {
               </div>
 
               {subscriptionEnd && (
-                <p className="text-sm text-sport-gray">Renouvellement automatique le {formatDate(subscriptionEnd)}</p>
+                <p className="text-sm text-sport-gray text-center">
+                  Renouvellement automatique le {formatDate(subscriptionEnd)}
+                </p>
               )}
 
-              <div className="bg-sport-light p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Avantages inclus :</h3>
+              <div className="bg-sport-light p-4 rounded-lg max-w-lg mx-auto">
+                <h3 className="font-semibold mb-2 text-center">Avantages inclus :</h3>
                 <ul className="space-y-1 text-sm">
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-green-600" />
@@ -227,7 +228,7 @@ const Subscription = () => {
                 </ul>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex items-center justify-center gap-2">
                 <Button
                   onClick={handleManageSubscription}
                   disabled={isPortalLoading}
@@ -246,25 +247,25 @@ const Subscription = () => {
         ) : (
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 justify-center">
                 <Crown size={20} className="text-sport-gray" />
                 Abonnement MeetRun Unlimited
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-center gap-2">
                 <Badge variant="outline" className="bg-gray-100 text-gray-600">
                   <X size={14} className="mr-1" />
                   Non abonné
                 </Badge>
               </div>
 
-              <p className="text-sport-gray">
+              <p className="text-sport-gray text-center max-w-lg mx-auto">
                 Vous n'êtes pas encore abonné. Souscrivez dès maintenant pour profiter de l'accès illimité !
               </p>
 
-              <div className="bg-sport-light p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Avec l'abonnement, profitez de :</h3>
+              <div className="bg-sport-light p-4 rounded-lg max-w-lg mx-auto">
+                <h3 className="font-semibold mb-2 text-center">Avec l'abonnement, profitez de :</h3>
                 <ul className="space-y-1 text-sm">
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-green-600" />
@@ -285,9 +286,9 @@ const Subscription = () => {
                 </ul>
               </div>
 
-              {/* CTA identique à SessionDetails */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+              {/* === CTA centré et largeur contrôlée (desktop) === */}
+              <div className="space-y-3 max-w-sm mx-auto text-center">
+                <div className="flex items-center justify-center gap-2">
                   <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
                   <Badge variant="secondary">Économique</Badge>
                 </div>
@@ -305,16 +306,15 @@ const Subscription = () => {
                   )}
                 </Button>
 
-                <p className="text-xs text-sport-gray text-center">Résiliable à tout moment</p>
+                <p className="text-xs text-sport-gray">Résiliable à tout moment</p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Pourquoi MeetRun Unlimited */}
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Pourquoi MeetRun Unlimited ?</CardTitle>
+            <CardTitle className="text-center">Pourquoi MeetRun Unlimited ?</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
@@ -338,39 +338,6 @@ const Subscription = () => {
                 <h4 className="font-semibold">Rencontre</h4>
                 <p className="text-sm text-sport-gray">Rencontrez d'autres personnes près de chez vous.</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* FAQ */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle>Questions fréquentes</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h4 className="font-semibold">Puis-je annuler à tout moment ?</h4>
-              <p className="text-sm text-sport-gray">
-                Oui, vous pouvez annuler votre abonnement à tout moment depuis l'espace de gestion.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold">Que se passe-t-il si j'annule ?</h4>
-              <p className="text-sm text-sport-gray">
-                Vous gardez l'accès jusqu'à la fin de votre période de facturation, puis vous revenez aux zones approximatives.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold">Y a-t-il une période d'essai ?</h4>
-              <p className="text-sm text-sport-gray">
-                L'abonnement commence immédiatement après le paiement, sans période d'essai gratuite.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold">Comment fonctionne le paiement ?</h4>
-              <p className="text-sm text-sport-gray">
-                Le paiement est sécurisé par Stripe. Votre carte est débitée mensuellement jusqu'à résiliation.
-              </p>
             </div>
           </CardContent>
         </Card>
