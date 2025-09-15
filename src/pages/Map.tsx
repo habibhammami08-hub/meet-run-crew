@@ -637,9 +637,11 @@ function MapPageInner() {
 
                           <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
                             <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4" />
-                              {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                            </div>
+  <Calendar className="w-4 h-4 text-blue-600" />
+  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-1 text-[13px] font-semibold">
+    {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+  </span>
+</div>
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4" />
                               {blur ? 'Zone approximative' : (session.location_hint || 'Lieu exact')}
@@ -813,9 +815,11 @@ function MapPageInner() {
 
                           <div className="space-y-1 text-xs text-gray-600">
                             <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </div>
+  <Calendar className="w-3 h-3 text-blue-600" />
+  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[11px] font-semibold">
+    {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+  </span>
+</div>
                             <div className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
                               {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || 'Lieu exact')}
