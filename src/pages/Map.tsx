@@ -19,6 +19,10 @@ import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User } from "l
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 
+
+// Auth route (adjust if your auth page differs)
+const AUTH_ROUTE = "/auth";
+
 // ————————————————————————————————————————————
 // Types
 // ————————————————————————————————————————————
@@ -466,7 +470,7 @@ function MapPageInner() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate(AUTH_ROUTE)}
                   className="hidden md:inline-flex items-center gap-2"
                   aria-label="Se connecter"
                 >
@@ -527,7 +531,7 @@ function MapPageInner() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate(AUTH_ROUTE)}
                   className="md:hidden"
                   aria-label="Se connecter"
                 >
