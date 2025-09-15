@@ -1,4 +1,4 @@
-// src/pages/Map.tsx — fiche session enrichie (type + description)
+// src/pages/Map.tsx — pictogrammes de type (Mixte/Femmes/Hommes) + route seulement si sélectionnée
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -10,7 +10,17 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, RefreshCw, Navigation, Calendar, Zap } from "lucide-react";
+import {
+  MapPin,
+  Users,
+  Filter,
+  RefreshCw,
+  Navigation,
+  Calendar,
+  Zap,
+  Venus,
+  Mars
+} from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 
@@ -23,7 +33,7 @@ type LatLng = { lat: number; lng: number };
 type SessionRow = {
   id: string;
   title: string;
-  description?: string | null; // ⬅️ ajouté
+  description?: string | null;
   scheduled_at: string;
   start_lat: number; start_lng: number;
   end_lat: number | null; end_lng: number | null;
@@ -81,7 +91,6 @@ const uiToDbIntensity = (uiIntensity: string): string | null => {
 
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
 const shouldBlur = (s: SessionRow, userId?: string, hasSub?: boolean) => !(hasSub || isOwnSession(s, userId));
-const canShowPolyline = (s: SessionRow, userId?: string, hasSub?: boolean) => !!s.route_polyline && (hasSub || isOwnSession(s, userId));
 
 const polyCache = new Map<string, LatLng[]>();
 const pathFromPolyline = (p?: string | null): LatLng[] => {
@@ -110,6 +119,21 @@ const createCustomMarkerIcon = (isOwn: boolean, isSubscribed: boolean, isSelecte
     ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size/2, size + 6) }
     : { url };
 };
+
+// ————————————————————————————————————————————
+// Pictogrammes de type
+// ————————————————————————————————————————————
+
+function getTypeMeta(t: SessionRow["session_type"]) {
+  if (t === "women_only") {
+    return { label: "Femmes uniquement", Icon: Venus, badgeVariant: "secondary" as const };
+  }
+  if (t === "men_only") {
+    return { label: "Hommes uniquement", Icon: Mars, badgeVariant: "secondary" as const };
+  }
+  // mixed par défaut
+  return { label: "Mixte", Icon: Users, badgeVariant: "outline" as const };
+}
 
 // ————————————————————————————————————————————
 // Composant
@@ -194,10 +218,7 @@ function MapPageInner() {
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
       const { data, error } = await supabase
         .from("sessions")
-        .select(
-          // ⬇️ ajout de description
-          "id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants"
-        )
+        .select("id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants")
         .gte("scheduled_at", cutoffDate.toISOString())
         .eq("status", "published")
         .order("scheduled_at", { ascending: true })
@@ -323,7 +344,15 @@ function MapPageInner() {
                 </Button>
               )}
 
-              <Button variant="outline" size="sm" onClick={() => fetchSessions()} disabled={loading} className="flex items-center gap-2" aria-label="Actualiser les sessions">
+              {/* Masqué sur mobile */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchSessions()}
+                disabled={loading}
+                className="hidden md:inline-flex items-center gap-2"
+                aria-label="Actualiser les sessions"
+              >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
               </Button>
@@ -345,7 +374,13 @@ function MapPageInner() {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="h-[40vh] lg:h-[60vh] min-h-[300px] lg:min-h-[400px]">
-                  <GoogleMap mapContainerStyle={{ width: "100%", height: "100%" }} center={center} zoom={13} options={mapOptions}>
+                  <GoogleMap
+                    mapContainerStyle={{ width: "100%", height: "100%" }}
+                    center={center}
+                    zoom={13}
+                    options={mapOptions}
+                    onClick={() => setSelectedSession(null)}
+                  >
                     {userLocation && (
                       <MarkerF position={userLocation} icon={userMarkerIcon} title="Votre position" />
                     )}
@@ -356,27 +391,28 @@ function MapPageInner() {
                       const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };
                       const startShown = blur ? jitterDeterministic(start.lat, start.lng, s.blur_radius_m ?? 1000, s.id) : start;
                       const selected = selectedSession === s.id;
-                      const showPath = canShowPolyline(s, currentUser?.id, hasSub);
-                      const path = showPath ? pathFromPolyline(s.route_polyline) : [];
+
+                      // Le tracé n'apparaît que pour la session sélectionnée, et seulement pour hôte/abonné
+                      const allowPolyline = (hasSub || own) && selected && !!s.route_polyline;
+                      const path = allowPolyline ? pathFromPolyline(s.route_polyline) : [];
+
                       const markerIcon = createCustomMarkerIcon(own, !!hasSub, selected);
 
                       return (
-                        <>
+                        <div key={s.id}>
                           <MarkerF
-                            key={`m-${s.id}`}
                             position={startShown}
                             title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : ''}`}
                             icon={markerIcon}
-                            onClick={() => setSelectedSession(selected ? null : s.id)}
+                            onClick={(e) => { e.domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
                           />
-                          {showPath && path.length > 1 && (
+                          {allowPolyline && path.length > 1 && (
                             <Polyline
-                              key={`p-${s.id}`}
                               path={path}
-                              options={{ clickable: false, strokeOpacity: 0.8, strokeWeight: 3, strokeColor: selected ? '#3b82f6' : '#059669' }}
+                              options={{ clickable: false, strokeOpacity: 0.85, strokeWeight: 3.5, strokeColor: '#3b82f6' }}
                             />
                           )}
-                        </>
+                        </div>
                       );
                     })}
                   </GoogleMap>
@@ -391,20 +427,15 @@ function MapPageInner() {
                     const session = sessionsWithDistance.find(s => s.id === selectedSession);
                     if (!session) return null;
 
-                    const own = isOwnSession(session, currentUser?.id);
                     const blur = shouldBlur(session, currentUser?.id, hasSub);
-
-                    const typeLabel =
-                      session.session_type === 'women_only' ? 'Femmes uniquement'
-                      : session.session_type === 'men_only' ? 'Hommes uniquement'
-                      : 'Mixte';
+                    const { label: typeLabel, Icon: TypeIcon, badgeVariant } = getTypeMeta(session.session_type);
 
                     return (
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg text-gray-900 mb-1">{session.title}</h3>
 
-                          {/* ⬇️ description sous le titre */}
+                          {/* Description sous le titre */}
                           {session.description && (
                             <p className="text-sm text-gray-600 mb-3">
                               {session.description}
@@ -434,7 +465,7 @@ function MapPageInner() {
                             )}
                           </div>
 
-                          {/* ⬇️ badges: intensité, distance, type, capacité */}
+                          {/* Badges: intensité, distance, type, capacité */}
                           <div className="flex items-center gap-2 mb-4 flex-wrap">
                             {session.intensity && (
                               <Badge variant="secondary">
@@ -449,8 +480,8 @@ function MapPageInner() {
                               </Badge>
                             )}
                             {session.session_type && (
-                              <Badge variant={session.session_type === 'mixed' ? 'outline' : 'secondary'}>
-                                <Users className="w-3 h-3 mr-1" />
+                              <Badge variant={badgeVariant}>
+                                <TypeIcon className="w-3 h-3 mr-1" />
                                 {typeLabel}
                               </Badge>
                             )}
@@ -492,8 +523,9 @@ function MapPageInner() {
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
-                      const own = isOwnSession(session, currentUser?.id);
                       const blur = shouldBlur(session, currentUser?.id, hasSub);
+                      const { label: tLabel, Icon: TIcon, badgeVariant } = getTypeMeta(session.session_type);
+
                       return (
                         <div
                           key={session.id}
@@ -505,15 +537,36 @@ function MapPageInner() {
                             {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
                           </div>
                           <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-                            <div className="flex items-center gap-1"><MapPin className="w-3 h-3" />{blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || 'Lieu exact')}</div>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || 'Lieu exact')}
+                            </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {session.intensity && (<Badge variant="outline" className="text-xs py-0"><Zap className="w-2 h-2 mr-1" />{dbToUiIntensity(session.intensity)}</Badge>)}
-                                {session.session_type && session.session_type !== 'mixed' && (<Badge variant="secondary" className="text-xs py-0"><Users className="w-2 h-2 mr-1" />{session.session_type === 'women_only' ? 'Femmes' : session.session_type === 'men_only' ? 'Hommes' : 'Mixte'}</Badge>)}
-                                {session.distance_km && (<span className="text-gray-500 text-xs">{session.distance_km} km</span>)}
+                                {session.intensity && (
+                                  <Badge variant="outline" className="text-xs py-0">
+                                    <Zap className="w-2 h-2 mr-1" />
+                                    {dbToUiIntensity(session.intensity)}
+                                  </Badge>
+                                )}
+                                {/* Type toujours affiché, avec pictogramme dédié */}
+                                {session.session_type && (
+                                  <Badge variant={badgeVariant} className="text-xs py-0">
+                                    <TIcon className="w-2 h-2 mr-1" />
+                                    {tLabel}
+                                  </Badge>
+                                )}
+                                {session.distance_km && (
+                                  <span className="text-gray-500 text-xs">{session.distance_km} km</span>
+                                )}
                               </div>
-                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}`); }}>Voir</Button>
+                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}`); }}>
+                                Voir
+                              </Button>
                             </div>
                           </div>
                         </div>
