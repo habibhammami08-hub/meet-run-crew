@@ -15,16 +15,7 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  MapPin,
-  Users,
-  Filter,
-  RefreshCw,
-  Navigation,
-  Calendar,
-  Zap,
-  Crown, // ⬅️ ajouté
-} from "lucide-react";
+import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User } from "lucide-react"; // ← RefreshCw retiré, User ajouté
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 
@@ -39,8 +30,10 @@ type SessionRow = {
   title: string;
   description?: string | null;
   scheduled_at: string;
-  start_lat: number; start_lng: number;
-  end_lat: number | null; end_lng: number | null;
+  start_lat: number;
+  start_lng: number;
+  end_lat: number | null;
+  end_lng: number | null;
   distance_km: number | null;
   route_polyline: string | null;
   intensity: string | null;
@@ -69,7 +62,10 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 
 function seededNoise(seed: string) {
   let h = 2166136261;
-  for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  for (let i=0; i<seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
   const u = ((h >>> 0) % 10000) / 10000;
   const v = (((h * 48271) >>> 0) % 10000) / 10000;
   return { u, v };
@@ -104,7 +100,9 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
     const path = polyline.decode(p).map(([lat, lng]) => ({ lat, lng }));
     polyCache.set(p, path);
     return path;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 };
 
 // Icône personnalisée :
@@ -115,43 +113,24 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
 function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
   const { own, enrolled, selected, hasSub } = opts;
   const size = own ? 20 : (selected ? 18 : 16);
-  const color = own
-    ? "#dc2626"
-    : enrolled
-      ? "#f59e0b"
-      : selected
-        ? "#3b82f6"
-        : (hasSub ? "#065f46" : "#047857");
-
+  const color = own ? "#dc2626" : enrolled ? "#f59e0b" : selected ? "#3b82f6" : (hasSub ? "#065f46" : "#047857");
   const cx = size / 2;
   const cy = size / 2;
 
   // petite étoile au centre si "enrolled"
-  const star = `
-    <path d="
-      M ${cx} ${cy - 3.2}
-      L ${cx + 1.3} ${cy + 1.1}
-      L ${cx - 3.1} ${cy - 0.7}
-      L ${cx + 3.1} ${cy - 0.7}
-      L ${cx - 1.3} ${cy + 1.1}
-      Z
-    " fill="white" />
-  `;
-
+  const star = `<path d=" M ${cx} ${cy - 3.2} L ${cx + 1.3} ${cy + 1.1} L ${cx - 3.1} ${cy - 0.7} L ${cx + 3.1} ${cy - 0.7} L ${cx - 1.3} ${cy + 1.1} Z " fill="white" />`;
   // petit point si "selected"
   const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
-
   const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
 
-  const svg = `
-    <svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-      <path d="${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
-      <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
-      ${innerOwn}
-      ${enrolled ? star : ""}
-      ${selected && !enrolled ? dot : ""}
-    </svg>
-  `;
+  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
+    <path d="${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
+    <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
+    ${innerOwn}
+    ${enrolled ? star : ""}
+    ${selected && !enrolled ? dot : ""}
+  </svg>`;
+
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
   const g = typeof window !== "undefined" ? (window as any).google : undefined;
   return g?.maps?.Size && g?.maps?.Point
@@ -246,6 +225,7 @@ function MapPageInner() {
       setCenter(userPos);
       setUserLocation(userPos);
     };
+
     const errorCallback = (err: GeolocationPositionError) => {
       if (!mountedRef.current) return;
       console.warn("[map] Geolocation error:", err);
@@ -253,18 +233,24 @@ function MapPageInner() {
     };
 
     const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    navigator.geolocation.getCurrentPosition(successCallback, errorCallback, {
-      enableHighAccuracy: isMobile,
-      timeout: isMobile ? 15000 : 10000,
-      maximumAge: 300000,
-    });
+
+    navigator.geolocation.getCurrentPosition(
+      successCallback,
+      errorCallback,
+      {
+        enableHighAccuracy: isMobile,
+        timeout: isMobile ? 15000 : 10000,
+        maximumAge: 300000,
+      }
+    );
   }, [handleGeolocationError]);
 
-  useEffect(() => { if (!hasTriedGeolocation) requestGeolocation(); }, [requestGeolocation, hasTriedGeolocation]);
+  useEffect(() => {
+    if (!hasTriedGeolocation) requestGeolocation();
+  }, [requestGeolocation, hasTriedGeolocation]);
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
-
     if (abortControllerRef.current) abortControllerRef.current.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -272,7 +258,6 @@ function MapPageInner() {
 
     setLoading(true);
     setError(null);
-
     try {
       const now = new Date();
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
@@ -285,7 +270,10 @@ function MapPageInner() {
         .limit(500);
 
       if (signal.aborted || !mountedRef.current) return;
-      if (error) { setError(`Erreur lors du chargement des sessions: ${error.message}`); return; }
+      if (error) {
+        setError(`Erreur lors du chargement des sessions: ${error.message}`);
+        return;
+      }
 
       const mapped = (data ?? []).map((s) => ({
         ...s,
@@ -318,7 +306,6 @@ function MapPageInner() {
         setMySessionIds(new Set());
         return;
       }
-
       const ids = new Set<string>((data ?? []).map((e: any) => e.session_id));
       setMySessionIds(ids);
     } catch (e) {
@@ -345,6 +332,7 @@ function MapPageInner() {
 
   // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
   const isEnrolledIn = useCallback((id: string) => mySessionIds.has(id), [mySessionIds]);
+
   const shouldBlur = useCallback(
     (s: SessionRow) => !(hasSub || isOwnSession(s, currentUser?.id) || isEnrolledIn(s.id)),
     [hasSub, currentUser?.id, isEnrolledIn]
@@ -357,11 +345,14 @@ function MapPageInner() {
       const radius = parseInt(filterRadius);
       filtered = filtered.filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= radius);
     }
+
     if (filterIntensity !== "all") {
       const dbIntensity = uiToDbIntensity(filterIntensity);
       if (dbIntensity) filtered = filtered.filter(s => s.intensity === dbIntensity);
     }
+
     if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
+
     return filtered;
   }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType]);
 
@@ -386,12 +377,23 @@ function MapPageInner() {
     return () => {
       mountedRef.current = false;
       if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
-      if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null; }
-      if (channelRef.current && supabase) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (channelRef.current && supabase) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [fetchSessions, fetchMyEnrollments, supabase, currentUser]);
 
-  useEffect(() => { if (!authLoading && currentUser && mountedRef.current) { fetchSessions(); fetchMyEnrollments(); } }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
+  useEffect(() => {
+    if (!authLoading && currentUser && mountedRef.current) {
+      fetchSessions();
+      fetchMyEnrollments();
+    }
+  }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
 
   useEffect(() => {
     if (!supabase || !mountedRef.current) return;
@@ -399,7 +401,9 @@ function MapPageInner() {
 
     const ch = supabase
       .channel(`sessions-map-${Date.now()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => { if (mountedRef.current) debouncedRefresh(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => {
+        if (mountedRef.current) debouncedRefresh();
+      })
       // réagit aussi aux changements sur les enrollments de l’utilisateur (pour refléter un paiement one-off / désinscription)
       .on("postgres_changes", { event: "*", schema: "public", table: "enrollments", filter: currentUser ? `user_id=eq.${currentUser.id}` : undefined }, () => {
         if (mountedRef.current) fetchMyEnrollments();
@@ -407,16 +411,18 @@ function MapPageInner() {
       .subscribe();
 
     channelRef.current = ch;
-    return () => { if (channelRef.current && supabase) supabase.removeChannel(channelRef.current); };
+    return () => {
+      if (channelRef.current && supabase) supabase.removeChannel(channelRef.current);
+    };
   }, [supabase, debouncedRefresh, fetchMyEnrollments, currentUser]);
 
   const userMarkerIcon = useMemo(() => {
-    const url = 'data:image/svg+xml,' + encodeURIComponent(`
-      <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+    const url = 'data:image/svg+xml,' + encodeURIComponent(
+      `<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
         <circle cx="8" cy="8" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
         <circle cx="8" cy="8" r="3" fill="white"/>
-      </svg>
-    `);
+      </svg>`
+    );
     const g = typeof window !== 'undefined' ? (window as any).google : undefined;
     return g?.maps?.Size && g?.maps?.Point
       ? { url, scaledSize: new g.maps.Size(16, 16), anchor: new g.maps.Point(8, 8) }
@@ -443,28 +449,47 @@ function MapPageInner() {
 
             <div className="flex items-center gap-3">
               {!userLocation && hasTriedGeolocation && (
-                <Button variant="outline" size="sm" onClick={requestGeolocation} className="flex items-center gap-2" aria-label="Me localiser">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestGeolocation}
+                  className="flex items-center gap-2"
+                  aria-label="Me localiser"
+                >
                   <Navigation className="w-4 h-4" />
                   Me localiser
                 </Button>
               )}
 
-              {/* Masqué sur mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchSessions()}
-                disabled={loading}
-                className="hidden md:inline-flex items-center gap-2"
-                aria-label="Actualiser les sessions"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Actualiser
-              </Button>
+              {/* ▼▼▼ Modifs header — Version PC : retirer Actualiser ; afficher Se connecter (non connecté) ou icône Profil (connecté) */}
+              {!currentUser ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/login")}
+                  className="hidden md:inline-flex items-center gap-2"
+                  aria-label="Se connecter"
+                >
+                  Se connecter
+                </Button>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => navigate("/profile")}
+                  className="hidden md:inline-flex"
+                  aria-label="Profil"
+                  title="Profil"
+                >
+                  <User className="w-5 h-5" />
+                </Button>
+              )}
+              {/* ▲▲▲ */}
 
               {/* ⬇️ Icône MeetRun Unlimited si abonné, sinon bouton S'abonner */}
               {hasSub ? (
                 <>
+                  {/* Desktop badge bleu */}
                   <Button
                     size="sm"
                     onClick={() => navigate("/subscription")}
@@ -476,6 +501,7 @@ function MapPageInner() {
                     <Crown className="w-4 h-4" />
                     Unlimited
                   </Button>
+                  {/* Mobile badge bleu */}
                   <Button
                     size="icon"
                     onClick={() => navigate("/subscription")}
@@ -495,6 +521,31 @@ function MapPageInner() {
                   S'abonner
                 </Button>
               )}
+
+              {/* ▼ Version Mobile : ajouter Se connecter à côté de S'abonner ; si connecté, icône Profil à côté */}
+              {!currentUser ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/login")}
+                  className="md:hidden"
+                  aria-label="Se connecter"
+                >
+                  Se connecter
+                </Button>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => navigate("/profile")}
+                  className="md:hidden"
+                  aria-label="Profil"
+                  title="Profil"
+                >
+                  <User className="w-5 h-5" />
+                </Button>
+              )}
+              {/* ▲ */}
             </div>
           </div>
         </div>
@@ -529,7 +580,6 @@ function MapPageInner() {
                       // Le tracé n'apparaît que pour la session sélectionnée, et pour hôte/abonné OU si inscrit à cette session
                       const allowPolyline = (hasSub || own || enrolled) && selected && !!s.route_polyline;
                       const path = allowPolyline ? pathFromPolyline(s.route_polyline) : [];
-
                       const markerIcon = createCustomMarkerIcon({ own, enrolled, selected, hasSub });
 
                       return (
@@ -538,7 +588,11 @@ function MapPageInner() {
                             position={startShown}
                             title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
                             icon={markerIcon}
-                            onClick={(e) => { e.domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
+                            onClick={(e) => {
+                              // @ts-ignore — google maps DOM event
+                              e.domEvent?.stopPropagation?.();
+                              setSelectedSession(selected ? null : s.id);
+                            }}
                           />
                           {allowPolyline && path.length > 1 && (
                             <Polyline
@@ -570,7 +624,6 @@ function MapPageInner() {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg text-gray-900 mb-1">{session.title}</h3>
-
                           {/* Description sous le titre */}
                           {session.description && (
                             <p className="text-sm text-gray-600 mb-3">
@@ -630,6 +683,7 @@ function MapPageInner() {
                             )}
                           </div>
                         </div>
+
                         <Button onClick={() => navigate(`/session/${session.id}`)} className="ml-4">Voir détails</Button>
                       </div>
                     );
@@ -734,12 +788,14 @@ function MapPageInner() {
                       const blur = shouldBlur(session);
                       const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
-
                       return (
                         <div
                           key={session.id}
                           className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${selectedSession === session.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                          onClick={() => { setSelectedSession(selectedSession === session.id ? null : session.id); setCenter({ lat: session.start_lat, lng: session.start_lng }); }}
+                          onClick={() => {
+                            setSelectedSession(selectedSession === session.id ? null : session.id);
+                            setCenter({ lat: session.start_lat, lng: session.start_lng });
+                          }}
                         >
                           <div className="flex justify-between items-start mb-2">
                             <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
@@ -750,6 +806,7 @@ function MapPageInner() {
                               {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
                             </div>
                           </div>
+
                           <div className="space-y-1 text-xs text-gray-600">
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
@@ -777,7 +834,15 @@ function MapPageInner() {
                                   <span className="text-gray-500 text-xs">{session.distance_km} km</span>
                                 )}
                               </div>
-                              <Button size="sm" variant="ghost" className="text-xs h-6 px-2" onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}`); }}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs h-6 px-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/session/${session.id}`);
+                                }}
+                              >
                                 Voir
                               </Button>
                             </div>
@@ -811,6 +876,7 @@ function MapPageInner() {
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Intensité</label>
                   <Select value={filterIntensity} onValueChange={setFilterIntensity}>
@@ -823,6 +889,7 @@ function MapPageInner() {
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Type de session</label>
                   <Select value={filterSessionType} onValueChange={setFilterSessionType}>
@@ -847,6 +914,7 @@ function MapPageInner() {
             <span className="text-sm font-medium">Chargement des sessions...</span>
           </div>
         )}
+
         {error && (
           <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 shadow-lg rounded-lg p-4 max-w-sm">
             <div className="flex items-center gap-3">
@@ -858,6 +926,7 @@ function MapPageInner() {
             </div>
           </div>
         )}
+
         {!loading && filteredSessions.length === 0 && (
           <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent className="text-center py-12">
@@ -865,7 +934,16 @@ function MapPageInner() {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune session trouvée</h3>
               <p className="text-gray-500 mb-6">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres de recherche" : "Il n'y a pas de sessions disponibles pour le moment"}</p>
               <div className="flex justify-center gap-3">
-                <Button variant="outline" onClick={() => { setFilterRadius("all"); setFilterIntensity("all"); setFilterSessionType("all"); }}>Réinitialiser les filtres</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilterRadius("all");
+                    setFilterIntensity("all");
+                    setFilterSessionType("all");
+                  }}
+                >
+                  Réinitialiser les filtres
+                </Button>
                 <Button onClick={() => navigate("/create")}>Créer une session</Button>
               </div>
             </CardContent>
