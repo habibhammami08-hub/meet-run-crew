@@ -1,6 +1,6 @@
 // src/pages/SessionDetails.tsx
-// — Infos au-dessus de la carte, départ protégé (cercle 1200m pour non-abonnés), parcours bleu
-// — Paiement unique & abonnement via Edge Functions (Authorization JWT), layout mobile/desktop OK
+// — Infos au-dessus de la carte, départ protégé (cercle 1200m pour non-abonnés), parcours bleu,
+// — Paiement unique & abonnement via Edge Functions, layout mobile/desktop OK
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -125,19 +125,15 @@ const SessionDetails = () => {
     window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
   };
 
-  // Paiement à la séance — utilise exclusivement l'EF create-session-payment (avec JWT)
+  // PAIEMENT UNIQUE — appelle l'EF create-session-payment avec { sessionId }
   const startOneOffCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
 
     setIsOneOffLoading(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-
-      // Seul param utile attendu côté EF : session_id (l’EF construit success/cancel à partir de APP_BASE_URL)
       const { data, error } = await supabase.functions.invoke("create-session-payment", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: { session_id: id },
+        body: { sessionId: id },
       });
       if (error) throw error;
 
@@ -155,24 +151,20 @@ const SessionDetails = () => {
     }
   };
 
-  // Abonnement mensuel — utilise exclusivement l'EF create-subscription-session (avec JWT)
-  // Pas de success/cancel_url passées par le client : l’EF gère et redirige vers /subscription/success | /subscription/cancel
+  // ABONNEMENT — on laisse l’EF gérer les URLs par défaut (ou passe des overrides si tu veux)
   const startSubscriptionCheckout = async () => {
     if (!user) return redirectToAuth();
 
     setIsSubLoading(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-
       const { data, error } = await supabase.functions.invoke("create-subscription-session", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: {}, // rien à passer : l’EF choisit le price et les URLs
+        // Optionnel: tu peux passer des overrides si nécessaire :
+        // body: { success_url: `${window.location.origin}/subscription/success`, cancel_url: `${window.location.origin}/subscription/cancel` }
       });
       if (error) throw error;
 
-      const url = (data as any)?.checkout_url || (data as any)?.url;
-      if (!url) throw new Error("Impossible d’ouvrir la page d’abonnement (URL manquante).");
-
+      const url = (data as any)?.url || (data as any)?.checkout_url || (data as any)?.checkoutUrl;
+      if (!url) throw new Error("L’Edge Function n’a pas renvoyé d’URL d’abonnement.");
       window.location.assign(url);
     } catch (e: any) {
       toast({
@@ -185,15 +177,17 @@ const SessionDetails = () => {
     }
   };
 
-  // Gestion des retours de Stripe sur cette page (cas paiement unique si l’EF redirige ici)
+  // Gestion du retour Stripe : utilise le param 'sid' (ID de la Checkout Session Stripe)
   useEffect(() => {
     const paymentStatus = searchParams.get("payment");
+    const sid = searchParams.get("sid"); // ajouté par success_url de l’EF
     if (!id) return;
 
-    if (paymentStatus === "success") {
-      // On s’appuie sur le webhook pour basculer l’enrollment => on rafraîchit juste l’écran
+    if (paymentStatus === "success" && sid) {
+      supabase.functions
+        .invoke("verify-payment", { body: { sessionId: sid } })
+        .finally(() => fetchSessionDetails());
       toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
-      fetchSessionDetails();
     } else if (paymentStatus === "canceled") {
       toast({ title: "Paiement annulé", description: "Votre inscription n'a pas été finalisée.", variant: "destructive" });
     }
@@ -219,7 +213,6 @@ const SessionDetails = () => {
       setSession(sessionData);
       const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
-      // Non abonnés : centre sur un point jitter pour ne pas pointer le centre exact
       const shown = canSeeExact
         ? start
         : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1200, sessionData.id);
@@ -284,7 +277,8 @@ const SessionDetails = () => {
 
   // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
-  const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));
+  // IMPORTANT : accès au lieu exact si hôte, abonné, OU déjà inscrit (ex: paiement unique)
+  const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription || isEnrolled));
 
   const start = useMemo<LatLng | null>(() => (session ? { lat: session.start_lat, lng: session.start_lng } : null), [session]);
   const end = useMemo<LatLng | null>(
@@ -334,7 +328,7 @@ const SessionDetails = () => {
     []
   );
 
-  // Vert (abonnés/hôte) pour départ exact
+  // Vert pour abonnés/hôte
   const startMarkerIcon = useMemo(() => makeMarkerIcon("#16a34a"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
 
@@ -575,6 +569,7 @@ const SessionDetails = () => {
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
               {!canSeeExactLocation && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
+                  {/* Grille: col emoji + col texte; la 2e ligne est alignée exactement sous "Abonnez-vous" */}
                   <div className="grid grid-cols-[1.25rem,1fr] gap-2">
                     <div className="leading-5">💡</div>
                     <div>
@@ -614,12 +609,12 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ exact — seulement abonnés / hôte */}
+                    {/* Départ exact — seulement abonnés / hôte / inscrit (marker VERT) */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
 
-                    {/* Cercle d'approximation — non abonnés */}
+                    {/* Cercle d'approximation — non abonnés & non inscrits */}
                     {!canSeeExactLocation && start && (
                       <Circle
                         center={start}
@@ -641,7 +636,7 @@ const SessionDetails = () => {
                     {/* Arrivée (si définie) */}
                     {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
 
-                    {/* Parcours bleu — tronqué si non abonné */}
+                    {/* Parcours bleu — tronqué si non abonné & non inscrit */}
                     {trimmedRoutePath.length > 1 && (
                       <Polyline
                         path={trimmedRoutePath}
