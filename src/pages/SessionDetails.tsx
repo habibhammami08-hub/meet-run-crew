@@ -1,7 +1,8 @@
-// src/pages/SessionDetails.tsx — infos au-dessus de la carte, départ protégé, parcours bleu, layout mobile/desktop OK
+// src/pages/SessionDetails.tsx — Infos au-dessus de la carte, départ protégé (cercle + icône ?), parcours bleu,
+// start marker VERT pour hôte/abonné, mobile/desktop OK
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
+import { GoogleMap, MarkerF, Polyline, Circle } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -78,7 +79,9 @@ function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
 function makeMarkerIcon(color: string) {
   const size = 18;
   const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${size - 2} Z" fill="${color}"/>
+    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${
+    size - 2
+  } Z" fill="${color}"/>
     <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
   </svg>`;
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
@@ -86,6 +89,43 @@ function makeMarkerIcon(color: string) {
   return g?.maps?.Size && g?.maps?.Point
     ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
     : { url };
+}
+
+// Icône “?” pour la zone approximative
+function makeQuestionIcon(color = "#3b82f6") {
+  const size = 18;
+  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
+    <path d="M${size/2} ${size+6} L${size/2-4} ${size-2} Q${size/2} ${size-6} ${size/2+4} ${size-2} Z" fill="${color}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
+    <text x="${size/2}" y="${size/2+2}" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" fill="white">?</text>
+  </svg>`;
+  const url = "data:image/svg+xml," + encodeURIComponent(svg);
+  const g = typeof window !== "undefined" ? (window as any).google : undefined;
+  return g?.maps?.Size && g?.maps?.Point
+    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
+    : { url };
+}
+
+// Point sur le périmètre d’un cercle (bearing aléatoire déterministe)
+function pointOnCircle(center: LatLng, radiusMeters: number, seed: string): LatLng {
+  const { v } = seededNoise(seed + "-circle");
+  const bearing = 2 * Math.PI * v; // 0..2π
+  const R = 6371000; // rayon Terre (m)
+  const lat1 = (center.lat * Math.PI) / 180;
+  const lng1 = (center.lng * Math.PI) / 180;
+  const angDist = radiusMeters / R;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angDist) + Math.cos(lat1) * Math.sin(angDist) * Math.cos(bearing)
+  );
+  const lng2 =
+    lng1 +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angDist) * Math.cos(lat1),
+      Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2)
+    );
+
+  return { lat: (lat2 * 180) / Math.PI, lng: (lng2 * 180) / Math.PI };
 }
 
 // -------------------- Page --------------------
@@ -137,7 +177,9 @@ const SessionDetails = () => {
       setSession(sessionData);
       const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
-      const shown = canSeeExact ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1000, sessionData.id);
+      const shown = canSeeExact
+        ? start
+        : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 2000, sessionData.id);
       setCenter(shown);
     }
 
@@ -223,7 +265,7 @@ const SessionDetails = () => {
   const shownStart = useMemo<LatLng | null>(() => {
     if (!session || !start) return null;
     if (canSeeExactLocation) return start;
-    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id);
+    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 2000, session.id);
     return { lat: j.lat, lng: j.lng };
   }, [session, start, canSeeExactLocation]);
 
@@ -233,7 +275,7 @@ const SessionDetails = () => {
     if (!fullRoutePath.length) return [];
     if (canSeeExactLocation) return fullRoutePath;
     const minTrim = 300; // sécurité minimale
-    const trimMeters = Math.max(session?.blur_radius_m ?? 0, minTrim);
+    const trimMeters = Math.max(session?.blur_radius_m ?? 2000, minTrim);
     return trimRouteStart(fullRoutePath, trimMeters);
   }, [fullRoutePath, canSeeExactLocation, session]);
 
@@ -262,9 +304,10 @@ const SessionDetails = () => {
     []
   );
 
-  // START exact = VERT (hôte/abonné)
-  const startMarkerIcon = useMemo(() => makeMarkerIcon("#10b981"), []); // emerald-500
-  const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);    // red-500
+  // Start = vert (abonné/hôte), End = rouge
+  const startMarkerIcon = useMemo(() => makeMarkerIcon("#059669"), []);
+  const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
+  const approxMarkerIcon = useMemo(() => makeQuestionIcon("#3b82f6"), []);
 
   // ------- Early return après hooks -------
   if (!session || !shownStart || !center) {
@@ -283,6 +326,10 @@ const SessionDetails = () => {
   }
 
   const isSessionFull = participants.length >= session.max_participants;
+  const approxRadius = session.blur_radius_m ?? 2000;
+  const perimeterPoint = !canSeeExactLocation && shownStart
+    ? pointOnCircle(shownStart, approxRadius, session.id)
+    : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -318,7 +365,7 @@ const SessionDetails = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre */}
+          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop only) */}
           <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
             {/* Détails */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
@@ -421,75 +468,7 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
-            {/* Rejoindre — MOBILE ONLY, placé juste après les participants (dernier bloc de la colonne gauche) */}
-            {!isEnrolled && !isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : hasActiveSubscription ? (
-                    <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
-                        </div>
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Résiliable à tout moment
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
-                          <Crown className="w-4 h-4 mr-2" />
-                          S'abonner
-                        </Button>
-                      </div>
-
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
-                        </div>
-                        <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Payer maintenant
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Rejoindre — Desktop only (reste dans la colonne gauche, masqué sur mobile) */}
+            {/* Rejoindre — Desktop only */}
             {!isEnrolled && !isHost && (
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm hidden lg:block">
                 <CardContent className="p-6">
@@ -527,7 +506,7 @@ const SessionDetails = () => {
                         </div>
                         <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
                         <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Résiliable à tout moment
+                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
                         </p>
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
@@ -558,7 +537,7 @@ const SessionDetails = () => {
             )}
           </div>
 
-          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile) */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
             {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
@@ -603,9 +582,34 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ : marker visible seulement pour abonnés / hôte (VERT) */}
+                    {/* Départ exact : VERT pour abonnés/hôte */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
+                    )}
+
+                    {/* Zone approximative + icône sur le périmètre : NON abonnés */}
+                    {!canSeeExactLocation && shownStart && (
+                      <>
+                        <Circle
+                          center={shownStart}
+                          radius={approxRadius}
+                          options={{
+                            strokeOpacity: 0.7,
+                            strokeWeight: 1.5,
+                            strokeColor: "#3b82f6",
+                            fillOpacity: 0.12,
+                            fillColor: "#3b82f6",
+                            clickable: false,
+                          }}
+                        />
+                        {perimeterPoint && (
+                          <MarkerF
+                            position={perimeterPoint}
+                            icon={approxMarkerIcon}
+                            title="Zone approximative du départ"
+                          />
+                        )}
+                      </>
                     )}
 
                     {/* Arrivée (si définie) */}
@@ -678,7 +682,73 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* (Plus de bloc “Rejoindre” dans la colonne droite : mobile est géré ci-dessus, desktop est géré dans la colonne gauche) */}
+            {/* Rejoindre — Mobile only */}
+            {!isEnrolled && !isHost && (
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                  {isSessionFull ? (
+                    <div className="text-center py-6">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600 font-medium">Session complète</p>
+                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                    </div>
+                  ) : hasActiveSubscription ? (
+                    <Button
+                      onClick={handleSubscribeOrEnroll}
+                      disabled={isLoading}
+                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Inscription...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Rejoindre gratuitement
+                        </div>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-blue-900">Recommandé</span>
+                        </div>
+                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                          <Badge variant="secondary">Économique</Badge>
+                        </div>
+                        <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
+                          <Crown className="w-4 h-4 mr-2" />
+                          S'abonner
+                        </Button>
+                      </div>
+
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-1">Paiement unique</h4>
+                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold">4,50€</span>
+                          <span className="text-xs text-gray-500">une fois</span>
+                        </div>
+                        <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Payer maintenant
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
