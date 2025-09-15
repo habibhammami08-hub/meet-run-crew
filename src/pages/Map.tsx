@@ -15,7 +15,16 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Crown, MapPin, Users, Filter, RefreshCw, Navigation, Calendar, Zap } from "lucide-react";
+import {
+  MapPin,
+  Users,
+  Filter,
+  RefreshCw,
+  Navigation,
+  Calendar,
+  Zap,
+  Crown, // ⬅️ ajouté
+} from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 
@@ -98,7 +107,11 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
   } catch { return []; }
 };
 
-// Icône personnalisée
+// Icône personnalisée :
+// - rouge = sa propre session (host)
+// - doré + étoile = sessions où l’utilisateur est inscrit (one-off/sub)
+// - bleu = sélectionnée
+// - vert = autre (vert foncé si abonné pour un peu plus de contraste)
 function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
   const { own, enrolled, selected, hasSub } = opts;
   const size = own ? 20 : (selected ? 18 : 16);
@@ -113,6 +126,7 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
   const cx = size / 2;
   const cy = size / 2;
 
+  // petite étoile au centre si "enrolled"
   const star = `
     <path d="
       M ${cx} ${cy - 3.2}
@@ -123,7 +137,10 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
       Z
     " fill="white" />
   `;
+
+  // petit point si "selected"
   const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
+
   const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
 
   const svg = `
@@ -142,20 +159,37 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
     : { url };
 }
 
-// Pictos
+// ————————————————————————————————————————————
+// Pictogrammes de type (sans Venus/Mars de lucide)
+// ————————————————————————————————————————————
+
 type TypeMeta = {
   label: string;
   badgeVariant: "outline" | "secondary";
   renderIcon: (className?: string) => JSX.Element;
 };
+
 function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
   if (t === "women_only") {
-    return { label: "Femmes uniquement", badgeVariant: "secondary", renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♀</span> };
+    return {
+      label: "Femmes uniquement",
+      badgeVariant: "secondary",
+      renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♀</span>,
+    };
   }
   if (t === "men_only") {
-    return { label: "Hommes uniquement", badgeVariant: "secondary", renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♂</span> };
+    return {
+      label: "Hommes uniquement",
+      badgeVariant: "secondary",
+      renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♂</span>,
+    };
   }
-  return { label: "Mixte", badgeVariant: "outline", renderIcon: (cls = "") => <Users className={`w-3 h-3 mr-1 ${cls}`} /> };
+  // mixed par défaut
+  return {
+    label: "Mixte",
+    badgeVariant: "outline",
+    renderIcon: (cls = "") => <Users className={`w-3 h-3 mr-1 ${cls}`} />,
+  };
 }
 
 // ————————————————————————————————————————————
@@ -165,7 +199,7 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, ready: authReady } = useAuth();
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -178,7 +212,7 @@ function MapPageInner() {
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
   const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
 
-  // Sessions où l’utilisateur est inscrit
+  // Nouveaux états : sessions où l’utilisateur est INSCRIT
   const [mySessionIds, setMySessionIds] = useState<Set<string>>(new Set());
 
   const mountedRef = useRef(false);
@@ -266,7 +300,7 @@ function MapPageInner() {
     }
   }, [supabase]);
 
-  // Récupérer les sessions où l’utilisateur est inscrit
+  // Récupérer les sessions où l’utilisateur est inscrit (paid / included_by_subscription / confirmed)
   const fetchMyEnrollments = useCallback(async () => {
     if (!supabase || !currentUser) {
       setMySessionIds(new Set());
@@ -309,6 +343,7 @@ function MapPageInner() {
     }));
   }, [sessions, userLocation]);
 
+  // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
   const isEnrolledIn = useCallback((id: string) => mySessionIds.has(id), [mySessionIds]);
   const shouldBlur = useCallback(
     (s: SessionRow) => !(hasSub || isOwnSession(s, currentUser?.id) || isEnrolledIn(s.id)),
@@ -337,6 +372,7 @@ function MapPageInner() {
       .slice(0, 6)
   ), [filteredSessions]);
 
+  // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
   const myEnrolledSessions = useMemo(() => {
     const arr = sessionsWithDistance.filter(s => mySessionIds.has(s.id));
     return arr.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
@@ -344,8 +380,8 @@ function MapPageInner() {
 
   useEffect(() => {
     mountedRef.current = true;
-    // On peut charger les sessions même si l’auth n’est pas prête
     fetchSessions();
+    if (currentUser) fetchMyEnrollments();
 
     return () => {
       mountedRef.current = false;
@@ -353,22 +389,18 @@ function MapPageInner() {
       if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null; }
       if (channelRef.current && supabase) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
     };
-  }, [fetchSessions, supabase]);
+  }, [fetchSessions, fetchMyEnrollments, supabase, currentUser]);
 
-  // Quand l’auth est prête, on récupère mes inscriptions
-  useEffect(() => {
-    if (!authReady) return;
-    if (currentUser) fetchMyEnrollments();
-  }, [authReady, currentUser, fetchMyEnrollments]);
+  useEffect(() => { if (!authLoading && currentUser && mountedRef.current) { fetchSessions(); fetchMyEnrollments(); } }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
 
-  // Realtime seulement quand auth prête (évite souscriptions/cleanups en boucle)
   useEffect(() => {
-    if (!supabase || !mountedRef.current || !authReady) return;
+    if (!supabase || !mountedRef.current) return;
     if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     const ch = supabase
       .channel(`sessions-map-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => { if (mountedRef.current) debouncedRefresh(); })
+      // réagit aussi aux changements sur les enrollments de l’utilisateur (pour refléter un paiement one-off / désinscription)
       .on("postgres_changes", { event: "*", schema: "public", table: "enrollments", filter: currentUser ? `user_id=eq.${currentUser.id}` : undefined }, () => {
         if (mountedRef.current) fetchMyEnrollments();
       })
@@ -376,7 +408,7 @@ function MapPageInner() {
 
     channelRef.current = ch;
     return () => { if (channelRef.current && supabase) supabase.removeChannel(channelRef.current); };
-  }, [supabase, debouncedRefresh, fetchMyEnrollments, currentUser, authReady]);
+  }, [supabase, debouncedRefresh, fetchMyEnrollments, currentUser]);
 
   const userMarkerIcon = useMemo(() => {
     const url = 'data:image/svg+xml,' + encodeURIComponent(`
@@ -430,16 +462,30 @@ function MapPageInner() {
                 Actualiser
               </Button>
 
+              {/* ⬇️ Icône MeetRun Unlimited si abonné, sinon bouton S'abonner */}
               {hasSub ? (
-                <button
-                  onClick={() => navigate("/subscription")}
-                  className="hidden md:inline-flex items-center gap-2 rounded-full px-3 py-1 bg-blue-600 text-white text-sm"
-                  aria-label="Abonnement actif"
-                  title="Voir mon abonnement"
-                >
-                  <Crown className="w-4 h-4" />
-                  MeetRun Unlimited
-                </button>
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => navigate("/subscription")}
+                    variant="secondary"
+                    className="hidden md:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm"
+                    aria-label="Abonnement actif : gérer"
+                    title="Abonnement actif : MeetRun Unlimited"
+                  >
+                    <Crown className="w-4 h-4" />
+                    Unlimited
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={() => navigate("/subscription")}
+                    className="md:hidden bg-blue-600 hover:bg-blue-700 text-white rounded-full"
+                    aria-label="Abonnement actif"
+                    title="Abonnement actif"
+                  >
+                    <Crown className="w-4 h-4" />
+                  </Button>
+                </>
               ) : (
                 <Button
                   size="sm"
@@ -480,6 +526,7 @@ function MapPageInner() {
                       const selected = selectedSession === s.id;
                       const enrolled = isEnrolledIn(s.id);
 
+                      // Le tracé n'apparaît que pour la session sélectionnée, et pour hôte/abonné OU si inscrit à cette session
                       const allowPolyline = (hasSub || own || enrolled) && selected && !!s.route_polyline;
                       const path = allowPolyline ? pathFromPolyline(s.route_polyline) : [];
 
@@ -524,6 +571,7 @@ function MapPageInner() {
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg text-gray-900 mb-1">{session.title}</h3>
 
+                          {/* Description sous le titre */}
                           {session.description && (
                             <p className="text-sm text-gray-600 mb-3">
                               {session.description}
@@ -553,6 +601,7 @@ function MapPageInner() {
                             )}
                           </div>
 
+                          {/* Badges: intensité, distance, type, capacité + Inscrit */}
                           <div className="flex items-center gap-2 mb-4 flex-wrap">
                             {enrolled && <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>}
                             {session.intensity && (
@@ -601,7 +650,7 @@ function MapPageInner() {
                 <CardContent className="space-y-3">
                   <div className="grid md:grid-cols-2 gap-3">
                     {myEnrolledSessions.map((s) => {
-                      const blur = shouldBlur(s);
+                      const blur = shouldBlur(s); // devrait être false ici
                       const when = new Date(s.scheduled_at);
                       return (
                         <div key={s.id} className="p-4 rounded-lg border bg-white/70">
@@ -639,6 +688,7 @@ function MapPageInner() {
                     })}
                   </div>
 
+                  {/* Légende icônes */}
                   <div className="text-[11px] text-gray-500 mt-2">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
