@@ -23,6 +23,9 @@ import {
   Navigation,
   Calendar,
   Zap,
+  // ajout minimal pour le remplacement du bouton
+  LogIn,
+  User,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
@@ -448,18 +451,30 @@ function MapPageInner() {
                 </Button>
               )}
 
-              {/* Masqué sur mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchSessions()}
-                disabled={loading}
-                className="hidden md:inline-flex items-center gap-2"
-                aria-label="Actualiser les sessions"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Actualiser
-              </Button>
+              {/* Remplacement strict du bouton "Actualiser" */}
+              {!currentUser ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/login")}
+                  className="hidden md:inline-flex items-center gap-2"
+                  aria-label="Se connecter"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Se connecter
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => navigate("/profile")}
+                  className="hidden md:inline-flex"
+                  aria-label="Profil"
+                  title="Profil"
+                >
+                  <User className="w-4 h-4" />
+                </Button>
+              )}
 
               {!hasSub && (
                 <Button size="sm" onClick={() => navigate("/subscription")} className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
@@ -509,7 +524,7 @@ function MapPageInner() {
                             position={startShown}
                             title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
                             icon={markerIcon}
-                            onClick={(e) => { e.domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
+                            onClick={(e) => { (e as any).domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
                           />
                           {allowPolyline && path.length > 1 && (
                             <Polyline
