@@ -1,136 +1,171 @@
-// src/hooks/useAuth.tsx
-import { useEffect, useMemo, useState, useCallback, createContext, useContext } from "react";
-import type { User, Session } from "@supabase/supabase-js";
+// src/hooks/useAuth.ts
+import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
+import type { User } from "@supabase/supabase-js";
 import { getSupabase } from "@/integrations/supabase/client";
 
 type Profile = {
   id: string;
-  email?: string | null;
   full_name?: string | null;
+  email?: string | null;
   stripe_customer_id?: string | null;
-  sub_status?: string | null; // 'active' | 'trialing' | 'canceled' | ...
-  sub_current_period_end?: string | null;
+  sub_status?: string | null; // 'active' | 'trialing' | 'canceled' | null ...
+  sub_current_period_end?: string | null; // ISO string
   updated_at?: string | null;
 };
 
-type AuthContextShape = {
+type AuthCtx = {
+  ready: boolean;           // <-- très important : vrai quand la session est restaurée ET (si connecté) le profil est chargé
+  loading: boolean;         // loader ponctuel
   user: User | null;
-  session: Session | null;
-  loading: boolean;
-
   profile: Profile | null;
   hasActiveSubscription: boolean;
   subscriptionStatus: string | null;
   subscriptionEnd: string | null;
-
   refreshProfile: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextShape>({
-  user: null,
-  session: null,
-  loading: true,
+const Ctx = createContext<AuthCtx | null>(null);
 
-  profile: null,
-  hasActiveSubscription: false,
-  subscriptionStatus: null,
-  subscriptionEnd: null,
+function isSubActive(status?: string | null, end?: string | null) {
+  if (status !== "active") return false;
+  if (!end) return false;
+  return new Date(end) > new Date();
+}
 
-  refreshProfile: async () => {},
-  refreshSubscription: async () => {},
-  signOut: async () => {},
-});
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabase();
 
+  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  const fetchProfile = useCallback(async (uid: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id,email,full_name,stripe_customer_id,sub_status,sub_current_period_end,updated_at")
-      .eq("id", uid)
-      .maybeSingle<Profile>();
-    if (!error) setProfile(data ?? null);
-  }, [supabase]);
+  const mountedRef = useRef(false);
+  const loadingRef = useRef(false);
 
-  // Initialisation: lit la session depuis localStorage et s'abonne à l'auto-refresh
+  // Charge/rafraîchit le profil (séparé pour être réutilisé)
+  const refreshProfile = async () => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    try {
+      loadingRef.current = true;
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("[useAuth] profiles fetch error:", error.message);
+        setProfile((p) => p ?? null);
+      } else {
+        setProfile((data as Profile) ?? null);
+      }
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  // Réconciliation initiale de la session + profil
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
     (async () => {
-      const { data: si } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(si.session ?? null);
-      setUser(si.session?.user ?? null);
-      if (si.session?.user) await fetchProfile(si.session.user.id);
-      setLoading(false);
+      try {
+        // 1) Récupère la session persistée
+        const { data } = await supabase.auth.getSession();
+        const sessUser = data?.session?.user ?? null;
+        setUser(sessUser);
+
+        // 2) Si connecté → charge le profil
+        if (sessUser) {
+          await refreshProfile();
+        } else {
+          setProfile(null);
+        }
+      } catch (e) {
+        console.warn("[useAuth] getSession error:", e);
+      } finally {
+        // 3) Marque le contexte comme prêt (pages peuvent démarrer)
+        setReady(true);
+        setLoading(false);
+      }
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession ?? null);
-      setUser(newSession?.user ?? null);
-      if (newSession?.user) {
-        await fetchProfile(newSession.user.id);
+    // 4) Abonnement aux changements d'auth
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+
+      // En cas de SIGNED_IN / TOKEN_REFRESHED / etc. → recharge le profil
+      if (nextUser) {
+        await refreshProfile();
       } else {
         setProfile(null);
       }
+      setReady(true);
     });
 
-    return () => {
-      mounted = false;
-      sub?.subscription?.unsubscribe();
+    // 5) Rafraîchit quand l'onglet redevient visible (utile après long sommeil)
+    const onVisible = async () => {
+      if (document.visibilityState === "visible") {
+        try {
+          await supabase.auth.refreshSession();
+        } catch {}
+        if (user) await refreshProfile();
+      }
     };
-  }, [supabase, fetchProfile]);
+    document.addEventListener("visibilitychange", onVisible);
 
-  const hasActiveSubscription = useMemo(() => {
-    if (!profile?.sub_status || !profile?.sub_current_period_end) return false;
-    if (profile.sub_status !== "active") return false;
-    const end = new Date(profile.sub_current_period_end);
-    return end.getTime() > Date.now();
-  }, [profile]);
+    return () => {
+      mountedRef.current = false;
+      sub?.subscription?.unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const subscriptionStatus = profile?.sub_status ?? null;
-  const subscriptionEnd = profile?.sub_current_period_end ?? null;
+  const refreshSubscription = async () => {
+    // force un refetch du profil (utilisé après un retour Stripe ou un webhook)
+    await refreshProfile();
+  };
 
-  const refreshProfile = useCallback(async () => {
-    if (user?.id) await fetchProfile(user.id);
-  }, [user?.id, fetchProfile]);
-
-  const refreshSubscription = refreshProfile;
-
-  const signOut = useCallback(async () => {
+  const signOut = async () => {
     await supabase.auth.signOut();
-    setProfile(null);
-    setSession(null);
     setUser(null);
-  }, [supabase]);
+    setProfile(null);
+    setReady(true);
+  };
 
-  const value: AuthContextShape = {
-    user,
-    session,
+  const hasActiveSubscription = useMemo(
+    () => isSubActive(profile?.sub_status ?? null, profile?.sub_current_period_end ?? null),
+    [profile?.sub_status, profile?.sub_current_period_end]
+  );
+
+  const value: AuthCtx = {
+    ready,
     loading,
-
+    user,
     profile,
     hasActiveSubscription,
-    subscriptionStatus,
-    subscriptionEnd,
-
+    subscriptionStatus: profile?.sub_status ?? null,
+    subscriptionEnd: profile?.sub_current_period_end ?? null,
     refreshProfile,
     refreshSubscription,
     signOut,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
+export function useAuth(): AuthCtx {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
+  return ctx;
 }
