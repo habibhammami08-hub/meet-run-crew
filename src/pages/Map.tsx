@@ -1,4 +1,4 @@
-// src/pages/Map.tsx — pictogrammes de type (Mixte/Femmes/Hommes) + route seulement si sélectionnée
+// src/pages/Map.tsx — pictogrammes type (Mixte/Femmes/Hommes) sans Venus/Mars + route seulement si sélectionnée
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -18,8 +18,6 @@ import {
   Navigation,
   Calendar,
   Zap,
-  Venus,
-  Mars
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
@@ -121,18 +119,36 @@ const createCustomMarkerIcon = (isOwn: boolean, isSubscribed: boolean, isSelecte
 };
 
 // ————————————————————————————————————————————
-// Pictogrammes de type
+// Pictogrammes de type (sans Venus/Mars de lucide)
 // ————————————————————————————————————————————
 
-function getTypeMeta(t: SessionRow["session_type"]) {
+type TypeMeta = {
+  label: string;
+  badgeVariant: "outline" | "secondary";
+  renderIcon: (className?: string) => JSX.Element;
+};
+
+function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
   if (t === "women_only") {
-    return { label: "Femmes uniquement", Icon: Venus, badgeVariant: "secondary" as const };
+    return {
+      label: "Femmes uniquement",
+      badgeVariant: "secondary",
+      renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♀</span>,
+    };
   }
   if (t === "men_only") {
-    return { label: "Hommes uniquement", Icon: Mars, badgeVariant: "secondary" as const };
+    return {
+      label: "Hommes uniquement",
+      badgeVariant: "secondary",
+      renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♂</span>,
+    };
   }
   // mixed par défaut
-  return { label: "Mixte", Icon: Users, badgeVariant: "outline" as const };
+  return {
+    label: "Mixte",
+    badgeVariant: "outline",
+    renderIcon: (cls = "") => <Users className={`w-3 h-3 mr-1 ${cls}`} />,
+  };
 }
 
 // ————————————————————————————————————————————
@@ -428,7 +444,7 @@ function MapPageInner() {
                     if (!session) return null;
 
                     const blur = shouldBlur(session, currentUser?.id, hasSub);
-                    const { label: typeLabel, Icon: TypeIcon, badgeVariant } = getTypeMeta(session.session_type);
+                    const { label: typeLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
 
                     return (
                       <div className="flex justify-between items-start">
@@ -481,7 +497,7 @@ function MapPageInner() {
                             )}
                             {session.session_type && (
                               <Badge variant={badgeVariant}>
-                                <TypeIcon className="w-3 h-3 mr-1" />
+                                {renderIcon("text-[12px] leading-none")}
                                 {typeLabel}
                               </Badge>
                             )}
@@ -524,7 +540,7 @@ function MapPageInner() {
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
                       const blur = shouldBlur(session, currentUser?.id, hasSub);
-                      const { label: tLabel, Icon: TIcon, badgeVariant } = getTypeMeta(session.session_type);
+                      const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
 
                       return (
                         <div
@@ -553,10 +569,9 @@ function MapPageInner() {
                                     {dbToUiIntensity(session.intensity)}
                                   </Badge>
                                 )}
-                                {/* Type toujours affiché, avec pictogramme dédié */}
                                 {session.session_type && (
                                   <Badge variant={badgeVariant} className="text-xs py-0">
-                                    <TIcon className="w-2 h-2 mr-1" />
+                                    {renderIcon("text-[11px] leading-none")}
                                     {tLabel}
                                   </Badge>
                                 )}
