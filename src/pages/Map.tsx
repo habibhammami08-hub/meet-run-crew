@@ -19,11 +19,11 @@ import {
   MapPin,
   Users,
   Filter,
+  RefreshCw,
   Navigation,
   Calendar,
   Zap,
-  LogIn,
-  User,
+  Crown, // ⬅️ ajouté
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
@@ -449,33 +449,49 @@ function MapPageInner() {
                 </Button>
               )}
 
-              {/* Afficher sur desktop ET mobile */}
-              {!currentUser ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/auth")}
-                  className="inline-flex items-center gap-2"
-                  aria-label="Se connecter"
-                >
-                  <LogIn className="w-4 h-4" />
-                  Se connecter
-                </Button>
+              {/* Masqué sur mobile */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchSessions()}
+                disabled={loading}
+                className="hidden md:inline-flex items-center gap-2"
+                aria-label="Actualiser les sessions"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Actualiser
+              </Button>
+
+              {/* ⬇️ Icône MeetRun Unlimited si abonné, sinon bouton S'abonner */}
+              {hasSub ? (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => navigate("/subscription")}
+                    variant="secondary"
+                    className="hidden md:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm"
+                    aria-label="Abonnement actif : gérer"
+                    title="Abonnement actif : MeetRun Unlimited"
+                  >
+                    <Crown className="w-4 h-4" />
+                    Unlimited
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={() => navigate("/subscription")}
+                    className="md:hidden bg-blue-600 hover:bg-blue-700 text-white rounded-full"
+                    aria-label="Abonnement actif"
+                    title="Abonnement actif"
+                  >
+                    <Crown className="w-4 h-4" />
+                  </Button>
+                </>
               ) : (
                 <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigate("/profile")}
-                  className="inline-flex"
-                  aria-label="Profil"
-                  title="Profil"
+                  size="sm"
+                  onClick={() => navigate("/subscription")}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                 >
-                  <User className="w-4 h-4" />
-                </Button>
-              )}
-
-              {!hasSub && (
-                <Button size="sm" onClick={() => navigate("/subscription")} className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                   S'abonner
                 </Button>
               )}
@@ -522,7 +538,7 @@ function MapPageInner() {
                             position={startShown}
                             title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
                             icon={markerIcon}
-                            onClick={(e) => { (e as any).domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
+                            onClick={(e) => { e.domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
                           />
                           {allowPolyline && path.length > 1 && (
                             <Polyline
