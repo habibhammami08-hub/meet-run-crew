@@ -58,6 +58,7 @@ function pathFromPolyline(p?: string | null): LatLng[] {
   }
 }
 
+// Coupe les X premiers mètres du tracé
 function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
   if (!path || path.length < 2 || meters <= 0) return path || [];
   const R = 6371000; // m
@@ -106,21 +107,18 @@ const SessionDetails = () => {
   const [isOneOffLoading, setIsOneOffLoading] = useState(false);
   const [isSubLoading, setIsSubLoading] = useState(false);
 
-  const { user, hasActiveSubscription } = useAuth();
+  // ⬅️ on récupère aussi refreshSubscription pour forcer un refresh après succès
+  const { user, hasActiveSubscription, refreshSubscription } = useAuth();
   const { toast } = useToast();
   const supabase = getSupabase();
 
   // Map state
   const [center, setCenter] = useState<LatLng | null>(null);
 
-  // Abonnement tout juste activé (pour rendre l’UI instantanément)
-  const [subJustActivated, setSubJustActivated] = useState(false);
-  const effectiveHasSub = !!(hasActiveSubscription || subJustActivated);
-
   useEffect(() => {
     if (id) fetchSessionDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user, effectiveHasSub]);
+  }, [id, user]);
 
   // --------- Edge Functions checkout handlers ----------
   const redirectToAuth = () => {
@@ -128,18 +126,15 @@ const SessionDetails = () => {
     window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
   };
 
+  // PAIEMENT UNIQUE — appelle l'EF create-session-payment avec { sessionId }
   const startOneOffCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
 
     setIsOneOffLoading(true);
     try {
-      const origin = window.location.origin;
-      const success_url = `${origin}/session/${id}?payment=success&mode=oneoff&sid={CHECKOUT_SESSION_ID}`;
-      const cancel_url = `${origin}/session/${id}?payment=canceled&mode=oneoff`;
-
       const { data, error } = await supabase.functions.invoke("create-session-payment", {
-        body: { sessionId: id, success_url, cancel_url },
+        body: { sessionId: id },
       });
       if (error) throw error;
 
@@ -157,15 +152,15 @@ const SessionDetails = () => {
     }
   };
 
+  // ABONNEMENT — avec overrides success/cancel pour revenir sur CETTE page
   const startSubscriptionCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
 
     setIsSubLoading(true);
     try {
-      const origin = window.location.origin;
-      const success_url = `${origin}/session/${id}?payment=success&mode=sub&sid={CHECKOUT_SESSION_ID}`;
-      const cancel_url = `${origin}/session/${id}?payment=canceled&mode=sub`;
+      const success_url = `${window.location.origin}/session/${id}?sub=success`;
+      const cancel_url = `${window.location.origin}/session/${id}?sub=canceled`;
 
       const { data, error } = await supabase.functions.invoke("create-subscription-session", {
         body: { success_url, cancel_url },
@@ -186,34 +181,47 @@ const SessionDetails = () => {
     }
   };
 
-  // Gestion du retour Stripe
+  // Gestion des retours Stripe
   useEffect(() => {
-    (async () => {
-      const paymentStatus = searchParams.get("payment");
-      const sid = searchParams.get("sid"); // Checkout Session ID (Stripe)
-      const mode = searchParams.get("mode"); // "sub" | "oneoff"
-      if (!id || !paymentStatus) return;
+    if (!id) return;
 
-      if (paymentStatus === "success" && sid) {
-        try {
-          await supabase.functions.invoke("verify-payment", { body: { sessionId: sid } });
-          if (mode === "sub") setSubJustActivated(true);
-          await supabase.auth.refreshSession(); // force le refresh du token/user_metadata si besoin
-          await fetchSessionDetails();
-          toast({ title: "C’est fait !", description: mode === "sub" ? "Abonnement activé 🎉" : "Inscription confirmée ✅" });
-        } catch (e: any) {
-          toast({ title: "Vérification paiement", description: e?.message || "Échec de la vérification.", variant: "destructive" });
-        } finally {
-          // Nettoie l'URL pour éviter doublons au refresh
+    // 1) Paiement one-off
+    const paymentStatus = searchParams.get("payment");
+    const sid = searchParams.get("sid"); // ID de la Checkout Session Stripe (one-off)
+    if (paymentStatus === "success" && sid) {
+      supabase.functions
+        .invoke("verify-payment", { body: { sessionId: sid } })
+        .finally(() => fetchSessionDetails());
+      toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
+      // Nettoie l'URL
+      navigate(`/session/${id}`, { replace: true });
+      return;
+    } else if (paymentStatus === "canceled") {
+      toast({ title: "Paiement annulé", description: "Votre inscription n'a pas été finalisée.", variant: "destructive" });
+      navigate(`/session/${id}`, { replace: true });
+      return;
+    }
+
+    // 2) Abonnement (success/cancel)
+    const sub = searchParams.get("sub");
+    if (sub === "success") {
+      // le webhook va mettre le profil à jour ; on force le refresh côté client
+      Promise.resolve(refreshSubscription?.())
+        .catch(() => {})
+        .finally(() => {
+          fetchSessionDetails();
+          toast({
+            title: "Abonnement activé 🎉",
+            description: "Vous pouvez maintenant rejoindre cette session gratuitement.",
+          });
           navigate(`/session/${id}`, { replace: true });
-        }
-      } else if (paymentStatus === "canceled") {
-        toast({ title: "Opération annulée", description: "Aucune modification n’a été effectuée." });
-        navigate(`/session/${id}`, { replace: true });
-      }
-    })();
+        });
+    } else if (sub === "canceled") {
+      toast({ title: "Abonnement annulé", description: "Aucun changement n'a été effectué.", variant: "destructive" });
+      navigate(`/session/${id}`, { replace: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, id]);
+  }, [searchParams]);
 
   // -----------------------------------------------------
 
@@ -232,7 +240,7 @@ const SessionDetails = () => {
 
     if (sessionData) {
       setSession(sessionData);
-      const canSeeExact = !!(user && sessionData.host_id === user.id) || !!effectiveHasSub;
+      const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription || !!isEnrolled;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
       const shown = canSeeExact
         ? start
@@ -260,7 +268,7 @@ const SessionDetails = () => {
     }
     if (!session) return;
 
-    if (effectiveHasSub) {
+    if (hasActiveSubscription) {
       setIsLoading(true);
       try {
         const { error } = await supabase
@@ -296,8 +304,10 @@ const SessionDetails = () => {
     }
   };
 
+  // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
-  const canSeeExactLocation = !!(session && (isHost || effectiveHasSub || isEnrolled));
+  // IMPORTANT : accès au lieu exact si hôte, abonné, OU déjà inscrit (ex: paiement unique)
+  const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription || isEnrolled));
 
   const start = useMemo<LatLng | null>(() => (session ? { lat: session.start_lat, lng: session.start_lng } : null), [session]);
   const end = useMemo<LatLng | null>(
@@ -317,11 +327,12 @@ const SessionDetails = () => {
   const trimmedRoutePath = useMemo<LatLng[]>(() => {
     if (!fullRoutePath.length) return [];
     if (canSeeExactLocation) return fullRoutePath;
-    const minTrim = 300;
+    const minTrim = 300; // sécurité minimale
     const trimMeters = Math.max(session?.blur_radius_m ?? 0, minTrim);
     return trimRouteStart(fullRoutePath, trimMeters);
   }, [fullRoutePath, canSeeExactLocation, session]);
 
+  // Recentrage si le point visible change
   useEffect(() => {
     if (shownStart && (center?.lat !== shownStart.lat || center?.lng !== shownStart.lng)) {
       setCenter(shownStart);
@@ -346,9 +357,11 @@ const SessionDetails = () => {
     []
   );
 
+  // Vert pour abonnés/hôte
   const startMarkerIcon = useMemo(() => makeMarkerIcon("#16a34a"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
 
+  // ------- Early return après hooks -------
   if (!session || !shownStart || !center) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -514,82 +527,7 @@ const SessionDetails = () => {
                       <p className="text-gray-600 font-medium">Session complète</p>
                       <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
                     </div>
-                  ) : effectiveHasSub ? (
-                    <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
-                        </div>
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button
-                          onClick={startSubscriptionCheckout}
-                          disabled={isSubLoading}
-                          className="w-full bg-blue-600 hover:bg-blue-700"
-                        >
-                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
-                        </Button>
-                      </div>
-
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={startOneOffCheckout}
-                          disabled={isOneOffLoading}
-                          className="w-full"
-                        >
-                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Rejoindre — Mobile only (EN DERNIER) */}
-            {!isEnrolled && !isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : effectiveHasSub ? (
+                  ) : hasActiveSubscription ? (
                     <Button
                       onClick={handleSubscribeOrEnroll}
                       disabled={isLoading}
@@ -654,8 +592,9 @@ const SessionDetails = () => {
             )}
           </div>
 
-          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile) */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
+            {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
               {!canSeeExactLocation && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
@@ -693,13 +632,17 @@ const SessionDetails = () => {
               </div>
             </div>
 
+            {/* Carte */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
+                    {/* Départ exact — seulement abonnés / hôte / inscrit (marker VERT) */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
+
+                    {/* Cercle d'approximation — non abonnés & non inscrits */}
                     {!canSeeExactLocation && start && (
                       <Circle
                         center={start}
@@ -717,8 +660,11 @@ const SessionDetails = () => {
                         }}
                       />
                     )}
+
+                    {/* Arrivée (si définie) */}
                     {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
 
+                    {/* Parcours bleu — tronqué si non abonné & non inscrit */}
                     {trimmedRoutePath.length > 1 && (
                       <Polyline
                         path={trimmedRoutePath}
@@ -730,6 +676,7 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
+            {/* Rappels & sécurité — sous la carte */}
             <div className="mt-6">
               <h3 className="text-center text-lg md:text-xl font-bold text-gray-900 mb-4">🛡️ Rappels & sécurité</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-700">
@@ -783,7 +730,81 @@ const SessionDetails = () => {
                 </div>
               </div>
             </div>
-            {/* (rien d’autre ici en mobile: le bloc Rejoindre mobile est déjà tout en bas dans la colonne de gauche) */}
+
+            {/* Rejoindre — Mobile only (EN DERNIER) */}
+            {!isEnrolled && !isHost && (
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                  {isSessionFull ? (
+                    <div className="text-center py-6">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600 font-medium">Session complète</p>
+                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                    </div>
+                  ) : hasActiveSubscription ? (
+                    <Button
+                      onClick={handleSubscribeOrEnroll}
+                      disabled={isLoading}
+                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Inscription...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Rejoindre gratuitement
+                        </div>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-blue-900">Recommandé</span>
+                        </div>
+                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                          <Badge variant="secondary">Économique</Badge>
+                        </div>
+                        <Button
+                          onClick={startSubscriptionCheckout}
+                          disabled={isSubLoading}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                        </Button>
+                      </div>
+
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-1">Paiement unique</h4>
+                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold">4,50€</span>
+                          <span className="text-xs text-gray-500">une fois</span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={startOneOffCheckout}
+                          disabled={isOneOffLoading}
+                          className="w-full"
+                        >
+                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
