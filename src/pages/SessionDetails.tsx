@@ -497,14 +497,16 @@ const SessionDetails = () => {
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
               {!canSeeExactLocation && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
-                  <span className="font-medium">💡&nbsp;</span>
-                  <span className="align-top inline-block">
-                    Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
-                    <br className="hidden sm:block" />
-                    <span className="sm:pl-[10.5ch]">
-                      (une partie du parcours reste visible pour tous, mais son début est masqué)
-                    </span>
-                  </span>
+                  {/* Grille: col emoji + col texte; la 2e ligne est alignée exactement sous "Abonnez-vous" */}
+                  <div className="grid grid-cols-[1.25rem,1fr] gap-2">
+                    <div className="leading-5">💡</div>
+                    <div>
+                      <div className="font-medium">
+                        Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact
+                      </div>
+                      <div>(une partie du parcours reste visible pour tous, mais son début est masqué)</div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -515,7 +517,7 @@ const SessionDetails = () => {
                     <span className="font-medium">Départ : </span>
                     {canSeeExactLocation
                       ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
-                      : `Départ masqué • Zone approximative (rayon ${session.blur_radius_m || 1000} m)`}
+                      : "Départ masqué"}
                   </div>
                 </div>
                 {end && (
@@ -556,8 +558,8 @@ const SessionDetails = () => {
             </Card>
 
             {/* Rappels & sécurité — sous la carte */}
-            <div className="mt-1">
-              <h3 className="text-center text-lg md:text-xl font-bold text-gray-900 mb-2">Rappels & sécurité</h3>
+            <div className="mt-6">
+              <h3 className="text-center text-lg md:text-xl font-bold text-gray-900 mb-4">🛡️ Rappels & sécurité</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-700">
                 <div className="flex items-start gap-2">
                   <span className="select-none">⏰</span>
