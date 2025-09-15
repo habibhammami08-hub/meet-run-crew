@@ -1,6 +1,6 @@
 // src/pages/Subscription.tsx
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +11,63 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Subscription = () => {
-  const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
+  const {
+    user,
+    hasActiveSubscription,
+    subscriptionStatus,
+    subscriptionEnd,
+    refreshSubscription,
+  } = useAuth();
+
   const [isPortalLoading, setIsPortalLoading] = useState(false);
   const [isSubLoading, setIsSubLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const supabase = getSupabase();
+
+  // ------- Gestion retour Stripe (success/canceled) + verify-payment -------
+  useEffect(() => {
+    (async () => {
+      const payment = searchParams.get("payment");
+      const mode = searchParams.get("mode"); // "sub"
+      const sid = searchParams.get("sid");   // {CHECKOUT_SESSION_ID}
+
+      if (!payment) return;
+
+      if (payment === "success" && sid) {
+        try {
+          // Vérifie côté serveur que la souscription est bien active
+          await supabase.functions.invoke("verify-payment", { body: { sessionId: sid } });
+          // Rafraîchir l'état d'auth + abonnement
+          await supabase.auth.refreshSession();
+          await refreshSubscription?.();
+          toast({ title: "Abonnement activé 🎉", description: "Votre compte est maintenant en mode Unlimited." });
+        } catch (e: any) {
+          toast({
+            title: "Vérification paiement",
+            description: e?.message || "La vérification a échoué.",
+            variant: "destructive",
+          });
+        } finally {
+          // Nettoie les paramètres pour éviter les effets en double
+          navigate("/subscription", { replace: true });
+        }
+      } else if (payment === "canceled") {
+        toast({ title: "Opération annulée", description: "Aucun changement n’a été effectué." });
+        navigate("/subscription", { replace: true });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Optionnel : s'assurer que l'état reflète le backend quand on arrive connecté
+  useEffect(() => {
+    if (user) {
+      refreshSubscription?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleManageSubscription = async () => {
     if (!user) {
@@ -58,11 +109,21 @@ const Subscription = () => {
 
     setIsSubLoading(true);
     try {
-      // L’Edge Function gère les URLs de succès/annulation (Option B)
-      const { data, error } = await supabase.functions.invoke("create-subscription-session");
+      // Définir explicitement les URLs de retour pour éviter les 404
+      const origin = window.location.origin;
+      const success_url = `${origin}/subscription?payment=success&mode=sub&sid={CHECKOUT_SESSION_ID}`;
+      const cancel_url = `${origin}/subscription?payment=canceled&mode=sub`;
+
+      const { data, error } = await supabase.functions.invoke("create-subscription-session", {
+        body: { success_url, cancel_url },
+      });
       if (error) throw error;
 
-      const url = (data as any)?.url || (data as any)?.checkout_url || (data as any)?.checkoutUrl;
+      const url =
+        (data as any)?.url ||
+        (data as any)?.checkout_url ||
+        (data as any)?.checkoutUrl;
+
       if (!url) throw new Error("L’Edge Function n’a pas renvoyé d’URL d’abonnement.");
       window.location.assign(url);
     } catch (e: any) {
