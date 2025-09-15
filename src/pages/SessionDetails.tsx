@@ -78,9 +78,7 @@ function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
 function makeMarkerIcon(color: string) {
   const size = 18;
   const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${
-    size - 2
-  } Z" fill="${color}"/>
+    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${size - 2} Z" fill="${color}"/>
     <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
   </svg>`;
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
@@ -264,8 +262,9 @@ const SessionDetails = () => {
     []
   );
 
-  const startMarkerIcon = useMemo(() => makeMarkerIcon("#dc2626"), []);
-  const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
+  // START exact = VERT (hôte/abonné)
+  const startMarkerIcon = useMemo(() => makeMarkerIcon("#10b981"), []); // emerald-500
+  const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);    // red-500
 
   // ------- Early return après hooks -------
   if (!session || !shownStart || !center) {
@@ -497,7 +496,7 @@ const SessionDetails = () => {
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
               {!canSeeExactLocation && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
-                  {/* Grille: col emoji + col texte; la 2e ligne est alignée exactement sous "Abonnez-vous" */}
+                  {/* Grille: col emoji + col texte; la 2e ligne est alignée sous “Abonnez-vous” */}
                   <div className="grid grid-cols-[1.25rem,1fr] gap-2">
                     <div className="leading-5">💡</div>
                     <div>
@@ -517,7 +516,7 @@ const SessionDetails = () => {
                     <span className="font-medium">Départ : </span>
                     {canSeeExactLocation
                       ? (session.location_hint || session.start_place || "Coordonnées exactes disponibles")
-                      : "Départ masqué"}
+                      : "Lieu de départ masqué pour les non-abonné"}
                   </div>
                 </div>
                 {end && (
@@ -537,7 +536,7 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ : marker visible seulement pour abonnés / hôte */}
+                    {/* Départ : marker visible seulement pour abonnés / hôte (VERT) */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
