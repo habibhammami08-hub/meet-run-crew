@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+// src/pages/Subscription.tsx
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,82 +10,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-// Déclaration pour Stripe Buy Button
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'stripe-buy-button': {
-        'buy-button-id': string;
-        'publishable-key': string;
-      };
-    }
-  }
-}
-
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
   const [isPortalLoading, setIsPortalLoading] = useState(false);
-  const [isSubscribeLoading, setIsSubscribeLoading] = useState(false);
-  const [stripeBuyButtonLoaded, setStripeBuyButtonLoaded] = useState(false);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  
+
   const supabase = getSupabase();
-
-  // Charger le script Stripe Buy Button
-  useEffect(() => {
-    const existingScript = document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]');
-    
-    if (!existingScript) {
-      const script = document.createElement('script');
-      script.src = 'https://js.stripe.com/v3/buy-button.js';
-      script.async = true;
-      script.onload = () => {
-        console.log("[stripe] Buy Button script chargé");
-        setStripeBuyButtonLoaded(true);
-      };
-      script.onerror = () => {
-        console.error("[stripe] Erreur chargement Buy Button script");
-        toast({
-          title: "Erreur de chargement",
-          description: "Impossible de charger le système de paiement",
-          variant: "destructive",
-        });
-      };
-      document.body.appendChild(script);
-    } else {
-      setStripeBuyButtonLoaded(true);
-    }
-
-    // Écouter les événements Stripe
-    const handleStripeMessage = (event: MessageEvent) => {
-      if (event.origin !== 'https://js.stripe.com') return;
-      
-      if (event.data?.type === 'stripe_checkout_session_complete') {
-        console.log("[stripe] Checkout complété:", event.data);
-        toast({
-          title: "Paiement réussi !",
-          description: "Votre abonnement est maintenant actif.",
-        });
-        // Actualiser le statut d'abonnement
-        setTimeout(() => {
-          refreshSubscription();
-        }, 2000);
-      } else if (event.data?.type === 'stripe_checkout_session_cancel') {
-        console.log("[stripe] Checkout annulé:", event.data);
-        toast({
-          title: "Paiement annulé",
-          description: "Vous pouvez réessayer quand vous voulez.",
-        });
-      }
-    };
-
-    window.addEventListener('message', handleStripeMessage);
-
-    return () => {
-      window.removeEventListener('message', handleStripeMessage);
-    };
-  }, [toast, refreshSubscription]);
 
   const handleManageSubscription = async () => {
     if (!user) {
@@ -99,21 +32,24 @@ const Subscription = () => {
     setIsPortalLoading(true);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
       const { data, error } = await supabase.functions.invoke('create-customer-portal-session', {
-        headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
       if (error) throw error;
 
-      if (data.url) {
+      if (data?.url) {
         window.open(data.url, '_blank');
+      } else {
+        throw new Error("URL du portail indisponible.");
       }
     } catch (error: any) {
       toast({
         title: "Erreur",
-        description: error.message,
+        description: error?.message || "Impossible d’ouvrir le portail client.",
         variant: "destructive",
       });
     } finally {
@@ -121,43 +57,50 @@ const Subscription = () => {
     }
   };
 
-  const handleSubscribeToMeetRun = async () => {
+  const startSubscriptionCheckout = async () => {
     if (!user) {
-      toast({
-        title: "Connexion requise",
-        description: "Connectez-vous pour vous abonner.",
-        variant: "destructive",
-      });
+      // Si pas connecté → page d’auth
+      navigate(`/auth?returnTo=${encodeURIComponent('/subscription')}`);
       return;
     }
 
-    setIsSubscribeLoading(true);
-
+    setIsCheckoutLoading(true);
     try {
-      const payload = {
-        success_url: `${window.location.origin}/subscription?payment=success`,
-        cancel_url: `${window.location.origin}/subscription?payment=canceled`,
-      };
+      // Récupère le token pour l’edge function (obligatoire)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
 
-      const { data, error } = await supabase.functions.invoke("create-subscription-session", { body: payload });
+      // Optionnel : si tu veux surcharger le price côté front, décommente et configure la variable env côté Vite
+      // const body: any = {};
+      // if (import.meta.env.VITE_STRIPE_PRICE_MONTHLY_EUR?.startsWith("price_")) {
+      //   body.priceId = import.meta.env.VITE_STRIPE_PRICE_MONTHLY_EUR;
+      // }
+
+      const { data, error } = await supabase.functions.invoke('create-subscription-session', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        // body,
+      });
+
       if (error) throw error;
 
-      const url = data?.url || data?.checkout_url || data?.checkoutUrl;
-
-      if (!url) {
-        throw new Error("La création de la session d'abonnement n'a pas renvoyé d'URL.");
+      if (data?.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        throw new Error("Lien de paiement indisponible.");
       }
-
-      window.location.assign(url);
-    } catch (error: any) {
-      console.error("Erreur abonnement:", error);
+    } catch (err: any) {
+      console.error("[subscription] create-subscription-session error:", err);
+      const msg =
+        err?.message ||
+        err?.error?.message ||
+        "Impossible de démarrer le paiement d’abonnement.";
       toast({
-        title: "Erreur",
-        description: error.message || "Impossible de créer la session d'abonnement.",
+        title: "Erreur d’abonnement",
+        description: msg,
         variant: "destructive",
       });
     } finally {
-      setIsSubscribeLoading(false);
+      setIsCheckoutLoading(false);
     }
   };
 
@@ -169,11 +112,10 @@ const Subscription = () => {
     });
   };
 
-  // CORRECTION: Page accessible même sans être connecté
+  // Vue publique (non connecté)
   const renderUnauthenticatedView = () => (
     <div className="min-h-screen bg-background">
       <div className="p-4 space-y-6 main-content">
-        {/* Hero pour non connectés */}
         <Card className="shadow-card border-primary/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-primary text-center">
@@ -209,7 +151,6 @@ const Subscription = () => {
               </ul>
             </div>
 
-            {/* Call-to-action pour non connectés */}
             <div className="space-y-3 text-center">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-sm text-yellow-800 font-medium">
@@ -219,8 +160,8 @@ const Subscription = () => {
                   Créez un compte pour sécuriser votre abonnement
                 </p>
               </div>
-              
-              <Button 
+
+              <Button
                 onClick={() => navigate(`/auth?returnTo=${encodeURIComponent('/subscription')}`)}
                 variant="default"
                 size="lg"
@@ -229,7 +170,7 @@ const Subscription = () => {
                 <Users size={16} className="mr-2" />
                 Se connecter / Créer un compte
               </Button>
-              
+
               <div className="text-center">
                 <p className="text-xs text-sport-gray">
                   Résiliable à tout moment • Facturation mensuelle
@@ -239,7 +180,7 @@ const Subscription = () => {
           </CardContent>
         </Card>
 
-        {/* Avantages détaillés */}
+        {/* Avantages */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle>Pourquoi MeetRun Unlimited ?</CardTitle>
@@ -273,16 +214,13 @@ const Subscription = () => {
     </div>
   );
 
-  // Si pas connecté, afficher la vue publique
-  if (!user) {
-    return renderUnauthenticatedView();
-  }
+  // Si pas connecté, vue publique
+  if (!user) return renderUnauthenticatedView();
 
-  // Vue pour utilisateurs connectés
+  // Vue connectée
   return (
     <div className="min-h-screen bg-background">
       <div className="p-4 space-y-6 main-content">
-        {/* Current Status */}
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">
             <CardHeader>
@@ -301,7 +239,7 @@ const Subscription = () => {
                   Statut: {subscriptionStatus}
                 </span>
               </div>
-              
+
               {subscriptionEnd && (
                 <p className="text-sm text-sport-gray">
                   Renouvellement automatique le {formatDate(subscriptionEnd)}
@@ -331,8 +269,8 @@ const Subscription = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button 
-                  onClick={handleManageSubscription} 
+                <Button
+                  onClick={handleManageSubscription}
                   disabled={isPortalLoading}
                   variant="outline"
                   className="flex items-center gap-2"
@@ -340,11 +278,7 @@ const Subscription = () => {
                   <ExternalLink size={16} />
                   {isPortalLoading ? "Redirection..." : "Gérer mon abonnement"}
                 </Button>
-                <Button 
-                  onClick={refreshSubscription}
-                  variant="ghost"
-                  size="sm"
-                >
+                <Button onClick={refreshSubscription} variant="ghost" size="sm">
                   Actualiser
                 </Button>
               </div>
@@ -393,19 +327,15 @@ const Subscription = () => {
               </div>
 
               <div className="text-center space-y-4">
-                {/* Bouton d'abonnement connecté à l'edge function */}
-                <Button 
-                  onClick={handleSubscribeToMeetRun}
-                  disabled={isSubscribeLoading}
+                <Button
+                  onClick={startSubscriptionCheckout}
+                  disabled={isCheckoutLoading}
                   size="lg"
                   className="w-full"
                 >
-                  {isSubscribeLoading ? "Redirection..." : "S'abonner à MeetRun Unlimited - 9,99€/mois"}
+                  {isCheckoutLoading ? "Initialisation..." : "S’abonner maintenant"}
                 </Button>
-                
-                <p className="text-xs text-sport-gray">
-                  Résiliable à tout moment
-                </p>
+                <p className="text-xs text-sport-gray">Résiliable à tout moment</p>
               </div>
             </CardContent>
           </Card>
