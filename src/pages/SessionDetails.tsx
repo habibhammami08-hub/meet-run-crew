@@ -1,7 +1,10 @@
-// src/pages/SessionDetails.tsx — Infos au-dessus de la carte, départ protégé, parcours bleu, layout mobile/desktop OK
+// src/pages/SessionDetails.tsx
+// — Infos au-dessus de la carte, départ protégé (cercle 1200m pour non-abonnés), parcours bleu,
+// — Paiement unique & abonnement via Edge Functions, layout mobile/desktop OK
+
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
+import { GoogleMap, MarkerF, Polyline, Circle } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -78,9 +81,7 @@ function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
 function makeMarkerIcon(color: string) {
   const size = 18;
   const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${
-    size - 2
-  } Z" fill="${color}"/>
+    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${size - 2} Z" fill="${color}"/>
     <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
   </svg>`;
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
@@ -101,6 +102,11 @@ const SessionDetails = () => {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Checkout states
+  const [isOneOffLoading, setIsOneOffLoading] = useState(false);
+  const [isSubLoading, setIsSubLoading] = useState(false);
+
   const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const supabase = getSupabase();
@@ -113,14 +119,84 @@ const SessionDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
+  // --------- Edge Functions checkout handlers ----------
+  const redirectToAuth = () => {
+    const currentPath = `/session/${id}`;
+    window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+  };
+
+  const startOneOffCheckout = async () => {
+    if (!user) return redirectToAuth();
+    if (!id) return;
+
+    setIsOneOffLoading(true);
+    try {
+      const payload = {
+        session_id: id,
+        success_url: `${window.location.origin}/session/${id}?payment=success`,
+        cancel_url: `${window.location.origin}/session/${id}?payment=canceled`,
+      };
+
+      const { data, error } = await supabase.functions.invoke("create-session-payment", { body: payload });
+      if (error) throw error;
+
+      const url = (data as any)?.url || (data as any)?.checkout_url || (data as any)?.checkoutUrl;
+      if (!url) throw new Error("L’Edge Function n’a pas renvoyé d’URL de paiement.");
+      window.location.assign(url);
+    } catch (e: any) {
+      toast({
+        title: "Paiement indisponible",
+        description: e?.message || "La création de la session de paiement a échoué.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOneOffLoading(false);
+    }
+  };
+
+  const startSubscriptionCheckout = async () => {
+    if (!user) return redirectToAuth();
+
+    setIsSubLoading(true);
+    try {
+      const payload = {
+        success_url: `${window.location.origin}/session/${id}?payment=success`,
+        cancel_url: `${window.location.origin}/session/${id}?payment=canceled`,
+      };
+
+      const { data, error } = await supabase.functions.invoke("create-subscription-session", { body: payload });
+      if (error) throw error;
+
+      const url = (data as any)?.url || (data as any)?.checkout_url || (data as any)?.checkoutUrl;
+      if (!url) throw new Error("L’Edge Function n’a pas renvoyé d’URL d’abonnement.");
+      window.location.assign(url);
+    } catch (e: any) {
+      toast({
+        title: "Abonnement indisponible",
+        description: e?.message || "Impossible d’ouvrir la page d’abonnement.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubLoading(false);
+    }
+  };
+
   useEffect(() => {
     const paymentStatus = searchParams.get("payment");
+    if (!id) return;
+
     if (paymentStatus === "success") {
+      // Optionnel : double-check côté client (ton webhook Stripe reste la source de vérité)
+      supabase.functions.invoke("verify-payment", { body: { session_id: id } })
+        .finally(() => fetchSessionDetails());
       toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
     } else if (paymentStatus === "canceled") {
       toast({ title: "Paiement annulé", description: "Votre inscription n'a pas été finalisée.", variant: "destructive" });
     }
-  }, [searchParams, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // -----------------------------------------------------
 
   const fetchSessionDetails = async () => {
     const { data: sessionData, error } = await supabase
@@ -139,7 +215,10 @@ const SessionDetails = () => {
       setSession(sessionData);
       const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
-      const shown = canSeeExact ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1000, sessionData.id);
+      // Pour les non abonnés : centre sur un point "jitter" pour ne pas pointer le centre exact
+      const shown = canSeeExact
+        ? start
+        : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1200, sessionData.id);
       setCenter(shown);
     }
 
@@ -199,19 +278,6 @@ const SessionDetails = () => {
     }
   };
 
-  const handlePaymentRedirect = (type: "session" | "subscription") => {
-    if (!user) {
-      const currentPath = `/session/${id}`;
-      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
-      return;
-    }
-    if (type === "subscription") {
-      window.location.href = "/subscription";
-    } else {
-      window.location.href = `/payment/session/${id}`;
-    }
-  };
-
   // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
   const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription));
@@ -225,7 +291,7 @@ const SessionDetails = () => {
   const shownStart = useMemo<LatLng | null>(() => {
     if (!session || !start) return null;
     if (canSeeExactLocation) return start;
-    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1000, session.id);
+    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 1200, session.id);
     return { lat: j.lat, lng: j.lng };
   }, [session, start, canSeeExactLocation]);
 
@@ -264,7 +330,8 @@ const SessionDetails = () => {
     []
   );
 
-  const startMarkerIcon = useMemo(() => makeMarkerIcon("#dc2626"), []);
+  // Vert pour abonnés/hôte
+  const startMarkerIcon = useMemo(() => makeMarkerIcon("#16a34a"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
 
   // ------- Early return après hooks -------
@@ -319,7 +386,7 @@ const SessionDetails = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop) + Rejoindre (mobile déplacé ici) */}
+          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop only) */}
           <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
             {/* Détails */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
@@ -466,9 +533,12 @@ const SessionDetails = () => {
                           <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
                           <Badge variant="secondary">Économique</Badge>
                         </div>
-                        <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
-                          <Crown className="w-4 h-4 mr-2" />
-                          S'abonner
+                        <Button
+                          onClick={startSubscriptionCheckout}
+                          disabled={isSubLoading}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
                         </Button>
                       </div>
 
@@ -479,77 +549,13 @@ const SessionDetails = () => {
                           <span className="text-lg font-bold">4,50€</span>
                           <span className="text-xs text-gray-500">une fois</span>
                         </div>
-                        <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Payer maintenant
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Rejoindre — Mobile only (DÉPLACÉ ICI, APRÈS PARTICIPANTS) */}
-            {!isEnrolled && !isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : hasActiveSubscription ? (
-                    <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
-                        </div>
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button onClick={() => handlePaymentRedirect("subscription")} className="w-full bg-blue-600 hover:bg-blue-700">
-                          <Crown className="w-4 h-4 mr-2" />
-                          S'abonner
-                        </Button>
-                      </div>
-
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
-                        </div>
-                        <Button variant="outline" onClick={() => handlePaymentRedirect("session")} className="w-full">
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Payer maintenant
+                        <Button
+                          variant="outline"
+                          onClick={startOneOffCheckout}
+                          disabled={isOneOffLoading}
+                          className="w-full"
+                        >
+                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
                         </Button>
                       </div>
                     </div>
@@ -559,7 +565,7 @@ const SessionDetails = () => {
             )}
           </div>
 
-          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile) */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
             {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
@@ -605,9 +611,28 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ : marker visible seulement pour abonnés / hôte */}
+                    {/* Départ exact — seulement abonnés / hôte (marker VERT) */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
+                    )}
+
+                    {/* Cercle d'approximation — non abonnés */}
+                    {!canSeeExactLocation && start && (
+                      <Circle
+                        center={start}
+                        radius={1200}
+                        options={{
+                          fillColor: "#3b82f6",
+                          fillOpacity: 0.08,
+                          strokeColor: "#3b82f6",
+                          strokeOpacity: 0.35,
+                          strokeWeight: 2,
+                          clickable: false,
+                          draggable: false,
+                          editable: false,
+                          zIndex: 1
+                        }}
+                      />
                     )}
 
                     {/* Arrivée (si définie) */}
@@ -680,7 +705,80 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* (NOTE) Le bloc "Rejoindre — Mobile only" a été déplacé en colonne gauche, sous les participants */}
+            {/* Rejoindre — Mobile only (EN DERNIER) */}
+            {!isEnrolled && !isHost && (
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                  {isSessionFull ? (
+                    <div className="text-center py-6">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600 font-medium">Session complète</p>
+                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                    </div>
+                  ) : hasActiveSubscription ? (
+                    <Button
+                      onClick={handleSubscribeOrEnroll}
+                      disabled={isLoading}
+                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Inscription...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Rejoindre gratuitement
+                        </div>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-blue-900">Recommandé</span>
+                        </div>
+                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                          <Badge variant="secondary">Économique</Badge>
+                        </div>
+                        <Button
+                          onClick={startSubscriptionCheckout}
+                          disabled={isSubLoading}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                        </Button>
+                      </div>
+
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-1">Paiement unique</h4>
+                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold">4,50€</span>
+                          <span className="text-xs text-gray-500">une fois</span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={startOneOffCheckout}
+                          disabled={isOneOffLoading}
+                          className="w-full"
+                        >
+                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
