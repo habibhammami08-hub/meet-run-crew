@@ -58,7 +58,6 @@ function pathFromPolyline(p?: string | null): LatLng[] {
   }
 }
 
-// Coupe les X premiers mètres du tracé
 function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
   if (!path || path.length < 2 || meters <= 0) return path || [];
   const R = 6371000; // m
@@ -114,10 +113,14 @@ const SessionDetails = () => {
   // Map state
   const [center, setCenter] = useState<LatLng | null>(null);
 
+  // Abonnement tout juste activé (pour rendre l’UI instantanément)
+  const [subJustActivated, setSubJustActivated] = useState(false);
+  const effectiveHasSub = !!(hasActiveSubscription || subJustActivated);
+
   useEffect(() => {
     if (id) fetchSessionDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
+  }, [id, user, effectiveHasSub]);
 
   // --------- Edge Functions checkout handlers ----------
   const redirectToAuth = () => {
@@ -125,15 +128,18 @@ const SessionDetails = () => {
     window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
   };
 
-  // PAIEMENT UNIQUE — appelle l'EF create-session-payment avec { sessionId }
   const startOneOffCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
 
     setIsOneOffLoading(true);
     try {
+      const origin = window.location.origin;
+      const success_url = `${origin}/session/${id}?payment=success&mode=oneoff&sid={CHECKOUT_SESSION_ID}`;
+      const cancel_url = `${origin}/session/${id}?payment=canceled&mode=oneoff`;
+
       const { data, error } = await supabase.functions.invoke("create-session-payment", {
-        body: { sessionId: id },
+        body: { sessionId: id, success_url, cancel_url },
       });
       if (error) throw error;
 
@@ -151,15 +157,18 @@ const SessionDetails = () => {
     }
   };
 
-  // ABONNEMENT — on laisse l’EF gérer les URLs par défaut (ou passe des overrides si tu veux)
   const startSubscriptionCheckout = async () => {
     if (!user) return redirectToAuth();
+    if (!id) return;
 
     setIsSubLoading(true);
     try {
+      const origin = window.location.origin;
+      const success_url = `${origin}/session/${id}?payment=success&mode=sub&sid={CHECKOUT_SESSION_ID}`;
+      const cancel_url = `${origin}/session/${id}?payment=canceled&mode=sub`;
+
       const { data, error } = await supabase.functions.invoke("create-subscription-session", {
-        // Optionnel: tu peux passer des overrides si nécessaire :
-        // body: { success_url: `${window.location.origin}/subscription/success`, cancel_url: `${window.location.origin}/subscription/cancel` }
+        body: { success_url, cancel_url },
       });
       if (error) throw error;
 
@@ -177,22 +186,34 @@ const SessionDetails = () => {
     }
   };
 
-  // Gestion du retour Stripe : utilise le param 'sid' (ID de la Checkout Session Stripe)
+  // Gestion du retour Stripe
   useEffect(() => {
-    const paymentStatus = searchParams.get("payment");
-    const sid = searchParams.get("sid"); // ajouté par success_url de l’EF
-    if (!id) return;
+    (async () => {
+      const paymentStatus = searchParams.get("payment");
+      const sid = searchParams.get("sid"); // Checkout Session ID (Stripe)
+      const mode = searchParams.get("mode"); // "sub" | "oneoff"
+      if (!id || !paymentStatus) return;
 
-    if (paymentStatus === "success" && sid) {
-      supabase.functions
-        .invoke("verify-payment", { body: { sessionId: sid } })
-        .finally(() => fetchSessionDetails());
-      toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
-    } else if (paymentStatus === "canceled") {
-      toast({ title: "Paiement annulé", description: "Votre inscription n'a pas été finalisée.", variant: "destructive" });
-    }
+      if (paymentStatus === "success" && sid) {
+        try {
+          await supabase.functions.invoke("verify-payment", { body: { sessionId: sid } });
+          if (mode === "sub") setSubJustActivated(true);
+          await supabase.auth.refreshSession(); // force le refresh du token/user_metadata si besoin
+          await fetchSessionDetails();
+          toast({ title: "C’est fait !", description: mode === "sub" ? "Abonnement activé 🎉" : "Inscription confirmée ✅" });
+        } catch (e: any) {
+          toast({ title: "Vérification paiement", description: e?.message || "Échec de la vérification.", variant: "destructive" });
+        } finally {
+          // Nettoie l'URL pour éviter doublons au refresh
+          navigate(`/session/${id}`, { replace: true });
+        }
+      } else if (paymentStatus === "canceled") {
+        toast({ title: "Opération annulée", description: "Aucune modification n’a été effectuée." });
+        navigate(`/session/${id}`, { replace: true });
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, id]);
 
   // -----------------------------------------------------
 
@@ -211,7 +232,7 @@ const SessionDetails = () => {
 
     if (sessionData) {
       setSession(sessionData);
-      const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
+      const canSeeExact = !!(user && sessionData.host_id === user.id) || !!effectiveHasSub;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
       const shown = canSeeExact
         ? start
@@ -239,7 +260,7 @@ const SessionDetails = () => {
     }
     if (!session) return;
 
-    if (hasActiveSubscription) {
+    if (effectiveHasSub) {
       setIsLoading(true);
       try {
         const { error } = await supabase
@@ -275,10 +296,8 @@ const SessionDetails = () => {
     }
   };
 
-  // ------- Dérivées stables -------
   const isHost = !!(user && session && session.host_id === user.id);
-  // IMPORTANT : accès au lieu exact si hôte, abonné, OU déjà inscrit (ex: paiement unique)
-  const canSeeExactLocation = !!(session && (isHost || hasActiveSubscription || isEnrolled));
+  const canSeeExactLocation = !!(session && (isHost || effectiveHasSub || isEnrolled));
 
   const start = useMemo<LatLng | null>(() => (session ? { lat: session.start_lat, lng: session.start_lng } : null), [session]);
   const end = useMemo<LatLng | null>(
@@ -298,12 +317,11 @@ const SessionDetails = () => {
   const trimmedRoutePath = useMemo<LatLng[]>(() => {
     if (!fullRoutePath.length) return [];
     if (canSeeExactLocation) return fullRoutePath;
-    const minTrim = 300; // sécurité minimale
+    const minTrim = 300;
     const trimMeters = Math.max(session?.blur_radius_m ?? 0, minTrim);
     return trimRouteStart(fullRoutePath, trimMeters);
   }, [fullRoutePath, canSeeExactLocation, session]);
 
-  // Recentrage si le point visible change
   useEffect(() => {
     if (shownStart && (center?.lat !== shownStart.lat || center?.lng !== shownStart.lng)) {
       setCenter(shownStart);
@@ -328,11 +346,9 @@ const SessionDetails = () => {
     []
   );
 
-  // Vert pour abonnés/hôte
   const startMarkerIcon = useMemo(() => makeMarkerIcon("#16a34a"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
 
-  // ------- Early return après hooks -------
   if (!session || !shownStart || !center) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -498,7 +514,7 @@ const SessionDetails = () => {
                       <p className="text-gray-600 font-medium">Session complète</p>
                       <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
                     </div>
-                  ) : hasActiveSubscription ? (
+                  ) : effectiveHasSub ? (
                     <Button
                       onClick={handleSubscribeOrEnroll}
                       disabled={isLoading}
@@ -562,7 +578,7 @@ const SessionDetails = () => {
               </Card>
             )}
 
-            {/* Rejoindre — Mobile only (EN DERNIER, juste après Participants) */}
+            {/* Rejoindre — Mobile only (EN DERNIER) */}
             {!isEnrolled && !isHost && (
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
                 <CardContent className="p-6">
@@ -573,7 +589,7 @@ const SessionDetails = () => {
                       <p className="text-gray-600 font-medium">Session complète</p>
                       <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
                     </div>
-                  ) : hasActiveSubscription ? (
+                  ) : effectiveHasSub ? (
                     <Button
                       onClick={handleSubscribeOrEnroll}
                       disabled={isLoading}
@@ -640,11 +656,9 @@ const SessionDetails = () => {
 
           {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
-            {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
               {!canSeeExactLocation && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
-                  {/* Grille: col emoji + col texte; la 2e ligne est alignée exactement sous "Abonnez-vous" */}
                   <div className="grid grid-cols-[1.25rem,1fr] gap-2">
                     <div className="leading-5">💡</div>
                     <div>
@@ -679,17 +693,13 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* Carte */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ exact — seulement abonnés / hôte / inscrit (marker VERT) */}
                     {canSeeExactLocation && start && (
                       <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
-
-                    {/* Cercle d'approximation — non abonnés & non inscrits */}
                     {!canSeeExactLocation && start && (
                       <Circle
                         center={start}
@@ -707,11 +717,8 @@ const SessionDetails = () => {
                         }}
                       />
                     )}
-
-                    {/* Arrivée (si définie) */}
                     {end && <MarkerF position={end} icon={endMarkerIcon} title="Point d'arrivée" />}
 
-                    {/* Parcours bleu — tronqué si non abonné & non inscrit */}
                     {trimmedRoutePath.length > 1 && (
                       <Polyline
                         path={trimmedRoutePath}
@@ -723,7 +730,6 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
-            {/* Rappels & sécurité — sous la carte */}
             <div className="mt-6">
               <h3 className="text-center text-lg md:text-xl font-bold text-gray-900 mb-4">🛡️ Rappels & sécurité</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-700">
@@ -777,8 +783,7 @@ const SessionDetails = () => {
                 </div>
               </div>
             </div>
-
-            {/* NOTE : plus de bloc "Rejoindre (mobile)" ici — il a été déplacé après Participations, côté colonne gauche */}
+            {/* (rien d’autre ici en mobile: le bloc Rejoindre mobile est déjà tout en bas dans la colonne de gauche) */}
           </div>
         </div>
       </div>
