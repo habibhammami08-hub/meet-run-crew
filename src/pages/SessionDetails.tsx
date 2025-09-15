@@ -1,4 +1,8 @@
-// src/pages/SessionDetails.tsx — Paiements branchés (Edge Functions), départ protégé (cercle 1200m non-abonné), start vert abonné/hôte, bloc "Rejoindre" mobile en dernier
+// src/pages/SessionDetails.tsx — Edge Functions only (create-session-payment / create-subscription-session / verify-payment)
+// - Départ protégé (cercle 1200m) pour non-abonnés
+// - Marker vert pour abonnés/hôte
+// - Bloc "Rejoindre" mobile placé en dernier (après Participants)
+
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, Polyline, Circle } from "@react-google-maps/api";
@@ -15,7 +19,7 @@ import {
   CreditCard,
   CheckCircle,
   User,
-  ArrowLeft
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -78,9 +82,7 @@ function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
 function makeMarkerIcon(color: string) {
   const size = 18;
   const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${
-    size - 2
-  } Z" fill="${color}"/>
+    <path d="M${size / 2} ${size + 6} L${size / 2 - 4} ${size - 2} Q${size / 2} ${size - 6} ${size / 2 + 4} ${size - 2} Z" fill="${color}"/>
     <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
   </svg>`;
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
@@ -103,6 +105,7 @@ const SessionDetails = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubLoading, setIsSubLoading] = useState(false);
   const [isOneOffLoading, setIsOneOffLoading] = useState(false);
+
   const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const supabase = getSupabase();
@@ -115,14 +118,32 @@ const SessionDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
+  // Retour Stripe → vérification serveur (best effort)
   useEffect(() => {
     const paymentStatus = searchParams.get("payment");
+    if (!paymentStatus) return;
+
+    const src = searchParams.get("src") || "unknown";
     if (paymentStatus === "success") {
-      toast({ title: "Paiement réussi !", description: "Vous êtes maintenant inscrit à cette session." });
+      toast({ title: "Paiement réussi !", description: "Vérification en cours..." });
+      (async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke("verify-payment", {
+            body: { session_id: id, source: src },
+          });
+          if (error) throw error;
+          toast({ title: "Paiement confirmé", description: "Vous êtes inscrit à cette session." });
+          fetchSessionDetails();
+        } catch (e: any) {
+          console.warn("[verify-payment] échec (non bloquant):", e?.message || e);
+          fetchSessionDetails();
+        }
+      })();
     } else if (paymentStatus === "canceled") {
       toast({ title: "Paiement annulé", description: "Votre inscription n'a pas été finalisée.", variant: "destructive" });
     }
-  }, [searchParams, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const fetchSessionDetails = async () => {
     const { data: sessionData, error } = await supabase
@@ -157,33 +178,72 @@ const SessionDetails = () => {
     }
   };
 
-  const handleSubscribeOrEnroll = async () => {
+  const handleDeleteSession = async () => {
+    if (!session || !user || session.host_id !== user.id) return;
+    setIsDeleting(true);
+    try {
+      const { error: enrollmentsError } = await supabase.from("enrollments").delete().eq("session_id", session.id);
+      if (enrollmentsError) throw enrollmentsError;
+      const { error: sessionError } = await supabase.from("sessions").delete().eq("id", session.id).eq("host_id", user.id);
+      if (sessionError) throw sessionError;
+      toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
+      navigate("/profile");
+    } catch (err: any) {
+      console.error("[SessionDetails] Delete error:", err);
+      toast({ title: "Erreur", description: "Impossible de supprimer la session: " + err.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // ---------- Helpers ----------
+  const getReturnUrls = (source: "oneoff" | "subscription") => ({
+    success_url: `${window.location.origin}/session/${id}?payment=success&src=${source}`,
+    cancel_url: `${window.location.origin}/session/${id}?payment=canceled&src=${source}`,
+  });
+
+  const extractCheckoutUrl = (data: any): string | undefined => {
+    if (!data) return undefined;
+    return data.url || data.checkout_url || data.checkoutUrl || data.session_url;
+  };
+
+  const tryInvoke = async (fn: string, body: any) => {
+    const res = await supabase.functions.invoke(fn, { body });
+    if (res.error) throw res.error;
+    const url = extractCheckoutUrl(res.data);
+    if (!url) throw new Error(`La fonction ${fn} n'a pas renvoyé d'URL de paiement.`);
+    return url as string;
+  };
+
+  // ---------- ABONNEMENT (Edge Function ONLY) ----------
+  const startSubscriptionCheckout = async () => {
     if (!user) {
       const currentPath = `/session/${id}`;
       window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
       return;
     }
-    if (!session) return;
-
-    if (hasActiveSubscription) {
-      setIsLoading(true);
-      try {
-        const { error } = await supabase
-          .from("enrollments")
-          .insert({ session_id: session.id, user_id: user.id, status: "included_by_subscription" });
-        if (error) throw error;
-        toast({ title: "Inscription réussie !", description: "Vous êtes maintenant inscrit à cette session." });
-        fetchSessionDetails();
-      } catch (err: any) {
-        console.error("Error enrolling:", err);
-        toast({ title: "Erreur", description: err.message, variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
+    setIsSubLoading(true);
+    try {
+      const { success_url, cancel_url } = getReturnUrls("subscription");
+      const url = await tryInvoke("create-subscription-session", {
+        user_id: user.id,
+        success_url,
+        cancel_url,
+      });
+      window.location.assign(url);
+    } catch (e: any) {
+      console.error("[subscription] create-subscription-session error:", e);
+      toast({
+        title: "Abonnement indisponible",
+        description: "Erreur serveur. Réessayez plus tard ou contactez le support.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubLoading(false);
     }
   };
 
-  // ---------- Paiement UNIQUE (Stripe Checkout via Edge Function) ----------
+  // ---------- Paiement UNIQUE (Edge Function ONLY) ----------
   const startOneOffCheckout = async () => {
     if (!user) {
       const currentPath = `/session/${id}`;
@@ -194,120 +254,23 @@ const SessionDetails = () => {
 
     setIsOneOffLoading(true);
     try {
-      const payload = {
+      const { success_url, cancel_url } = getReturnUrls("oneoff");
+      const url = await tryInvoke("create-session-payment", {
         session_id: id,
-        success_url: `${window.location.origin}/session/${id}?payment=success`,
-        cancel_url: `${window.location.origin}/session/${id}?payment=canceled`,
-      };
-
-      // 1) Essayer create-payment (confirmé dispo)
-      let { data, error } = await supabase.functions.invoke("create-payment", { body: payload });
-
-      // 2) Fallback si indisponible
-      if (error) {
-        console.warn("[checkout] create-payment error, trying create-session-payment fallback:", error);
-        const res2 = await supabase.functions.invoke("create-session-payment", { body: payload });
-        if (res2.error) throw res2.error;
-        data = res2.data;
-      }
-
-      const url =
-        (data as any)?.url ||
-        (data as any)?.checkout_url ||
-        (data as any)?.checkoutUrl;
-
-      if (!url) {
-        console.error("[checkout] Edge function returned no URL:", data);
-        throw new Error("La création de la session de paiement n’a pas renvoyé d’URL.");
-      }
-
+        user_id: user.id,
+        success_url,
+        cancel_url,
+      });
       window.location.assign(url);
     } catch (e: any) {
-      console.error("[checkout] one-off error:", e);
+      console.error("[checkout] create-session-payment error:", e);
       toast({
         title: "Paiement indisponible",
-        description: e?.message || "La création de la session de paiement a échoué.",
+        description: "Erreur serveur. Réessayez plus tard ou contactez le support.",
         variant: "destructive",
       });
     } finally {
       setIsOneOffLoading(false);
-    }
-  };
-
-  // ---------- ABONNEMENT (Stripe Checkout via Edge Function) ----------
-  const startSubscriptionCheckout = async () => {
-    if (!user) {
-      const currentPath = `/session/${id}`;
-      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
-      return;
-    }
-
-    setIsSubLoading(true);
-    try {
-      const payload = {
-        success_url: `${window.location.origin}/session/${id}?payment=success`,
-        cancel_url: `${window.location.origin}/session/${id}?payment=canceled`,
-      };
-
-      const { data, error } = await supabase.functions.invoke("create-subscription-session", { body: payload });
-      if (error) throw error;
-
-      const url =
-        (data as any)?.url ||
-        (data as any)?.checkout_url ||
-        (data as any)?.checkoutUrl;
-
-      if (!url) {
-        console.error("[subscription] Edge function returned no URL:", data);
-        throw new Error("La création de la session d’abonnement n’a pas renvoyé d’URL.");
-      }
-
-      window.location.assign(url);
-    } catch (e: any) {
-      console.error("[subscription] error, falling back to /subscription page:", e);
-      toast({
-        title: "Abonnement indisponible ici",
-        description: "On vous redirige vers la page d’abonnement.",
-      });
-      window.location.href = "/subscription";
-    } finally {
-      setIsSubLoading(false);
-    }
-  };
-
-  // ---------- SUPPRESSION DE SESSION ----------
-  const handleDeleteSession = async () => {
-    if (!session || !isHost) return;
-
-    const confirmed = window.confirm("Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.");
-    if (!confirmed) return;
-
-    setIsDeleting(true);
-    
-    try {
-      const { error } = await supabase
-        .from("sessions")
-        .delete()
-        .eq("id", session.id)
-        .eq("host_id", user?.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Session supprimée",
-        description: "La session a été supprimée avec succès.",
-      });
-
-      navigate("/map");
-    } catch (error: any) {
-      console.error("Erreur suppression session:", error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer la session.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -357,8 +320,8 @@ const SessionDetails = () => {
       rotateControl: false,
       styles: [
         { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-        { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] }
-      ]
+        { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] },
+      ],
     }),
     []
   );
@@ -419,7 +382,7 @@ const SessionDetails = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop + mobile à la fin) */}
+          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop only) */}
           <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
             {/* Détails */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
@@ -434,15 +397,9 @@ const SessionDetails = () => {
                     )}
                     {session.intensity && (
                       <Badge
-                        variant={
-                          session.intensity === "marche" ? "default" : session.intensity === "course modérée" ? "secondary" : "destructive"
-                        }
+                        variant={session.intensity === "marche" ? "default" : session.intensity === "course modérée" ? "secondary" : "destructive"}
                       >
-                        {session.intensity === "marche"
-                          ? "Marche"
-                          : session.intensity === "course modérée"
-                          ? "Course modérée"
-                          : "Course intensive"}
+                        {session.intensity === "marche" ? "Marche" : session.intensity === "course modérée" ? "Course modérée" : "Course intensive"}
                       </Badge>
                     )}
                     {session.max_participants && (
@@ -495,7 +452,9 @@ const SessionDetails = () => {
             {/* Participants */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Participants ({participants.length + 1}/{session.max_participants})</h3>
+                <h3 className="font-semibold mb-4">
+                  Participants ({participants.length + 1}/{session.max_participants})
+                </h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {participants.map((participant, index) => (
                     <div key={participant.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
@@ -535,93 +494,24 @@ const SessionDetails = () => {
                     </div>
                   ) : hasActiveSubscription ? (
                     <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
-                        </div>
-                      )}
-                    </Button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button onClick={startSubscriptionCheckout} disabled={isSubLoading} className="w-full bg-blue-600 hover:bg-blue-700">
-                          {isSubLoading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Redirection...
-                            </div>
-                          ) : (
-                            <>
-                              <Crown className="w-4 h-4 mr-2" />
-                              S'abonner
-                            </>
-                          )}
-                        </Button>
-                      </div>
-
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
-                        </div>
-                        <Button variant="outline" onClick={startOneOffCheckout} disabled={isOneOffLoading} className="w-full">
-                          {isOneOffLoading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                              Ouverture de Stripe...
-                            </div>
-                          ) : (
-                            <>
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Payer maintenant
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Rejoindre — Mobile only (EN DERNIER, après Participants) */}
-            {!isEnrolled && !isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : hasActiveSubscription ? (
-                    <Button
-                      onClick={handleSubscribeOrEnroll}
+                      onClick={async () => {
+                        if (hasActiveSubscription) {
+                          setIsLoading(true);
+                          try {
+                            const { error } = await getSupabase()
+                              .from("enrollments")
+                              .insert({ session_id: session.id, user_id: user!.id, status: "included_by_subscription" });
+                            if (error) throw error;
+                            toast({ title: "Inscription réussie !", description: "Vous êtes maintenant inscrit à cette session." });
+                            fetchSessionDetails();
+                          } catch (err: any) {
+                            toast({ title: "Erreur", description: err.message, variant: "destructive" });
+                          } finally {
+                            setIsLoading(false);
+                          }
+                          return;
+                        }
+                      }}
                       disabled={isLoading}
                       className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                     >
@@ -695,13 +585,12 @@ const SessionDetails = () => {
             )}
           </div>
 
-          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
+          {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels + Rejoindre (mobile, en dernier) */}
           <div className="lg:col-span-2 space-y-4 order-1 lg:order-2">
             {/* Bloc infos AU-DESSUS de la carte */}
             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-sm border">
               {!canSeeExactLocation && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded p-3 mb-3">
-                  {/* Grille: col emoji + col texte; la 2e ligne est alignée exactement sous "Abonnez-vous" */}
                   <div className="grid grid-cols-[1.25rem,1fr] gap-2">
                     <div className="leading-5">💡</div>
                     <div>
@@ -755,7 +644,7 @@ const SessionDetails = () => {
                           clickable: false,
                           draggable: false,
                           editable: false,
-                          zIndex: 1
+                          zIndex: 1,
                         }}
                       />
                     )}
@@ -786,9 +675,7 @@ const SessionDetails = () => {
                   <span className="select-none">⏰</span>
                   <div>
                     <p className="font-medium">Ponctualité</p>
-                    <p className="text-[12px] leading-snug">
-                      Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.
-                    </p>
+                    <p className="text-[12px] leading-snug">Arrive 5–10 minutes avant le départ. Le groupe attend au maximum 10 minutes après l’heure prévue.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
@@ -820,12 +707,9 @@ const SessionDetails = () => {
                   <div>
                     <p className="font-medium">Vigilance en soirée</p>
                     <p className="text-[12px] leading-snug">
-                      Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et
-                      exercez votre vigilance.
+                      Certains parcours peuvent être peu éclairés, surtout à des heures tardives. Reste attentif(ve), courez/marchez en groupe et exercez votre vigilance.
                       <span className="block">
-                        <em>
-                          Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.
-                        </em>
+                        <em>Tous les profils sont vérifiés, mais le risque zéro n’existe pas : chacun reste responsable de sa sécurité.</em>
                       </span>
                     </p>
                   </div>
@@ -833,7 +717,106 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* (NOTE) Sur mobile, le bloc "Rejoindre" est déjà déplacé ici en dernier (voir plus haut, lg:hidden) */}
+            {/* Rejoindre — Mobile only (EN DERNIER, après Participants) */}
+            {!isEnrolled && !isHost && (
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                  {isSessionFull ? (
+                    <div className="text-center py-6">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600 font-medium">Session complète</p>
+                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                    </div>
+                  ) : hasActiveSubscription ? (
+                    <Button
+                      onClick={async () => {
+                        if (hasActiveSubscription) {
+                          setIsLoading(true);
+                          try {
+                            const { error } = await getSupabase()
+                              .from("enrollments")
+                              .insert({ session_id: session.id, user_id: user!.id, status: "included_by_subscription" });
+                            if (error) throw error;
+                            toast({ title: "Inscription réussie !", description: "Vous êtes maintenant inscrit à cette session." });
+                            fetchSessionDetails();
+                          } catch (err: any) {
+                            toast({ title: "Erreur", description: err.message, variant: "destructive" });
+                          } finally {
+                            setIsLoading(false);
+                          }
+                          return;
+                        }
+                      }}
+                      disabled={isLoading}
+                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Inscription...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Rejoindre gratuitement
+                        </div>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-blue-900">Recommandé</span>
+                        </div>
+                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                        <p className="text-sm text-gray-600 mb-3">Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session</p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                          <Badge variant="secondary">Économique</Badge>
+                        </div>
+                        <Button onClick={startSubscriptionCheckout} disabled={isSubLoading} className="w-full bg-blue-600 hover:bg-blue-700">
+                          {isSubLoading ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Redirection...
+                            </div>
+                          ) : (
+                            <>
+                              <Crown className="w-4 h-4 mr-2" />
+                              S'abonner
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-semibold mb-1">Paiement unique</h4>
+                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold">4,50€</span>
+                          <span className="text-xs text-gray-500">une fois</span>
+                        </div>
+                        <Button variant="outline" onClick={startOneOffCheckout} disabled={isOneOffLoading} className="w-full">
+                          {isOneOffLoading ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              Ouverture de Stripe...
+                            </div>
+                          ) : (
+                            <>
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Payer maintenant
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
