@@ -1,5 +1,4 @@
-// src/pages/SessionDetails.tsx — Infos au-dessus de la carte, départ protégé (cercle + icône ?), parcours bleu,
-// start marker VERT pour hôte/abonné, mobile/desktop OK
+// src/pages/SessionDetails.tsx — Départ masqué via cercle (1200 m) pour non-abonnés, pin vert pour abonnés/hôte, itinéraire bleu
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GoogleMap, MarkerF, Polyline, Circle } from "@react-google-maps/api";
@@ -56,7 +55,6 @@ function pathFromPolyline(p?: string | null): LatLng[] {
   }
 }
 
-// Coupe les X premiers mètres du tracé
 function trimRouteStart(path: LatLng[], meters: number): LatLng[] {
   if (!path || path.length < 2 || meters <= 0) return path || [];
   const R = 6371000; // m
@@ -91,41 +89,27 @@ function makeMarkerIcon(color: string) {
     : { url };
 }
 
-// Icône “?” pour la zone approximative
-function makeQuestionIcon(color = "#3b82f6") {
-  const size = 18;
-  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="M${size/2} ${size+6} L${size/2-4} ${size-2} Q${size/2} ${size-6} ${size/2+4} ${size-2} Z" fill="${color}"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
-    <text x="${size/2}" y="${size/2+2}" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" fill="white">?</text>
+// Petit marqueur “?” (indice) à placer sur le périmètre du cercle
+function makeQuestionIcon() {
+  const size = 22;
+  const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${(size / 2) - 2}" fill="#3b82f6" stroke="white" stroke-width="2"/>
+    <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-size="14" font-family="Arial" fill="white">?</text>
   </svg>`;
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
   const g = typeof window !== "undefined" ? (window as any).google : undefined;
   return g?.maps?.Size && g?.maps?.Point
-    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
+    ? { url, scaledSize: new g.maps.Size(size, size), anchor: new g.maps.Point(size / 2, size / 2) }
     : { url };
 }
 
-// Point sur le périmètre d’un cercle (bearing aléatoire déterministe)
-function pointOnCircle(center: LatLng, radiusMeters: number, seed: string): LatLng {
-  const { v } = seededNoise(seed + "-circle");
-  const bearing = 2 * Math.PI * v; // 0..2π
-  const R = 6371000; // rayon Terre (m)
-  const lat1 = (center.lat * Math.PI) / 180;
-  const lng1 = (center.lng * Math.PI) / 180;
-  const angDist = radiusMeters / R;
-
-  const lat2 = Math.asin(
-    Math.sin(lat1) * Math.cos(angDist) + Math.cos(lat1) * Math.sin(angDist) * Math.cos(bearing)
-  );
-  const lng2 =
-    lng1 +
-    Math.atan2(
-      Math.sin(bearing) * Math.sin(angDist) * Math.cos(lat1),
-      Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2)
-    );
-
-  return { lat: (lat2 * 180) / Math.PI, lng: (lng2 * 180) / Math.PI };
+// Point sur le périmètre d’un cercle (centre lat/lng, rayon en m, angle déterministe)
+function pointOnCircle(center: LatLng, radiusM: number, seed: string): LatLng {
+  const { v } = seededNoise(seed); // v ∈ [0,1)
+  const theta = 2 * Math.PI * v;
+  const dLat = (radiusM / 111320) * Math.cos(theta);
+  const dLng = (radiusM / (111320 * Math.cos((center.lat * Math.PI) / 180))) * Math.sin(theta);
+  return { lat: center.lat + dLat, lng: center.lng + dLng };
 }
 
 // -------------------- Page --------------------
@@ -177,9 +161,7 @@ const SessionDetails = () => {
       setSession(sessionData);
       const canSeeExact = !!(user && sessionData.host_id === user.id) || !!hasActiveSubscription;
       const start = { lat: sessionData.start_lat, lng: sessionData.start_lng } as LatLng;
-      const shown = canSeeExact
-        ? start
-        : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 2000, sessionData.id);
+      const shown = canSeeExact ? start : jitterDeterministic(start.lat, start.lng, sessionData.blur_radius_m ?? 1200, sessionData.id);
       setCenter(shown);
     }
 
@@ -262,12 +244,22 @@ const SessionDetails = () => {
     [session]
   );
 
+  const circleRadiusM = useMemo<number>(() => {
+    const r = session?.blur_radius_m ?? 1200; // fallback 1200 m
+    return Math.max(200, r); // garde-fou
+  }, [session?.blur_radius_m]);
+
   const shownStart = useMemo<LatLng | null>(() => {
     if (!session || !start) return null;
     if (canSeeExactLocation) return start;
-    const j = jitterDeterministic(start.lat, start.lng, session.blur_radius_m ?? 2000, session.id);
+    const j = jitterDeterministic(start.lat, start.lng, circleRadiusM, session.id);
     return { lat: j.lat, lng: j.lng };
-  }, [session, start, canSeeExactLocation]);
+  }, [session, start, canSeeExactLocation, circleRadiusM]);
+
+  const cluePoint = useMemo<LatLng | null>(() => {
+    if (!session || !shownStart || canSeeExactLocation) return null;
+    return pointOnCircle(shownStart, circleRadiusM, session.id + "-clue");
+  }, [session?.id, shownStart?.lat, shownStart?.lng, canSeeExactLocation, circleRadiusM]);
 
   const fullRoutePath = useMemo<LatLng[]>(() => (session?.route_polyline ? pathFromPolyline(session.route_polyline) : []), [session]);
 
@@ -275,9 +267,9 @@ const SessionDetails = () => {
     if (!fullRoutePath.length) return [];
     if (canSeeExactLocation) return fullRoutePath;
     const minTrim = 300; // sécurité minimale
-    const trimMeters = Math.max(session?.blur_radius_m ?? 2000, minTrim);
+    const trimMeters = Math.max(circleRadiusM, minTrim);
     return trimRouteStart(fullRoutePath, trimMeters);
-  }, [fullRoutePath, canSeeExactLocation, session]);
+  }, [fullRoutePath, canSeeExactLocation, circleRadiusM]);
 
   // Recentrage si le point visible change
   useEffect(() => {
@@ -304,10 +296,10 @@ const SessionDetails = () => {
     []
   );
 
-  // Start = vert (abonné/hôte), End = rouge
-  const startMarkerIcon = useMemo(() => makeMarkerIcon("#059669"), []);
+  // 🔹 Pin départ VERT pour hôte/abonné uniquement
+  const startMarkerIcon = useMemo(() => makeMarkerIcon("#047857"), []);
   const endMarkerIcon = useMemo(() => makeMarkerIcon("#ef4444"), []);
-  const approxMarkerIcon = useMemo(() => makeQuestionIcon("#3b82f6"), []);
+  const questionIcon = useMemo(() => makeQuestionIcon(), []);
 
   // ------- Early return après hooks -------
   if (!session || !shownStart || !center) {
@@ -326,10 +318,6 @@ const SessionDetails = () => {
   }
 
   const isSessionFull = participants.length >= session.max_participants;
-  const approxRadius = session.blur_radius_m ?? 2000;
-  const perimeterPoint = !canSeeExactLocation && shownStart
-    ? pointOnCircle(shownStart, approxRadius, session.id)
-    : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -365,9 +353,8 @@ const SessionDetails = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop only) */}
+          {/* Colonne gauche */}
           <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
-            {/* Détails */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
                 <div className="space-y-4">
@@ -582,34 +569,28 @@ const SessionDetails = () => {
               <CardContent className="p-0">
                 <div className="w-full h-[55vh] lg:h-[600px]">
                   <GoogleMap center={center} zoom={13} mapContainerStyle={{ width: "100%", height: "100%" }} options={mapOptions}>
-                    {/* Départ exact : VERT pour abonnés/hôte */}
-                    {canSeeExactLocation && start && (
-                      <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
-                    )}
-
-                    {/* Zone approximative + icône sur le périmètre : NON abonnés */}
+                    {/* Cercle + “?” seulement pour non-abonnés / non-hôte (centré sur la position floutée) */}
                     {!canSeeExactLocation && shownStart && (
                       <>
                         <Circle
                           center={shownStart}
-                          radius={approxRadius}
+                          radius={circleRadiusM}
                           options={{
-                            strokeOpacity: 0.7,
-                            strokeWeight: 1.5,
-                            strokeColor: "#3b82f6",
-                            fillOpacity: 0.12,
                             fillColor: "#3b82f6",
-                            clickable: false,
+                            fillOpacity: 0.08,
+                            strokeColor: "#3b82f6",
+                            strokeOpacity: 0.6,
+                            strokeWeight: 1,
+                            clickable: false
                           }}
                         />
-                        {perimeterPoint && (
-                          <MarkerF
-                            position={perimeterPoint}
-                            icon={approxMarkerIcon}
-                            title="Zone approximative du départ"
-                          />
-                        )}
+                        {cluePoint && <MarkerF position={cluePoint} icon={questionIcon} title="Zone approximative de départ" />}
                       </>
+                    )}
+
+                    {/* Départ exact — pin VERT pour hôte/abonné */}
+                    {canSeeExactLocation && start && (
+                      <MarkerF position={start} icon={startMarkerIcon} title="Point de départ (exact)" />
                     )}
 
                     {/* Arrivée (si définie) */}
