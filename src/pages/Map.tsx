@@ -1,5 +1,5 @@
-// src/pages/Map.tsx — Marqueurs verts par défaut, rouges pour les sessions de l’hôte.
-// Affiche l’itinéraire de la session sélectionnée uniquement si hôte/abonné (clic carte = désélection)
+// src/pages/Map.tsx — Marqueurs verts (rouge = mes sessions), itinéraire au clic (hôte/abonné),
+// clic carte = désélection, et sur mobile seul le bouton "S’abonner" reste visible dans le header.
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -42,8 +42,6 @@ type SessionRow = {
 // ————————————————————————————————————————————
 // Utils
 // ————————————————————————————————————————————
-
-// Haversine (km)
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -53,7 +51,6 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 }
 
-// Bruitage déterministe
 function seededNoise(seed: string) {
   let h = 2166136261;
   for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -62,7 +59,6 @@ function seededNoise(seed: string) {
   return { u, v };
 }
 
-// Jitter corrigé avec cos(lat)
 function jitterDeterministic(lat:number, lng:number, meters:number, seed:string): LatLng {
   const { u, v } = seededNoise(seed);
   const w = meters * Math.sqrt(u);
@@ -72,11 +68,9 @@ function jitterDeterministic(lat:number, lng:number, meters:number, seed:string)
   return { lat: lat + dLat * Math.cos(t), lng: lng + dLng * Math.sin(t) };
 }
 
-// Droits / affichage
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
 const shouldBlur = (s: SessionRow, userId?: string, hasSub?: boolean) => !(hasSub || isOwnSession(s, userId));
 
-// Cache décodage polyline (pour la session sélectionnée uniquement)
 const polyCache = new Map<string, LatLng[]>();
 const pathFromPolyline = (p?: string | null): LatLng[] => {
   if (!p) return [];
@@ -89,7 +83,6 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
   } catch { return []; }
 };
 
-// Générateur d’icône (SSR-safe)
 const makeMarkerIcon = (color: string, size = 16) => {
   const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
       <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
@@ -129,7 +122,6 @@ function MapPageInner() {
 
   const { handleGeolocationError } = useGeolocationNotifications();
 
-  // Options Google Map
   const mapOptions = useMemo(() => ({
     mapTypeControl: false,
     streetViewControl: false,
@@ -144,7 +136,6 @@ function MapPageInner() {
     ],
   }), []);
 
-  // Géoloc
   const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation) return;
     setHasTriedGeolocation(true);
@@ -169,10 +160,8 @@ function MapPageInner() {
     });
   }, [handleGeolocationError]);
 
-  // Auto géoloc au premier rendu
   useEffect(() => { if (!hasTriedGeolocation) requestGeolocation(); }, [requestGeolocation, hasTriedGeolocation]);
 
-  // Fetch sessions (mémoïsé)
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
 
@@ -211,7 +200,6 @@ function MapPageInner() {
     }
   }, [supabase]);
 
-  // Refresh débouncé
   const debouncedRefresh = useCallback(() => {
     if (!mountedRef.current) return;
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
@@ -220,7 +208,6 @@ function MapPageInner() {
     }, 2000);
   }, [fetchSessions]);
 
-  // Distances recalculées côté client
   const sessionsWithDistance = useMemo(() => {
     if (!userLocation) return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
     return sessions.map(s => ({
@@ -229,10 +216,8 @@ function MapPageInner() {
     }));
   }, [sessions, userLocation]);
 
-  // Filtres
   const filteredSessions = useMemo(() => {
     let filtered = sessionsWithDistance;
-
     if (userLocation && filterRadius !== "all") {
       const radius = parseInt(filterRadius);
       filtered = filtered.filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= radius);
@@ -253,10 +238,9 @@ function MapPageInner() {
       .slice(0, 6)
   ), [filteredSessions]);
 
-  // Montage + fetch initial + cleanup
   useEffect(() => {
     mountedRef.current = true;
-    fetchSessions(); // charger dès le montage
+    fetchSessions();
 
     return () => {
       mountedRef.current = false;
@@ -266,10 +250,8 @@ function MapPageInner() {
     };
   }, [fetchSessions, supabase]);
 
-  // Recharger quand l’auth se résout
   useEffect(() => { if (!authLoading && currentUser && mountedRef.current) fetchSessions(); }, [authLoading, currentUser, fetchSessions]);
 
-  // Canal temps réel
   useEffect(() => {
     if (!supabase || !mountedRef.current) return;
     if (channelRef.current) supabase.removeChannel(channelRef.current);
@@ -296,10 +278,10 @@ function MapPageInner() {
       ? { url, scaledSize: new g.maps.Size(16, 16), anchor: new g.maps.Point(8, 8) }
       : { url };
   }, []);
-  const sessionMarkerIconGreen = useMemo(() => makeMarkerIcon('#059669'), []); // vert = sessions “autres”
-  const sessionMarkerIconRed   = useMemo(() => makeMarkerIcon('#dc2626'), []); // rouge = mes sessions (hôte)
+  const sessionMarkerIconGreen = useMemo(() => makeMarkerIcon('#059669'), []);
+  const sessionMarkerIconRed   = useMemo(() => makeMarkerIcon('#dc2626'), []);
 
-  // ——— Itinéraire affiché UNIQUEMENT pour la session sélectionnée si hôte/abonné ———
+  // Itinéraire affiché UNIQUEMENT pour la session sélectionnée si hôte/abonné
   const selectedSessionObj = useMemo(
     () => sessions.find(s => s.id === selectedSession) || null,
     [sessions, selectedSession]
@@ -308,7 +290,6 @@ function MapPageInner() {
   const canShowSelectedRoute = useMemo(() => {
     if (!selectedSessionObj) return false;
     if (!selectedSessionObj.route_polyline) return false;
-    // Visible si abonné OU hôte de cette session
     return !!(hasSub || isOwnSession(selectedSessionObj, currentUser?.id));
   }, [selectedSessionObj, hasSub, currentUser?.id]);
 
@@ -336,20 +317,39 @@ function MapPageInner() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* ↓↓↓ Masqués sur mobile, visibles ≥ md ↓↓↓ */}
               {!userLocation && hasTriedGeolocation && (
-                <Button variant="outline" size="sm" onClick={requestGeolocation} className="flex items-center gap-2" aria-label="Me localiser">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={requestGeolocation}
+                  className="hidden md:inline-flex items-center gap-2"
+                  aria-label="Me localiser"
+                >
                   <Navigation className="w-4 h-4" />
                   Me localiser
                 </Button>
               )}
 
-              <Button variant="outline" size="sm" onClick={() => fetchSessions()} disabled={loading} className="flex items-center gap-2" aria-label="Actualiser les sessions">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchSessions()}
+                disabled={loading}
+                className="hidden md:inline-flex items-center gap-2"
+                aria-label="Actualiser les sessions"
+              >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
               </Button>
+              {/* ↑↑↑ Masqués sur mobile, visibles ≥ md ↑↑↑ */}
 
               {!hasSub && (
-                <Button size="sm" onClick={() => navigate("/subscription")} className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
+                <Button
+                  size="sm"
+                  onClick={() => navigate("/subscription")}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                >
                   S'abonner
                 </Button>
               )}
@@ -371,14 +371,12 @@ function MapPageInner() {
                     center={center}
                     zoom={13}
                     options={mapOptions}
-                    onClick={() => setSelectedSession(null)}   // ← clic sur la carte = désélection
+                    onClick={() => setSelectedSession(null)}
                   >
-                    {/* Position utilisateur */}
                     {userLocation && (
                       <MarkerF position={userLocation} icon={userMarkerIcon} title="Votre position" />
                     )}
 
-                    {/* Markers sessions — VERT par défaut, ROUGE si ma session (hôte) */}
                     {filteredSessions.map((s) => {
                       const own = isOwnSession(s, currentUser?.id);
                       const blur = shouldBlur(s, currentUser?.id, hasSub);
@@ -391,12 +389,11 @@ function MapPageInner() {
                           position={startShown}
                           title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : ''}`}
                           icon={own ? sessionMarkerIconRed : sessionMarkerIconGreen}
-                          onClick={() => setSelectedSession(s.id)} // ← clic sur le marker = sélection
+                          onClick={() => setSelectedSession(s.id)}
                         />
                       );
                     })}
 
-                    {/* Itinéraire de la session SÉLECTIONNÉE uniquement (si autorisé) */}
                     {selectedRoutePath.length > 1 && (
                       <Polyline
                         path={selectedRoutePath}
@@ -404,7 +401,7 @@ function MapPageInner() {
                           clickable: false,
                           strokeOpacity: 0.9,
                           strokeWeight: 4,
-                          strokeColor: "#3b82f6", // bleu
+                          strokeColor: "#3b82f6",
                         }}
                       />
                     )}
@@ -413,7 +410,6 @@ function MapPageInner() {
               </CardContent>
             </Card>
 
-            {/* Détails de la session sélectionnée */}
             {selectedSession && (
               <Card className="mt-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-4">
