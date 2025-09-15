@@ -1,5 +1,5 @@
-// src/pages/Map.tsx — Marqueurs rouges uniquement par défaut.
-// Si hôte/abonné : au clic sur une session -> affiche SEUL l’itinéraire de cette session (clic carte = désélection)
+// src/pages/Map.tsx — Marqueurs verts par défaut, rouges pour les sessions de l’hôte.
+// Affiche l’itinéraire de la session sélectionnée uniquement si hôte/abonné (clic carte = désélection)
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -89,10 +89,8 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
   } catch { return []; }
 };
 
-// Icônes
-const createSessionMarkerIcon = () => {
-  const size = 16;
-  const color = '#dc2626'; // rouge
+// Générateur d’icône (SSR-safe)
+const makeMarkerIcon = (color: string, size = 16) => {
   const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
       <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
       <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
@@ -298,7 +296,8 @@ function MapPageInner() {
       ? { url, scaledSize: new g.maps.Size(16, 16), anchor: new g.maps.Point(8, 8) }
       : { url };
   }, []);
-  const sessionMarkerIcon = useMemo(() => createSessionMarkerIcon(), []);
+  const sessionMarkerIconGreen = useMemo(() => makeMarkerIcon('#059669'), []); // vert = sessions “autres”
+  const sessionMarkerIconRed   = useMemo(() => makeMarkerIcon('#dc2626'), []); // rouge = mes sessions (hôte)
 
   // ——— Itinéraire affiché UNIQUEMENT pour la session sélectionnée si hôte/abonné ———
   const selectedSessionObj = useMemo(
@@ -379,8 +378,9 @@ function MapPageInner() {
                       <MarkerF position={userLocation} icon={userMarkerIcon} title="Votre position" />
                     )}
 
-                    {/* Markers sessions — rouges. Clic = sélection (et affiche itinéraire si autorisé) */}
+                    {/* Markers sessions — VERT par défaut, ROUGE si ma session (hôte) */}
                     {filteredSessions.map((s) => {
+                      const own = isOwnSession(s, currentUser?.id);
                       const blur = shouldBlur(s, currentUser?.id, hasSub);
                       const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };
                       const startShown = blur ? jitterDeterministic(start.lat, start.lng, s.blur_radius_m ?? 1000, s.id) : start;
@@ -389,8 +389,8 @@ function MapPageInner() {
                         <MarkerF
                           key={`m-${s.id}`}
                           position={startShown}
-                          title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}`}
-                          icon={sessionMarkerIcon}
+                          title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : ''}`}
+                          icon={own ? sessionMarkerIconRed : sessionMarkerIconGreen}
                           onClick={() => setSelectedSession(s.id)} // ← clic sur le marker = sélection
                         />
                       );
@@ -421,12 +421,15 @@ function MapPageInner() {
                     const session = sessionsWithDistance.find(s => s.id === selectedSession);
                     if (!session) return null;
 
+                    const own = isOwnSession(session, currentUser?.id);
                     const blur = shouldBlur(session, currentUser?.id, hasSub);
 
                     return (
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900 mb-2">{session.title}</h3>
+                          <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                            {session.title} {own && <span className="text-red-600">(Votre session)</span>}
+                          </h3>
 
                           <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
                             <div className="flex items-center gap-2">
@@ -490,6 +493,7 @@ function MapPageInner() {
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
+                      const own = isOwnSession(session, currentUser?.id);
                       const blur = shouldBlur(session, currentUser?.id, hasSub);
                       return (
                         <div
