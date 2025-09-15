@@ -1,4 +1,9 @@
-// src/pages/Map.tsx — pictogrammes type (Mixte/Femmes/Hommes) sans Venus/Mars + route seulement si sélectionnée
+// src/pages/Map.tsx
+// — pictogrammes type (Mixte/Femmes/Hommes) sans Venus/Mars
+// — route visible seulement si sélectionnée
+// — met en avant les sessions où l’utilisateur est INSCRIT (one-off ou sub) : icône dorée + étoile
+// — bloc "Vos prochaines sessions" sous la carte
+
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
@@ -88,7 +93,6 @@ const uiToDbIntensity = (uiIntensity: string): string | null => {
 };
 
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
-const shouldBlur = (s: SessionRow, userId?: string, hasSub?: boolean) => !(hasSub || isOwnSession(s, userId));
 
 const polyCache = new Map<string, LatLng[]>();
 const pathFromPolyline = (p?: string | null): LatLng[] => {
@@ -102,21 +106,57 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
   } catch { return []; }
 };
 
-const createCustomMarkerIcon = (isOwn: boolean, isSubscribed: boolean, isSelected = false) => {
-  const size = isOwn ? 20 : (isSelected ? 18 : 14);
-  const color = isOwn ? '#dc2626' : (isSelected ? '#3b82f6' : (isSubscribed ? '#065f46' : '#047857'));
-  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-      <path d="M${size/2} ${size + 6} L${size/2 - 4} ${size - 2} Q${size/2} ${size - 6} ${size/2 + 4} ${size - 2} Z" fill="${color}"/>
-      <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" stroke="white" stroke-width="2"/>
-      ${isOwn ? `<circle cx="${size/2}" cy="${size/2}" r="${size/4}" fill="white"/>` : ''}
-      ${isSelected ? `<circle cx="${size/2}" cy="${size/2}" r="2" fill="white"/>` : ''}
-    </svg>`;
-  const url = 'data:image/svg+xml,' + encodeURIComponent(svg);
-  const g = typeof window !== 'undefined' ? (window as any).google : undefined;
+// Icône personnalisée :
+// - rouge = sa propre session (host)
+// - doré + étoile = sessions où l’utilisateur est inscrit (one-off/sub)
+// - bleu = sélectionnée
+// - vert = autre (vert foncé si abonné pour un peu plus de contraste)
+function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
+  const { own, enrolled, selected, hasSub } = opts;
+  const size = own ? 20 : (selected ? 18 : 16);
+  const color = own
+    ? "#dc2626"
+    : enrolled
+      ? "#f59e0b"
+      : selected
+        ? "#3b82f6"
+        : (hasSub ? "#065f46" : "#047857");
+
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // petite étoile au centre si "enrolled"
+  const star = `
+    <path d="
+      M ${cx} ${cy - 3.2}
+      L ${cx + 1.3} ${cy + 1.1}
+      L ${cx - 3.1} ${cy - 0.7}
+      L ${cx + 3.1} ${cy - 0.7}
+      L ${cx - 1.3} ${cy + 1.1}
+      Z
+    " fill="white" />
+  `;
+
+  // petit point si "selected"
+  const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
+
+  const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
+
+  const svg = `
+    <svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
+      <path d="${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
+      <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
+      ${innerOwn}
+      ${enrolled ? star : ""}
+      ${selected && !enrolled ? dot : ""}
+    </svg>
+  `;
+  const url = "data:image/svg+xml," + encodeURIComponent(svg);
+  const g = typeof window !== "undefined" ? (window as any).google : undefined;
   return g?.maps?.Size && g?.maps?.Point
-    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size/2, size + 6) }
+    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
     : { url };
-};
+}
 
 // ————————————————————————————————————————————
 // Pictogrammes de type (sans Venus/Mars de lucide)
@@ -170,6 +210,9 @@ function MapPageInner() {
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
   const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
+
+  // Nouveaux états : sessions où l’utilisateur est INSCRIT
+  const [mySessionIds, setMySessionIds] = useState<Set<string>>(new Set());
 
   const mountedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -250,11 +293,38 @@ function MapPageInner() {
       })) as SessionRow[];
       setSessions(mapped);
     } catch (e: any) {
-      if (e?.name !== 'AbortError' && mountedRef.current) setError(`Une erreur est survenue: ${e.message}`);
+      if (e?.name !== "AbortError" && mountedRef.current) setError(`Une erreur est survenue: ${e.message}`);
     } finally {
       if (!signal.aborted && mountedRef.current) setLoading(false);
     }
   }, [supabase]);
+
+  // Récupérer les sessions où l’utilisateur est inscrit (paid / included_by_subscription / confirmed)
+  const fetchMyEnrollments = useCallback(async () => {
+    if (!supabase || !currentUser) {
+      setMySessionIds(new Set());
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("session_id, status")
+        .eq("user_id", currentUser.id)
+        .in("status", ["paid", "included_by_subscription", "confirmed"]);
+
+      if (error) {
+        console.warn("[map] enrollments error:", error.message);
+        setMySessionIds(new Set());
+        return;
+      }
+
+      const ids = new Set<string>((data ?? []).map((e: any) => e.session_id));
+      setMySessionIds(ids);
+    } catch (e) {
+      console.warn("[map] fetchMyEnrollments exception:", e);
+      setMySessionIds(new Set());
+    }
+  }, [supabase, currentUser]);
 
   const debouncedRefresh = useCallback(() => {
     if (!mountedRef.current) return;
@@ -271,6 +341,13 @@ function MapPageInner() {
       distanceFromUser: calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng),
     }));
   }, [sessions, userLocation]);
+
+  // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
+  const isEnrolledIn = useCallback((id: string) => mySessionIds.has(id), [mySessionIds]);
+  const shouldBlur = useCallback(
+    (s: SessionRow) => !(hasSub || isOwnSession(s, currentUser?.id) || isEnrolledIn(s.id)),
+    [hasSub, currentUser?.id, isEnrolledIn]
+  );
 
   const filteredSessions = useMemo(() => {
     let filtered = sessionsWithDistance;
@@ -294,9 +371,16 @@ function MapPageInner() {
       .slice(0, 6)
   ), [filteredSessions]);
 
+  // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
+  const myEnrolledSessions = useMemo(() => {
+    const arr = sessionsWithDistance.filter(s => mySessionIds.has(s.id));
+    return arr.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+  }, [sessionsWithDistance, mySessionIds]);
+
   useEffect(() => {
     mountedRef.current = true;
     fetchSessions();
+    if (currentUser) fetchMyEnrollments();
 
     return () => {
       mountedRef.current = false;
@@ -304,9 +388,9 @@ function MapPageInner() {
       if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null; }
       if (channelRef.current && supabase) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
     };
-  }, [fetchSessions, supabase]);
+  }, [fetchSessions, fetchMyEnrollments, supabase, currentUser]);
 
-  useEffect(() => { if (!authLoading && currentUser && mountedRef.current) fetchSessions(); }, [authLoading, currentUser, fetchSessions]);
+  useEffect(() => { if (!authLoading && currentUser && mountedRef.current) { fetchSessions(); fetchMyEnrollments(); } }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
 
   useEffect(() => {
     if (!supabase || !mountedRef.current) return;
@@ -315,11 +399,15 @@ function MapPageInner() {
     const ch = supabase
       .channel(`sessions-map-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => { if (mountedRef.current) debouncedRefresh(); })
+      // réagit aussi aux changements sur les enrollments de l’utilisateur (pour refléter un paiement one-off / désinscription)
+      .on("postgres_changes", { event: "*", schema: "public", table: "enrollments", filter: currentUser ? `user_id=eq.${currentUser.id}` : undefined }, () => {
+        if (mountedRef.current) fetchMyEnrollments();
+      })
       .subscribe();
 
     channelRef.current = ch;
     return () => { if (channelRef.current && supabase) supabase.removeChannel(channelRef.current); };
-  }, [supabase, debouncedRefresh]);
+  }, [supabase, debouncedRefresh, fetchMyEnrollments, currentUser]);
 
   const userMarkerIcon = useMemo(() => {
     const url = 'data:image/svg+xml,' + encodeURIComponent(`
@@ -403,29 +491,30 @@ function MapPageInner() {
 
                     {filteredSessions.map((s) => {
                       const own = isOwnSession(s, currentUser?.id);
-                      const blur = shouldBlur(s, currentUser?.id, hasSub);
+                      const blur = shouldBlur(s);
                       const start = { lat: s.location_lat ?? s.start_lat, lng: s.location_lng ?? s.start_lng };
                       const startShown = blur ? jitterDeterministic(start.lat, start.lng, s.blur_radius_m ?? 1000, s.id) : start;
                       const selected = selectedSession === s.id;
+                      const enrolled = isEnrolledIn(s.id);
 
-                      // Le tracé n'apparaît que pour la session sélectionnée, et seulement pour hôte/abonné
-                      const allowPolyline = (hasSub || own) && selected && !!s.route_polyline;
+                      // Le tracé n'apparaît que pour la session sélectionnée, et pour hôte/abonné OU si inscrit à cette session
+                      const allowPolyline = (hasSub || own || enrolled) && selected && !!s.route_polyline;
                       const path = allowPolyline ? pathFromPolyline(s.route_polyline) : [];
 
-                      const markerIcon = createCustomMarkerIcon(own, !!hasSub, selected);
+                      const markerIcon = createCustomMarkerIcon({ own, enrolled, selected, hasSub });
 
                       return (
                         <div key={s.id}>
                           <MarkerF
                             position={startShown}
-                            title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : ''}`}
+                            title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
                             icon={markerIcon}
                             onClick={(e) => { e.domEvent?.stopPropagation?.(); setSelectedSession(selected ? null : s.id); }}
                           />
                           {allowPolyline && path.length > 1 && (
                             <Polyline
                               path={path}
-                              options={{ clickable: false, strokeOpacity: 0.85, strokeWeight: 3.5, strokeColor: '#3b82f6' }}
+                              options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#3b82f6' }}
                             />
                           )}
                         </div>
@@ -436,6 +525,7 @@ function MapPageInner() {
               </CardContent>
             </Card>
 
+            {/* Fiche de la session sélectionnée */}
             {selectedSession && (
               <Card className="mt-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-4">
@@ -443,8 +533,9 @@ function MapPageInner() {
                     const session = sessionsWithDistance.find(s => s.id === selectedSession);
                     if (!session) return null;
 
-                    const blur = shouldBlur(session, currentUser?.id, hasSub);
+                    const blur = shouldBlur(session);
                     const { label: typeLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
+                    const enrolled = isEnrolledIn(session.id);
 
                     return (
                       <div className="flex justify-between items-start">
@@ -481,8 +572,9 @@ function MapPageInner() {
                             )}
                           </div>
 
-                          {/* Badges: intensité, distance, type, capacité */}
+                          {/* Badges: intensité, distance, type, capacité + Inscrit */}
                           <div className="flex items-center gap-2 mb-4 flex-wrap">
+                            {enrolled && <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>}
                             {session.intensity && (
                               <Badge variant="secondary">
                                 <Zap className="w-3 h-3 mr-1" />
@@ -516,6 +608,77 @@ function MapPageInner() {
                 </CardContent>
               </Card>
             )}
+
+            {/* —— VOS PROCHAINES SESSIONS (inscriptions) —— */}
+            {currentUser && myEnrolledSessions.length > 0 && (
+              <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Users className="w-5 h-5 text-amber-600" />
+                    Vos prochaines sessions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {myEnrolledSessions.map((s) => {
+                      const blur = shouldBlur(s); // devrait être false ici
+                      const when = new Date(s.scheduled_at);
+                      return (
+                        <div key={s.id} className="p-4 rounded-lg border bg-white/70">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
+                                <h4 className="font-semibold text-sm text-gray-900">{s.title}</h4>
+                                <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {when.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · {when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                <MapPin className="inline w-3 h-3 mr-1" />
+                                {blur ? "Zone approximative" : (s.location_hint || "Lieu exact")}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedSession(s.id);
+                                  setCenter({ lat: s.start_lat, lng: s.start_lng });
+                                }}
+                              >
+                                Zoomer
+                              </Button>
+                              <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Voir</Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Légende icônes */}
+                  <div className="text-[11px] text-gray-500 mt-2">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
+                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#f59e0b" }} />
+                        <span>Inscrit (icône dorée)</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#dc2626" }} />
+                        <span>Votre session (hôte)</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
+                        <span>Sélectionnée</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Colonne gauche */}
@@ -539,8 +702,9 @@ function MapPageInner() {
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
-                      const blur = shouldBlur(session, currentUser?.id, hasSub);
+                      const blur = shouldBlur(session);
                       const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
+                      const enrolled = isEnrolledIn(session.id);
 
                       return (
                         <div
@@ -549,8 +713,13 @@ function MapPageInner() {
                           onClick={() => { setSelectedSession(selectedSession === session.id ? null : session.id); setCenter({ lat: session.start_lat, lng: session.start_lng }); }}
                         >
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">{session.title}</h3>
-                            {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
+                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
+                              {session.title}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              {enrolled && <Badge className="bg-amber-100 text-amber-800 h-5">Inscrit</Badge>}
+                              {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
+                            </div>
                           </div>
                           <div className="space-y-1 text-xs text-gray-600">
                             <div className="flex items-center gap-1">
