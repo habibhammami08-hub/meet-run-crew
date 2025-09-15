@@ -19,11 +19,9 @@ import {
   MapPin,
   Users,
   Filter,
-  RefreshCw,
   Navigation,
   Calendar,
   Zap,
-  // ajout minimal pour le remplacement du bouton
   LogIn,
   User,
 } from "lucide-react";
@@ -451,13 +449,13 @@ function MapPageInner() {
                 </Button>
               )}
 
-              {/* Remplacement strict du bouton "Actualiser" */}
+              {/* Afficher sur desktop ET mobile */}
               {!currentUser ? (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/login")}
-                  className="hidden md:inline-flex items-center gap-2"
+                  onClick={() => navigate("/auth")}
+                  className="inline-flex items-center gap-2"
                   aria-label="Se connecter"
                 >
                   <LogIn className="w-4 h-4" />
@@ -468,7 +466,7 @@ function MapPageInner() {
                   variant="outline"
                   size="icon"
                   onClick={() => navigate("/profile")}
-                  className="hidden md:inline-flex"
+                  className="inline-flex"
                   aria-label="Profil"
                   title="Profil"
                 >
