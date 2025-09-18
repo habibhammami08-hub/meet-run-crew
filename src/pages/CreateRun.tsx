@@ -456,7 +456,7 @@ export default function CreateRun() {
             Créer une nouvelle session
           </h1>
           <p className="text-muted-foreground text-lg">
-            Un run ou une simple balade, c’est toujours mieux à plusieurs : planifiez votre prochaine session et rencontrez de nouvelles personnes.
+            Planifiez votre prochaine session et rencontrez de nouvelles personnes.
           </p>
         </div>
 
