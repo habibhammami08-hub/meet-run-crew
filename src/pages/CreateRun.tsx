@@ -192,10 +192,24 @@ export default function CreateRun() {
       alert("Date/heure invalide."); 
       return false; 
     }
-    
-    if (new Date(scheduledIso) <= new Date()) { 
+
+    const now = new Date();
+    const scheduled = new Date(scheduledIso);
+    // Règle existante : futur strict
+    if (scheduled <= now) { 
       alert("La date doit être dans le futur."); 
       return false; 
+    }
+    // Nouvelle contrainte : au moins 45 minutes dans le futur
+    if (scheduled.getTime() - now.getTime() < 45 * 60 * 1000) {
+      alert("La date et l'heure doivent être au minimum dans 45 minutes.");
+      return false;
+    }
+
+    // Contrainte participants : 2 ⩽ max ⩽ 11
+    if (Number.isNaN(Number(maxParticipantsState)) || maxParticipantsState < 2 || maxParticipantsState > 11) {
+      alert("Le nombre maximum de participants doit être compris entre 2 et 11.");
+      return false;
     }
     
     return { scheduledIso };
@@ -217,6 +231,9 @@ export default function CreateRun() {
       "men": "men_only"
     };
 
+    // Application stricte des bornes 2..11 AVANT l'envoi
+    const boundedMax = Math.min(11, Math.max(2, Number(maxParticipantsState) || 10));
+
     const payload: any = {
       host_id: currentUser.id,
       title: title.trim(),
@@ -233,7 +250,8 @@ export default function CreateRun() {
       location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
       intensity: uiToDbIntensity(intensityState),
       session_type: sessionTypeMapping[sessionTypeState] || "mixed",
-      max_participants: Math.min(20, Math.max(3, Number(maxParticipantsState) || 10)),
+      // Contrainte supplémentaire : 2..11
+      max_participants: Math.min(11, Math.max(2, boundedMax)),
       status: "published",
       blur_radius_m: 1000,
       created_at: new Date().toISOString(),
@@ -428,6 +446,8 @@ export default function CreateRun() {
     );
   }
 
+  const minDateForPicker = new Date(Date.now() + 45 * 60 * 1000);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -442,56 +462,7 @@ export default function CreateRun() {
 
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  Informations générales
-                </CardTitle>
-                <CardDescription>
-                  Définissez les détails de votre session
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Titre de la session *
-                  </label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="ex: Course matinale au parc"
-                    className="h-12 text-base"
-                    maxLength={100}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Description (optionnel)
-                  </label>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
-                    className="min-h-[100px] text-base"
-                    maxLength={500}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Date et heure *
-                  </label>
-                  <DateTimePicker
-                    value={dateTime}
-                    onChange={setDateTime}
-                    placeholder="Choisir la date et l'heure"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
+            {/* --- Définir le parcours (déplacé au-dessus) --- */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -537,6 +508,62 @@ export default function CreateRun() {
                     </span>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* --- Informations générales (désormais sous « Définir le parcours ») --- */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Informations générales
+                </CardTitle>
+                <CardDescription>
+                  Définissez les détails de votre session
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Titre de la session *
+                  </label>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="ex: Course matinale au parc"
+                    className="h-12 text-base"
+                    maxLength={100}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Description (optionnel)
+                  </label>
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
+                    className="min-h-[100px] text-base"
+                    maxLength={500}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Date et heure *
+                  </label>
+                  <DateTimePicker
+                    value={dateTime}
+                    onChange={setDateTime}
+                    placeholder="Choisir la date et l'heure"
+                    // Empêche la sélection à moins de 45 minutes du moment présent si le composant le supporte
+                    minDateTime={minDateForPicker as any}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    ⚠️ La date et l'heure doivent être au minimum dans 45 minutes.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -600,14 +627,19 @@ export default function CreateRun() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Nombre maximum de participants
+                    Nombre maximum de participants (2–11)
                   </label>
                   <Input
                     type="number"
-                    min={3}
-                    max={20}
+                    min={2}
+                    max={11}
                     value={maxParticipantsState}
-                    onChange={(e) => setMaxParticipantsState(Number(e.target.value || 10))}
+                    onChange={(e) => {
+                      const v = Number(e.target.value || 10);
+                      // Clamp UI immédiatement entre 2 et 11
+                      const clamped = Math.min(11, Math.max(2, v));
+                      setMaxParticipantsState(clamped);
+                    }}
                     className="h-12"
                   />
                 </div>
