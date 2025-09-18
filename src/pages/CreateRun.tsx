@@ -40,16 +40,70 @@ export default function CreateRun() {
   // Étape mobile (progressive): "start" | "end" | "done"
   const [mobileStep, setMobileStep] = useState<"start" | "end" | "done">("start");
 
+  // 1) Position actuelle de l'utilisateur
+  const [userPosition, setUserPosition] = useState<Pt | null>(null);
+
   // Ref racine pour masquer l'élément "Sélectionner sur la carte" au cas où
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(p =>
-        setCenter({ lat: p.coords.latitude, lng: p.coords.longitude })
-      );
+      navigator.geolocation.getCurrentPosition(p => {
+        const pos = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setCenter(pos);
+        setUserPosition(pos);
+      });
     }
   }, []);
+
+  // 2) Fonction pour obtenir la position utilisateur
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserPosition({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error("Erreur géolocalisation:", error);
+          alert("Impossible d'obtenir votre position. Vérifiez les permissions de géolocalisation.");
+        }
+      );
+    } else {
+      alert("La géolocalisation n'est pas supportée par votre navigateur.");
+    }
+  };
+
+  // 3) Définir ma position comme départ/arrivée
+  const setMyPosition = (type: "start" | "end") => {
+    if (userPosition) {
+      if (type === "start") {
+        setStart(userPosition);
+      } else {
+        setEnd(userPosition);
+      }
+    } else {
+      getUserLocation();
+      const startTime = Date.now();
+      const checkPosition = setInterval(() => {
+        // Limite de sécurité 10s
+        if (Date.now() - startTime > 10000) {
+          clearInterval(checkPosition);
+          return;
+        }
+        if (userPosition) {
+          if (type === "start") {
+            setStart(userPosition);
+          } else {
+            setEnd(userPosition);
+          }
+          clearInterval(checkPosition);
+        }
+      }, 100);
+    }
+  };
 
   // Vérification d'authentification robuste
   useEffect(() => {
@@ -147,25 +201,48 @@ export default function CreateRun() {
     else setMobileStep("done");
   }, [start, end]);
 
-  // Masquage défensif de l'élément "Sélectionner sur la carte" (quel que soit son rendu)
+  // 8) Masquage agressif de tout bouton "Sélectionner sur la carte"
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+
     const hide = () => {
-      const candidates = root.querySelectorAll<HTMLElement>('button, [role="button"]');
-      candidates.forEach((el) => {
-        const txt = (el.innerText || el.getAttribute?.("aria-label") || el.getAttribute?.("title") || "").toLowerCase();
-        if (
-          txt.includes("sélectionner sur la carte") ||
-          txt === "sélectionner" ||
-          txt.includes("sélectionner") ||
-          txt.includes("select on map")
-        ) {
-          el.style.display = "none";
+      const selectors = [
+        '[aria-label*="électionner"]',
+        '[title*="électionner"]',
+        '[aria-label*="Select"]',
+        '[title*="Select"]',
+        'button[aria-label*="map"]',
+        'button[title*="map"]',
+        '.map-select',
+        '.btn-map-select'
+      ];
+      
+      selectors.forEach(selector => {
+        const elements = root.querySelectorAll<HTMLElement>(selector);
+        elements.forEach(el => {
+          const t1 = el.textContent?.toLowerCase() || "";
+          const t2 = (el.getAttribute("aria-label") || el.getAttribute("title") || "").toLowerCase();
+          if (t1.includes('électionner') || t1.includes('select') || t2.includes('électionner') || t2.includes('select')) {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.opacity = '0';
+          }
+        });
+      });
+
+      // Cache aussi par contenu textuel
+      const allButtons = root.querySelectorAll<HTMLElement>('button, [role="button"]');
+      allButtons.forEach((el) => {
+        const text = (el.innerText || el.textContent || '').toLowerCase();
+        if (text.includes('électionner') || text.includes('select')) {
+          el.style.display = 'none';
+          el.style.visibility = 'hidden';
+          el.style.opacity = '0';
         }
       });
     };
-    // premier passage + après chaque changement d'étape mobile
+
     hide();
     const obs = new MutationObserver(() => hide());
     obs.observe(root, { childList: true, subtree: true });
@@ -461,29 +538,77 @@ export default function CreateRun() {
 
   const minDateForPicker = new Date(Date.now() + 45 * 60 * 1000);
 
+  // 5) Composant LocationInputWithMyPosition
+  const LocationInputWithMyPosition = ({ 
+    value, 
+    onChange, 
+    placeholder, 
+    icon, 
+    type 
+  }: {
+    value: Pt | null;
+    onChange: (val: Pt | null) => void;
+    placeholder: string;
+    icon: string;
+    type: "start" | "end";
+  }) => {
+    return (
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <LocationInput
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            icon={icon}
+            onMapSelect={() => {}}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setMyPosition(type)}
+          className="px-3 h-10 text-xs whitespace-nowrap"
+          title="Utiliser ma position actuelle"
+        >
+          📍 Ma position
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <div ref={rootRef} className="min-h-screen bg-background">
-      {/* CSS ciblé : masque "Sélectionner sur la carte" + placeholder plus petit */}
+      {/* 7) CSS : cache tous les boutons "Sélectionner sur la carte" + placeholder plus petit */}
       <style>{`
-        /* Cache de nombreux patterns possibles de ce bouton */
-        .li-no-mapselect [aria-label="Sélectionner sur la carte"],
-        .li-no-mapselect [title="Sélectionner sur la carte"],
-        .li-no-mapselect [aria-label="Select on map"],
-        .li-no-mapselect [title="Select on map"],
-        .li-no-mapselect .map-select,
-        .li-no-mapselect .btn-map-select {
-          display: none !important;
-        }
-        /* Fallback générique : si deux boutons sont côte à côte, cache le second */
-        .li-no-mapselect .actions button:nth-of-type(2),
-        .li-no-mapselect button+button {
-          display: none !important;
-        }
-        /* Placeholder plus petit */
-        .li-no-mapselect input::placeholder {
-          font-size: 0.75rem; /* ~ text-xs */
-          line-height: 1rem;
-        }
+  /* Cache TOUS les boutons "Sélectionner sur la carte" possibles */
+  .li-no-mapselect [aria-label*="électionner"],
+  .li-no-mapselect [title*="électionner"],
+  .li-no-mapselect [aria-label*="Select"],
+  .li-no-mapselect [title*="Select"],
+  .li-no-mapselect button[aria-label*="map"],
+  .li-no-mapselect button[title*="map"],
+  .li-no-mapselect .map-select,
+  .li-no-mapselect .btn-map-select,
+  .li-no-mapselect button:has-text("Sélectionner"),
+  .li-no-mapselect button:has-text("Select") {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+  
+  /* Cache le deuxième bouton dans les groupes de boutons */
+  .li-no-mapselect .actions > button:nth-child(2),
+  .li-no-mapselect .button-group > button:nth-child(2),
+  .li-no-mapselect div > button + button {
+    display: none !important;
+  }
+  
+  /* Placeholder plus petit */
+  .li-no-mapselect input::placeholder {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
       `}</style>
 
       <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -508,7 +633,8 @@ export default function CreateRun() {
                   options={{ 
                     mapTypeControl: false, 
                     streetViewControl: false, 
-                    fullscreenControl: false
+                    fullscreenControl: false,
+                    gestureHandling: 'greedy' // 4) Navigation à un doigt
                   }}
                   onClick={handleMapClick}
                 >
@@ -557,7 +683,7 @@ export default function CreateRun() {
                   )}
                 </GoogleMap>
 
-                {/* Overlay mobile compact pour saisie progressive */}
+                {/* Overlay mobile */}
                 <div className="absolute inset-x-3 top-3 bg-background/85 backdrop-blur-sm rounded-xl shadow-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Route className="h-5 w-5 text-primary" />
@@ -567,12 +693,12 @@ export default function CreateRun() {
                   {/* Étape 1 : adresse de départ */}
                   {mobileStep === "start" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
-                      <LocationInput
+                      <LocationInputWithMyPosition
                         value={start}
                         onChange={(val) => setStart(val)}
                         placeholder="Adresse de départ (ou touchez la carte)"
                         icon="start"
-                        onMapSelect={() => {}}
+                        type="start"
                       />
                     </div>
                   )}
@@ -580,17 +706,17 @@ export default function CreateRun() {
                   {/* Étape 2 : adresse d'arrivée */}
                   {mobileStep === "end" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
-                      <LocationInput
+                      <LocationInputWithMyPosition
                         value={end}
                         onChange={(val) => setEnd(val)}
                         placeholder="Adresse d'arrivée (ou touchez la carte)"
                         icon="end"
-                        onMapSelect={() => {}}
+                        type="end"
                       />
                     </div>
                   )}
 
-                  {/* Étape 3 : message d'aide après départ + arrivée */}
+                  {/* Étape 3 : message d'aide */}
                   {mobileStep === "done" && (
                     <div className="flex items-start gap-2 p-2 bg-muted/60 rounded-lg">
                       <span aria-hidden className="text-2xl leading-none">💡</span>
@@ -600,7 +726,7 @@ export default function CreateRun() {
                     </div>
                   )}
 
-                  {/* Distance (si dispo) */}
+                  {/* Distance */}
                   {distanceKm && (
                     <div className="mt-2 flex items-center gap-2 p-2 bg-muted/60 rounded-lg">
                       <MapPin className="h-4 w-4 text-primary" />
@@ -614,7 +740,7 @@ export default function CreateRun() {
             </CardContent>
           </Card>
 
-          {/* Bouton "Supprimer les points..." juste sous la carte (mobile) */}
+          {/* Bouton "Supprimer les points..." (mobile) */}
           {waypoints.length > 0 && (
             <Button
               type="button"
@@ -630,10 +756,10 @@ export default function CreateRun() {
           )}
         </div>
 
-        {/* === DESKTOP & TABLET (lg+) : mise en page précédente conservée === */}
+        {/* === DESKTOP & TABLET (lg+) === */}
         <div className="grid lg:grid-cols-2 gap-6 mt-6">
           <div className="space-y-6">
-            {/* Définir le parcours : visible seulement en desktop/tablette */}
+            {/* Définir le parcours */}
             <Card className="shadow-card hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -650,12 +776,12 @@ export default function CreateRun() {
                     Point de départ *
                   </label>
                   <div className="li-no-mapselect text-xs">
-                    <LocationInput
+                    <LocationInputWithMyPosition
                       value={start}
                       onChange={setStart}
                       placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
                       icon="start"
-                      onMapSelect={() => {}}
+                      type="start"
                     />
                   </div>
                 </div>
@@ -665,12 +791,12 @@ export default function CreateRun() {
                     Point d'arrivée *
                   </label>
                   <div className="li-no-mapselect text-xs">
-                    <LocationInput
+                    <LocationInputWithMyPosition
                       value={end}
                       onChange={setEnd}
                       placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
                       icon="end"
-                      onMapSelect={() => {}}
+                      type="end"
                     />
                   </div>
                 </div>
@@ -693,7 +819,7 @@ export default function CreateRun() {
               </CardContent>
             </Card>
 
-            {/* Bouton "Supprimer les points..." sous Définir le parcours (desktop) */}
+            {/* Bouton "Supprimer les points..." (desktop) */}
             {waypoints.length > 0 && (
               <Button
                 type="button"
@@ -870,7 +996,7 @@ export default function CreateRun() {
           </div>
 
           <div className="lg:sticky lg:top-6">
-            {/* Carte interactive : cachée sur mobile, visible en desktop/tablette */}
+            {/* Carte interactive */}
             <Card className="shadow-card overflow-hidden hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -886,7 +1012,8 @@ export default function CreateRun() {
                   options={{ 
                     mapTypeControl: false, 
                     streetViewControl: false, 
-                    fullscreenControl: false
+                    fullscreenControl: false,
+                    gestureHandling: 'greedy' // 4) Navigation à un doigt
                   }}
                   onClick={handleMapClick}
                 >
