@@ -698,7 +698,7 @@ export default function CreateRun() {
                         onChange={(val) => setStart(val)}
                         placeholder="Adresse de départ (ou touchez la carte)"
                         icon="start"
-                        type="start"
+                        locationType="start"
                       />
                     </div>
                   )}
@@ -711,7 +711,7 @@ export default function CreateRun() {
                         onChange={(val) => setEnd(val)}
                         placeholder="Adresse d'arrivée (ou touchez la carte)"
                         icon="end"
-                        type="end"
+                        locationType="end"
                       />
                     </div>
                   )}
