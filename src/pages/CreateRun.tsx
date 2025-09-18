@@ -37,6 +37,9 @@ export default function CreateRun() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
 
+  // Étape mobile (progressive): "start" | "end" | "done"
+  const [mobileStep, setMobileStep] = useState<"start" | "end" | "done">("start");
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(p =>
@@ -133,6 +136,13 @@ export default function CreateRun() {
     if (Number.isNaN(d.getTime())) return null;
     return d.toISOString();
   }
+
+  // Sync de l'étape mobile en fonction de start/end
+  useEffect(() => {
+    if (!start) setMobileStep("start");
+    else if (!end) setMobileStep("end");
+    else setMobileStep("done");
+  }, [start, end]);
 
   // Fonction de création de profil séparée
   const ensureProfileExists = async () => {
@@ -460,7 +470,7 @@ export default function CreateRun() {
           </p>
         </div>
 
-        {/* === MOBILE : Carte en premier + overlay "Définir le parcours" === */}
+        {/* === MOBILE : Carte tout en haut + saisie progressive intégrée === */}
         <div className="lg:hidden space-y-4">
           <Card className="shadow-card overflow-hidden">
             <CardContent className="p-0">
@@ -521,56 +531,58 @@ export default function CreateRun() {
                   )}
                 </GoogleMap>
 
-                {/* Overlay "Définir le parcours" */}
-                <div className="absolute inset-x-4 bottom-4 bg-background/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
+                {/* Overlay mobile compact pour saisie progressive */}
+                <div className="absolute inset-x-3 top-3 bg-background/85 backdrop-blur-sm rounded-xl shadow-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
                     <Route className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Définir le parcours</h3>
+                    <h3 className="text-sm font-semibold">Définir le parcours</h3>
                   </div>
 
-                  <div className="space-y-4">
+                  {/* Étape 1 : adresse de départ */}
+                  {mobileStep === "start" && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-foreground">
-                        Point de départ *
-                      </label>
                       <LocationInput
                         value={start}
-                        onChange={setStart}
-                        placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
+                        onChange={(val) => setStart(val)}
+                        placeholder="Adresse de départ (ou touchez la carte)"
                         icon="start"
                         showMapSelect={false}
                       />
                     </div>
+                  )}
 
+                  {/* Étape 2 : adresse d'arrivée */}
+                  {mobileStep === "end" && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-foreground">
-                        Point d'arrivée *
-                      </label>
                       <LocationInput
                         value={end}
-                        onChange={setEnd}
-                        placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
+                        onChange={(val) => setEnd(val)}
+                        placeholder="Adresse d'arrivée (ou touchez la carte)"
                         icon="end"
                         showMapSelect={false}
                       />
                     </div>
+                  )}
 
-                    {distanceKm && (
-                      <div className="flex items-center gap-2 p-2 bg-muted/60 rounded-lg">
-                        <MapPin className="h-4 w-4 text-primary" />
-                        <span className="text-xs">
-                          Distance calculée: <strong>{distanceKm.toFixed(2)} km</strong>
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-lg">
+                  {/* Étape 3 : message d'aide après départ + arrivée */}
+                  {mobileStep === "done" && (
+                    <div className="flex items-start gap-2 p-2 bg-muted/60 rounded-lg">
                       <span aria-hidden className="text-2xl leading-none">💡</span>
-                      <p className="text-xs text-slate-600">
-                        Après avoir renseigné votre point de départ et votre point d’arrivée, appuyez n’importe où sur la carte pour ajouter des étapes et personnaliser votre parcours.
+                      <p className="text-xs text-slate-700">
+                        Après avoir renseigné votre point de départ et votre point d’arrivée, vous pouvez ajouter d’autres étapes en appuyant sur la carte, ou passer directement aux informations générales si le parcours vous convient.
                       </p>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Distance (si dispo) */}
+                  {distanceKm && (
+                    <div className="mt-2 flex items-center gap-2 p-2 bg-muted/60 rounded-lg">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <span className="text-xs">
+                        Distance calculée : <strong>{distanceKm.toFixed(2)} km</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
