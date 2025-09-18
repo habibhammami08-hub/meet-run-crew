@@ -219,7 +219,7 @@ export default function CreateRun() {
   const createSessionPayload = (scheduledIso: string) => {
     const r = (dirResult || {} as any).routes?.[0];
     const legs = r?.legs ?? [];
-       const meters = legs.reduce((s: number, l: any) => s + (l?.distance?.value ?? 0), 0);
+    const meters = legs.reduce((s: number, l: any) => s + (l?.distance?.value ?? 0), 0);
     const poly = r?.overview_polyline?.toString?.() ?? r?.overview_polyline?.points ?? "";
     const startAddr = legs[0]?.start_address ?? null;
     const endAddr = legs[legs.length - 1]?.end_address ?? null;
@@ -460,10 +460,143 @@ export default function CreateRun() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        {/* === MOBILE : Carte en premier + overlay "Définir le parcours" === */}
+        <div className="lg:hidden space-y-4">
+          <Card className="shadow-card overflow-hidden">
+            <CardContent className="p-0">
+              <div className="relative">
+                <GoogleMap
+                  mapContainerStyle={{ width: "100%", height: "60vh" }}
+                  zoom={13}
+                  center={start ?? center}
+                  options={{ 
+                    mapTypeControl: false, 
+                    streetViewControl: false, 
+                    fullscreenControl: false
+                  }}
+                  onClick={handleMapClick}
+                >
+                  {start && (
+                    <MarkerF 
+                      position={start}
+                      icon={{
+                        url: "data:image/svg+xml;base64," + btoa(`
+                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/>
+                            <circle cx="16" cy="15" r="6" fill="white"/>
+                          </svg>
+                        `),
+                        scaledSize: new google.maps.Size(32, 40),
+                        anchor: new google.maps.Point(16, 40)
+                      }}
+                    />
+                  )}
+                  {end && (
+                    <MarkerF 
+                      position={end}
+                      icon={{
+                        url: "data:image/svg+xml;base64," + btoa(`
+                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
+                            <circle cx="16" cy="15" r="6" fill="white"/>
+                          </svg>
+                        `),
+                        scaledSize: new google.maps.Size(32, 40),
+                        anchor: new google.maps.Point(16, 40)
+                      }}
+                    />
+                  )}
+                  {start && end && dirResult && (
+                    <DirectionsRenderer
+                      directions={dirResult}
+                      options={{ 
+                        suppressMarkers: true,
+                        polylineOptions: {
+                          strokeColor: "#3b82f6",
+                          strokeWeight: 4,
+                          strokeOpacity: 0.8
+                        }
+                      }}
+                    />
+                  )}
+                </GoogleMap>
+
+                {/* Overlay "Définir le parcours" */}
+                <div className="absolute inset-x-4 bottom-4 bg-background/80 backdrop-blur-sm rounded-2xl shadow-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Route className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Définir le parcours</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-foreground">
+                        Point de départ *
+                      </label>
+                      <LocationInput
+                        value={start}
+                        onChange={setStart}
+                        placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
+                        icon="start"
+                        showMapSelect={false}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-foreground">
+                        Point d'arrivée *
+                      </label>
+                      <LocationInput
+                        value={end}
+                        onChange={setEnd}
+                        placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
+                        icon="end"
+                        showMapSelect={false}
+                      />
+                    </div>
+
+                    {distanceKm && (
+                      <div className="flex items-center gap-2 p-2 bg-muted/60 rounded-lg">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="text-xs">
+                          Distance calculée: <strong>{distanceKm.toFixed(2)} km</strong>
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-start gap-2 p-2 bg-muted/50 rounded-lg">
+                      <span aria-hidden className="text-2xl leading-none">💡</span>
+                      <p className="text-xs text-slate-600">
+                        Après avoir renseigné votre point de départ et votre point d’arrivée, appuyez n’importe où sur la carte pour ajouter des étapes et personnaliser votre parcours.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bouton "Supprimer les points..." juste sous la carte (mobile) */}
+          {waypoints.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setWaypoints([]);
+                if (start && end) calcRoute(start, end, []);
+              }}
+              className="w-full"
+            >
+              Supprimer les points intermédiaires ({waypoints.length})
+            </Button>
+          )}
+        </div>
+
+        {/* === DESKTOP & TABLET (lg+) : mise en page précédente conservée === */}
+        <div className="grid lg:grid-cols-2 gap-6 mt-6">
           <div className="space-y-6">
-            {/* --- Définir le parcours (déplacé au-dessus) --- */}
-            <Card className="shadow-card">
+            {/* Définir le parcours : visible seulement en desktop/tablette */}
+            <Card className="shadow-card hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Route className="h-5 w-5 text-primary" />
@@ -518,7 +651,7 @@ export default function CreateRun() {
               </CardContent>
             </Card>
 
-            {/* Bouton "Supprimer les points..." juste sous "Définir le parcours" */}
+            {/* Bouton "Supprimer les points..." sous Définir le parcours (desktop) */}
             {waypoints.length > 0 && (
               <Button
                 type="button"
@@ -527,13 +660,13 @@ export default function CreateRun() {
                   setWaypoints([]);
                   if (start && end) calcRoute(start, end, []);
                 }}
-                className="w-full"
+                className="w-full hidden lg:inline-flex"
               >
                 Supprimer les points intermédiaires ({waypoints.length})
               </Button>
             )}
 
-            {/* --- Informations générales (désormais sous « Définir le parcours ») --- */}
+            {/* Informations générales */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -698,7 +831,8 @@ export default function CreateRun() {
           </div>
 
           <div className="lg:sticky lg:top-6">
-            <Card className="shadow-card overflow-hidden">
+            {/* Carte interactive : cachée sur mobile, visible en desktop/tablette */}
+            <Card className="shadow-card overflow-hidden hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MapPin className="h-5 w-5 text-primary" />
