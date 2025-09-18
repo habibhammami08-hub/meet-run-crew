@@ -527,7 +527,6 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
           onChange={onChange}
           placeholder={placeholder}
           icon={icon}
-          onMapSelect={() => {}}
         />
         <Button
           type="button"
