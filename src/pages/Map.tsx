@@ -1,9 +1,3 @@
-// src/pages/Map.tsx
-// — pictogrammes type (Mixte/Femmes/Hommes) sans Venus/Mars
-// — route visible seulement si sélectionnée
-// — met en avant les sessions où l’utilisateur est INSCRIT (one-off ou sub) : icône dorée + étoile
-// — bloc "Vos prochaines sessions" sous la carte
-
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
