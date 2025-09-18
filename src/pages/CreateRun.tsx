@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
-import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { LocationInput } from "@/components/ui/location-input";
@@ -40,10 +40,10 @@ export default function CreateRun() {
   // Étape mobile (progressive): "start" | "end" | "done"
   const [mobileStep, setMobileStep] = useState<"start" | "end" | "done">("start");
 
-  // 1) Position actuelle de l'utilisateur
+  // Position actuelle de l'utilisateur
   const [userPosition, setUserPosition] = useState<Pt | null>(null);
 
-  // Ref racine pour masquer l'élément "Sélectionner sur la carte" au cas où
+  // Ref racine pour le masquage défensif
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function CreateRun() {
     }
   }, []);
 
-  // 2) Fonction pour obtenir la position utilisateur
+  // Obtenir la position utilisateur
   const getUserLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -76,10 +76,10 @@ export default function CreateRun() {
     }
   };
 
-  // 3) Définir ma position comme départ/arrivée
-  const setMyPosition = (type: "start" | "end") => {
+  // Définir ma position comme départ/arrivée
+  const setMyPosition = (locationType: "start" | "end") => {
     if (userPosition) {
-      if (type === "start") {
+      if (locationType === "start") {
         setStart(userPosition);
       } else {
         setEnd(userPosition);
@@ -88,13 +88,12 @@ export default function CreateRun() {
       getUserLocation();
       const startTime = Date.now();
       const checkPosition = setInterval(() => {
-        // Limite de sécurité 10s
         if (Date.now() - startTime > 10000) {
           clearInterval(checkPosition);
           return;
         }
         if (userPosition) {
-          if (type === "start") {
+          if (locationType === "start") {
             setStart(userPosition);
           } else {
             setEnd(userPosition);
@@ -105,7 +104,7 @@ export default function CreateRun() {
     }
   };
 
-  // Vérification d'authentification robuste
+  // Vérification d'authentification
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -113,12 +112,9 @@ export default function CreateRun() {
         if (alive) setUserReady("none"); 
         return; 
       }
-      
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!alive) return;
-        
-        console.log("[CreateRun] User check result:", user?.id || "no user");
         setCurrentUser(user);
         setUserReady(user ? "ok" : "none");
       } catch (error) {
@@ -194,14 +190,14 @@ export default function CreateRun() {
     return d.toISOString();
   }
 
-  // Sync de l'étape mobile en fonction de start/end
+  // Sync de l'étape mobile
   useEffect(() => {
     if (!start) setMobileStep("start");
     else if (!end) setMobileStep("end");
     else setMobileStep("done");
   }, [start, end]);
 
-  // 8) Masquage agressif de tout bouton "Sélectionner sur la carte"
+  // Masquage agressif du bouton "Sélectionner sur la carte"
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -231,7 +227,6 @@ export default function CreateRun() {
         });
       });
 
-      // Cache aussi par contenu textuel
       const allButtons = root.querySelectorAll<HTMLElement>('button, [role="button"]');
       allButtons.forEach((el) => {
         const text = (el.innerText || el.textContent || '').toLowerCase();
@@ -249,19 +244,17 @@ export default function CreateRun() {
     return () => obs.disconnect();
   }, [mobileStep]);
 
-  // Fonction de création de profil séparée
   const ensureProfileExists = async () => {
     if (!currentUser) return false;
     
     try {
-      const { data: prof, error: pe } = await supabase
+      const { data: prof } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', currentUser.id)
         .maybeSingle();
 
       if (!prof) {
-        console.log("[CreateRun] Creating profile for user:", currentUser.id);
         const { error: upErr } = await supabase.from('profiles').upsert({ 
           id: currentUser.id, 
           email: currentUser.email || '',
@@ -272,36 +265,30 @@ export default function CreateRun() {
         });
         
         if (upErr) {
-          console.error("[CreateRun] Profile creation error:", upErr);
           alert("Impossible de créer votre profil. Reconnectez-vous puis réessayez.");
           return false;
         }
       }
       return true;
     } catch (profileError) {
-      console.error("[CreateRun] Profile check error:", profileError);
       alert("Erreur lors de la vérification du profil.");
       return false;
     }
   };
 
-  // Fonction de validation des données séparée
   const validateSessionData = () => {
     if (!start || !end) { 
       alert("Définissez un départ et une arrivée (clics sur la carte)."); 
       return false; 
     }
-    
     if (!dirResult) { 
       alert("Impossible de calculer l'itinéraire."); 
       return false; 
     }
-    
     if (!title?.trim()) { 
       alert("Indiquez un titre."); 
       return false; 
     }
-    
     const scheduledIso = toIsoFromLocal(dateTime);
     if (!scheduledIso) { 
       alert("Date/heure invalide."); 
@@ -344,19 +331,19 @@ export default function CreateRun() {
     const boundedMax = Math.min(11, Math.max(2, Number(maxParticipantsState) || 10));
 
     const payload: any = {
-      host_id: currentUser.id,
+      host_id: currentUser?.id,
       title: title.trim(),
       scheduled_at: scheduledIso,
-      start_lat: Number(start.lat), 
-      start_lng: Number(start.lng),
-      end_lat: Number(end.lat), 
-      end_lng: Number(end.lng),
+      start_lat: Number(start!.lat), 
+      start_lng: Number(start!.lng),
+      end_lat: Number(end!.lat), 
+      end_lng: Number(end!.lng),
       distance_km: Math.round((meters / 1000) * 100) / 100,
       route_distance_m: meters,
       route_polyline: poly || null,
       start_place: startAddr, 
       end_place: endAddr,
-      location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
+      location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start!.lat.toFixed(3)}, ${start!.lng.toFixed(3)}`,
       intensity: uiToDbIntensity(intensityState),
       session_type: sessionTypeMapping[sessionTypeState] || "mixed",
       max_participants: Math.min(11, Math.max(2, boundedMax)),
@@ -369,8 +356,6 @@ export default function CreateRun() {
     if (description?.trim()) {
       payload.description = description.trim();
     }
-
-    console.log("[CreateRun] Session type mapping:", sessionTypeState, "->", sessionTypeMapping[sessionTypeState]);
 
     return payload;
   };
@@ -407,11 +392,7 @@ export default function CreateRun() {
           userId: currentUser.id 
         } 
       }));
-      
-      console.log("[CreateRun] Update events dispatched");
-    } catch (profileError) {
-      console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
-    }
+    } catch (_) {}
   };
 
   const resetForm = () => {
@@ -436,14 +417,6 @@ export default function CreateRun() {
     
     setIsSaving(true);
     try {
-      console.info("[CreateRun] Starting session creation", { 
-        title, 
-        dateTime, 
-        hasStart: !!start, 
-        hasEnd: !!end, 
-        hasDir: !!dirResult 
-      });
-
       if (!currentUser) {
         alert("Veuillez vous connecter pour créer une session.");
         return;
@@ -465,8 +438,6 @@ export default function CreateRun() {
       }
 
       const payload = createSessionPayload(scheduledIso);
-      console.info("[CreateRun] Inserting session payload:", payload);
-      
       const { data, error } = await supabase
         .from("sessions")
         .insert(payload)
@@ -474,28 +445,27 @@ export default function CreateRun() {
         .single();
       
       if (error) { 
-        console.error("[CreateRun] Insert error:", error); 
         alert("Création impossible : " + (error.message || error.details || "erreur inconnue")); 
         return; 
       }
 
-      console.info("[CreateRun] Session created successfully:", data);
       await handlePostCreation(data);
       
-      alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
+      alert(`🎉 Session créée avec succès !
+
+"${data.title}"
+ID: ${data.id}
+
+Vous allez être redirigé vers la carte pour voir votre session.`);
       resetForm();
       
       setTimeout(() => {
         navigate("/map", { 
-          state: { 
-            newSessionId: data.id,
-            shouldFocus: true 
-          } 
+          state: { newSessionId: data.id, shouldFocus: true } 
         });
       }, 1500);
       
     } catch (e: any) {
-      console.error("[CreateRun] Fatal error:", e);
       alert("Erreur lors de la création : " + (e.message || "Erreur inconnue"));
     } finally {
       setIsSaving(false);
@@ -536,9 +506,7 @@ export default function CreateRun() {
     );
   }
 
-  const minDateForPicker = new Date(Date.now() + 45 * 60 * 1000);
-
-  // 5) Composant LocationInputWithMyPosition
+  // Composant avec bouton "Ma position"
   const LocationInputWithMyPosition = ({ 
     value, 
     onChange, 
@@ -579,9 +547,7 @@ export default function CreateRun() {
 
   return (
     <div ref={rootRef} className="min-h-screen bg-background">
-      {/* 7) CSS : cache tous les boutons "Sélectionner sur la carte" + placeholder plus petit */}
       <style>{`
-  /* Cache TOUS les boutons "Sélectionner sur la carte" possibles */
   .li-no-mapselect [aria-label*="électionner"],
   .li-no-mapselect [title*="électionner"],
   .li-no-mapselect [aria-label*="Select"],
@@ -596,15 +562,11 @@ export default function CreateRun() {
     visibility: hidden !important;
     opacity: 0 !important;
   }
-  
-  /* Cache le deuxième bouton dans les groupes de boutons */
   .li-no-mapselect .actions > button:nth-child(2),
   .li-no-mapselect .button-group > button:nth-child(2),
   .li-no-mapselect div > button + button {
     display: none !important;
   }
-  
-  /* Placeholder plus petit */
   .li-no-mapselect input::placeholder {
     font-size: 0.75rem;
     line-height: 1rem;
@@ -621,7 +583,7 @@ export default function CreateRun() {
           </p>
         </div>
 
-        {/* === MOBILE : Carte tout en haut + saisie progressive intégrée === */}
+        {/* MOBILE */}
         <div className="lg:hidden space-y-4">
           <Card className="shadow-card overflow-hidden">
             <CardContent className="p-0">
@@ -634,7 +596,7 @@ export default function CreateRun() {
                     mapTypeControl: false, 
                     streetViewControl: false, 
                     fullscreenControl: false,
-                    gestureHandling: 'greedy' // 4) Navigation à un doigt
+                    gestureHandling: 'greedy'
                   }}
                   onClick={handleMapClick}
                 >
@@ -683,14 +645,12 @@ export default function CreateRun() {
                   )}
                 </GoogleMap>
 
-                {/* Overlay mobile */}
                 <div className="absolute inset-x-3 top-3 bg-background/85 backdrop-blur-sm rounded-xl shadow-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Route className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold">Définir le parcours</h3>
                   </div>
 
-                  {/* Étape 1 : adresse de départ */}
                   {mobileStep === "start" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
                       <LocationInputWithMyPosition
@@ -703,7 +663,6 @@ export default function CreateRun() {
                     </div>
                   )}
 
-                  {/* Étape 2 : adresse d'arrivée */}
                   {mobileStep === "end" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
                       <LocationInputWithMyPosition
@@ -716,7 +675,6 @@ export default function CreateRun() {
                     </div>
                   )}
 
-                  {/* Étape 3 : message d'aide */}
                   {mobileStep === "done" && (
                     <div className="flex items-start gap-2 p-2 bg-muted/60 rounded-lg">
                       <span aria-hidden className="text-2xl leading-none">💡</span>
@@ -726,7 +684,6 @@ export default function CreateRun() {
                     </div>
                   )}
 
-                  {/* Distance */}
                   {distanceKm && (
                     <div className="mt-2 flex items-center gap-2 p-2 bg-muted/60 rounded-lg">
                       <MapPin className="h-4 w-4 text-primary" />
@@ -740,7 +697,6 @@ export default function CreateRun() {
             </CardContent>
           </Card>
 
-          {/* Bouton "Supprimer les points..." (mobile) */}
           {waypoints.length > 0 && (
             <Button
               type="button"
@@ -756,10 +712,9 @@ export default function CreateRun() {
           )}
         </div>
 
-        {/* === DESKTOP & TABLET (lg+) === */}
+        {/* DESKTOP & TABLET */}
         <div className="grid lg:grid-cols-2 gap-6 mt-6">
           <div className="space-y-6">
-            {/* Définir le parcours */}
             <Card className="shadow-card hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -819,7 +774,6 @@ export default function CreateRun() {
               </CardContent>
             </Card>
 
-            {/* Bouton "Supprimer les points..." (desktop) */}
             {waypoints.length > 0 && (
               <Button
                 type="button"
@@ -834,7 +788,6 @@ export default function CreateRun() {
               </Button>
             )}
 
-            {/* Informations générales */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -996,7 +949,6 @@ export default function CreateRun() {
           </div>
 
           <div className="lg:sticky lg:top-6">
-            {/* Carte interactive */}
             <Card className="shadow-card overflow-hidden hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1013,7 +965,7 @@ export default function CreateRun() {
                     mapTypeControl: false, 
                     streetViewControl: false, 
                     fullscreenControl: false,
-                    gestureHandling: 'greedy' // 4) Navigation à un doigt
+                    gestureHandling: 'greedy'
                   }}
                   onClick={handleMapClick}
                 >
