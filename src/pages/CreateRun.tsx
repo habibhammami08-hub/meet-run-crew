@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar, Lightbulb } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar } from "lucide-react";
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -507,9 +507,9 @@ export default function CreateRun() {
                   </div>
                 )}
 
-                <div className="flex items-start gap-2 p-3 bg-muted/40 rounded-lg">
-                  <Lightbulb className="h-4 w-4 text-primary mt-0.5" />
-                  <p className="text-sm text-foreground">
+                <div className="flex items-start gap-3 p-3 bg-muted/40 rounded-lg">
+                  <span aria-hidden className="text-3xl leading-none">💡</span>
+                  <p className="text-xs text-slate-600">
                     Après avoir renseigné votre point de départ et votre point d’arrivée, appuyez n’importe où sur la carte pour ajouter des étapes et personnaliser votre parcours.
                   </p>
                 </div>
