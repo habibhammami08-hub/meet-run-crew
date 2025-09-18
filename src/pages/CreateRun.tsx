@@ -566,7 +566,7 @@ export default function CreateRun() {
                     minDateTime={minDateForPicker as any}
                   />
                   <p className="text-xs text-muted-foreground">
-                    ⚠️ La date et l'heure doivent être au minimum dans 45 minutes.
+                    ⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.
                   </p>
                 </div>
               </CardContent>
