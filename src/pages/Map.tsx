@@ -137,7 +137,7 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
 }
 
 // ————————————————————————————————————————————
-// Pictogrammes de type (sans Venus/Mars de lucide)
+// Pictogrammes de type 
 // ————————————————————————————————————————————
 
 type TypeMeta = {
