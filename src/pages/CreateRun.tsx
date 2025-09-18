@@ -205,18 +205,15 @@ export default function CreateRun() {
 
     const now = new Date();
     const scheduled = new Date(scheduledIso);
-    // Règle existante : futur strict
     if (scheduled <= now) { 
       alert("La date doit être dans le futur."); 
       return false; 
     }
-    // Nouvelle contrainte : au moins 45 minutes dans le futur
     if (scheduled.getTime() - now.getTime() < 45 * 60 * 1000) {
       alert("La date et l'heure doivent être au minimum dans 45 minutes.");
       return false;
     }
 
-    // Contrainte participants : 2 ⩽ max ⩽ 11
     if (Number.isNaN(Number(maxParticipantsState)) || maxParticipantsState < 2 || maxParticipantsState > 11) {
       alert("Le nombre maximum de participants doit être compris entre 2 et 11.");
       return false;
@@ -225,7 +222,6 @@ export default function CreateRun() {
     return { scheduledIso };
   };
 
-  // Fonction de création du payload séparée
   const createSessionPayload = (scheduledIso: string) => {
     const r = (dirResult || {} as any).routes?.[0];
     const legs = r?.legs ?? [];
@@ -234,14 +230,12 @@ export default function CreateRun() {
     const startAddr = legs[0]?.start_address ?? null;
     const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
-    // CORRECTION: Mapping des valeurs UI vers les valeurs DB pour session_type
     const sessionTypeMapping: { [key: string]: string } = {
       "mixed": "mixed",
       "women": "women_only",
       "men": "men_only"
     };
 
-    // Application stricte des bornes 2..11 AVANT l'envoi
     const boundedMax = Math.min(11, Math.max(2, Number(maxParticipantsState) || 10));
 
     const payload: any = {
@@ -260,7 +254,6 @@ export default function CreateRun() {
       location_hint: startAddr ? startAddr.split(',')[0] : `Zone ${start.lat.toFixed(3)}, ${start.lng.toFixed(3)}`,
       intensity: uiToDbIntensity(intensityState),
       session_type: sessionTypeMapping[sessionTypeState] || "mixed",
-      // Contrainte supplémentaire : 2..11
       max_participants: Math.min(11, Math.max(2, boundedMax)),
       status: "published",
       blur_radius_m: 1000,
@@ -277,10 +270,8 @@ export default function CreateRun() {
     return payload;
   };
 
-  // Fonction de post-traitement après création
   const handlePostCreation = async (sessionData: any) => {
     try {
-      // Forcer la mise à jour du profil
       const { data: currentProfile } = await supabase
         .from('profiles')
         .select('sessions_hosted')
@@ -297,7 +288,6 @@ export default function CreateRun() {
           .eq('id', currentUser.id);
       }
       
-      // Déclencher les événements de mise à jour
       window.dispatchEvent(new CustomEvent('profileRefresh', { 
         detail: { 
           userId: currentUser.id,
@@ -319,7 +309,6 @@ export default function CreateRun() {
     }
   };
 
-  // Reset du formulaire
   const resetForm = () => {
     setStart(null); 
     setEnd(null); 
@@ -334,7 +323,6 @@ export default function CreateRun() {
     setMaxParticipantsState(10);
   };
 
-  // Fonction onSubmit refactorisée
   async function onSubmit() {
     if (!supabase) { 
       alert("Configuration Supabase manquante."); 
@@ -351,22 +339,18 @@ export default function CreateRun() {
         hasDir: !!dirResult 
       });
 
-      // Vérification utilisateur
       if (!currentUser) {
         alert("Veuillez vous connecter pour créer une session.");
         return;
       }
 
-      // S'assurer que le profil existe
       const profileExists = await ensureProfileExists();
       if (!profileExists) return;
 
-      // Validation des données
       const validation = validateSessionData();
       if (!validation) return;
       const { scheduledIso } = validation;
 
-      // Recalculer l'itinéraire si nécessaire
       if (!dirResult) {
         await calcRoute();
         if (!dirResult) {
@@ -375,9 +359,7 @@ export default function CreateRun() {
         }
       }
 
-      // Créer le payload
       const payload = createSessionPayload(scheduledIso);
-      
       console.info("[CreateRun] Inserting session payload:", payload);
       
       const { data, error } = await supabase
@@ -393,17 +375,11 @@ export default function CreateRun() {
       }
 
       console.info("[CreateRun] Session created successfully:", data);
-      
-      // Post-traitement
       await handlePostCreation(data);
       
-      // Message de succès
       alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
-      
-      // Reset du formulaire
       resetForm();
       
-      // Navigation fluide avec React Router
       setTimeout(() => {
         navigate("/map", { 
           state: { 
@@ -421,7 +397,6 @@ export default function CreateRun() {
     }
   }
 
-  // États de chargement
   if (userReady === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -460,6 +435,21 @@ export default function CreateRun() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* CSS ciblé : masque "Sélectionner sur la carte" + placeholder plus petit */}
+      <style>{`
+        .hide-map-select [aria-label="Sélectionner sur la carte"],
+        .hide-map-select [title="Sélectionner sur la carte"],
+        .hide-map-select button[data-action="map-select"],
+        .hide-map-select .map-select,
+        .hide-map-select .btn-map-select {
+          display: none !important;
+        }
+        .hide-map-select input::placeholder {
+          font-size: 0.75rem; /* ~ text-xs */
+          line-height: 1rem;
+        }
+      `}</style>
+
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent mb-3">
@@ -540,26 +530,24 @@ export default function CreateRun() {
 
                   {/* Étape 1 : adresse de départ */}
                   {mobileStep === "start" && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 hide-map-select text-xs">
                       <LocationInput
                         value={start}
                         onChange={(val) => setStart(val)}
                         placeholder="Adresse de départ (ou touchez la carte)"
                         icon="start"
-                        showMapSelect={false}
                       />
                     </div>
                   )}
 
                   {/* Étape 2 : adresse d'arrivée */}
                   {mobileStep === "end" && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 hide-map-select text-xs">
                       <LocationInput
                         value={end}
                         onChange={(val) => setEnd(val)}
                         placeholder="Adresse d'arrivée (ou touchez la carte)"
                         icon="end"
-                        showMapSelect={false}
                       />
                     </div>
                   )}
@@ -623,26 +611,28 @@ export default function CreateRun() {
                   <label className="text-sm font-medium text-foreground">
                     Point de départ *
                   </label>
-                  <LocationInput
-                    value={start}
-                    onChange={setStart}
-                    placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
-                    icon="start"
-                    showMapSelect={false}
-                  />
+                  <div className="hide-map-select text-xs">
+                    <LocationInput
+                      value={start}
+                      onChange={setStart}
+                      placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
+                      icon="start"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
                     Point d'arrivée *
                   </label>
-                  <LocationInput
-                    value={end}
-                    onChange={setEnd}
-                    placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
-                    icon="end"
-                    showMapSelect={false}
-                  />
+                  <div className="hide-map-select text-xs">
+                    <LocationInput
+                      value={end}
+                      onChange={setEnd}
+                      placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
+                      icon="end"
+                    />
+                  </div>
                 </div>
 
                 {distanceKm && (
@@ -724,7 +714,6 @@ export default function CreateRun() {
                     value={dateTime}
                     onChange={setDateTime}
                     placeholder="Choisir la date et l'heure"
-                    // Empêche la sélection à moins de 45 minutes du moment présent si le composant le supporte
                     minDateTime={minDateForPicker as any}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -803,7 +792,6 @@ export default function CreateRun() {
                     value={maxParticipantsState}
                     onChange={(e) => {
                       const v = Number(e.target.value || 10);
-                      // Clamp UI immédiatement entre 2 et 11
                       const clamped = Math.min(11, Math.max(2, v));
                       setMaxParticipantsState(clamped);
                     }}
