@@ -314,7 +314,10 @@ const Home = () => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => navigate("/map")}
+                    onClick={() => {
+                      navigate("/map");
+                      setTimeout(() => window.scrollTo(0, 0), 100);
+                    }}
                     className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
                   >
                     Voir la carte <ArrowRight size={16} className="ml-2" />
