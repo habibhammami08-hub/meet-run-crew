@@ -521,22 +521,20 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
     locationType: "start" | "end";
   }) => {
     return (
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <LocationInput
-            value={value}
-            onChange={onChange}
-            placeholder={placeholder}
-            icon={icon}
-            onMapSelect={() => {}}
-          />
-        </div>
+      <div className="space-y-2">
+        <LocationInput
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          icon={icon}
+          onMapSelect={() => {}}
+        />
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={() => setMyPosition(locationType)}
-          className="px-3 h-10 text-xs whitespace-nowrap"
+          className="px-3 h-8 text-xs"
           title="Utiliser ma position actuelle"
         >
           📍 Ma position
