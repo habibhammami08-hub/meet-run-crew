@@ -43,6 +43,10 @@ type SessionRow = {
   location_hint?: string;
   max_participants?: number;
   distanceFromUser?: number | null;
+
+  // ▼▼▼ AJOUT : compteur dénormalisé depuis la DB
+  participants_count?: number;
+  // ▲▲▲
 };
 
 // ————————————————————————————————————————————
@@ -261,7 +265,7 @@ function MapPageInner() {
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
       const { data, error } = await supabase
         .from("sessions")
-        .select("id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants")
+        .select("id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants,participants_count") // ← AJOUT participants_count
         .gte("scheduled_at", cutoffDate.toISOString())
         .eq("status", "published")
         .order("scheduled_at", { ascending: true })
@@ -336,48 +340,13 @@ function MapPageInner() {
     [hasSub, currentUser?.id, isEnrolledIn]
   );
 
-  // ————————————————————————————————————————————
-  // [AJOUT] Comptage participants (pour règle d'affichage 31/15 min)
-  // ————————————————————————————————————————————
-  const [participantCounts, setParticipantCounts] = useState<Map<string, number>>(new Map());
-
-  const fetchParticipantCounts = useCallback(async () => {
-    if (!supabase || sessions.length === 0) {
-      setParticipantCounts(new Map());
-      return;
-    }
-    try {
-      const ids = sessions.map(s => s.id);
-      const { data, error } = await supabase
-        .from("enrollments")
-        .select("session_id, status")
-        .in("session_id", ids)
-        .in("status", ["paid", "included_by_subscription", "confirmed"]);
-      if (error) {
-        console.warn("[map] fetchParticipantCounts error:", error.message);
-        return;
-      }
-      const counts = new Map<string, number>();
-      (data ?? []).forEach((e: any) => {
-        counts.set(e.session_id, (counts.get(e.session_id) || 0) + 1);
-      });
-      setParticipantCounts(counts);
-    } catch (e) {
-      console.warn("[map] fetchParticipantCounts exception:", e);
-    }
-  }, [supabase, sessions]);
-
-  useEffect(() => {
-    fetchParticipantCounts();
-  }, [fetchParticipantCounts, sessions]);
-
-  // Rafraîchissement temporel pour que le retrait 31/15 min s’applique en continu
+  // ▼▼▼ AJOUT : tick d’horloge pour appliquer la règle de retrait 31/15 min en continu
   const [__tick, set__tick] = useState(0);
   useEffect(() => {
     const i = setInterval(() => set__tick(t => t + 1), 60_000);
     return () => clearInterval(i);
   }, []);
-  // ————————————————————————————————————————————
+  // ▲▲▲
 
   const filteredSessions = useMemo(() => {
     let filtered = sessionsWithDistance;
@@ -394,24 +363,22 @@ function MapPageInner() {
 
     if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
 
-    // ————————————————————————————————————————————
-    // [AJOUT] Nouvelle règle d’affichage :
-    // - 1 seul participant -> retirer 31 min avant le début
-    // - ≥2 participants -> retirer 15 min avant le début
-    // NOTE : si le nombre de participants est inconnu (pas encore chargé), on n’applique pas le retrait.
-    // ————————————————————————————————————————————
+    // ▼▼▼ AJOUT : règle d’affichage des sessions sur la carte (31/15 min)
+    // - Si participants_count <= 1  -> retirer 31 minutes avant le début
+    // - Si participants_count >= 2  -> retirer 15 minutes avant le début
+    // La colonne est NOT NULL (par défaut 1 si tu as suivi l’option A) ; sinon on applique le fallback strict 31 min.
     const now = Date.now();
     filtered = filtered.filter(s => {
-      if (!participantCounts.has(s.id)) return true;
-      const count = participantCounts.get(s.id) ?? 0;
       const minutesUntil = (new Date(s.scheduled_at).getTime() - now) / 60000;
+      const count = (s.participants_count ?? 1); // fallback prudent à 1
+
       if (count <= 1) return minutesUntil >= 31;
       return minutesUntil >= 15;
     });
+    // ▲▲▲
 
     return filtered;
-  // dépend aussi de participantCounts et du tick temporel
-  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, participantCounts, __tick]);
+  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, __tick]);
 
   const filteredNearestSessions = useMemo(() => (
     filteredSessions
