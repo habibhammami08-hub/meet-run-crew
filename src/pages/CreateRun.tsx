@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar, Lightbulb } from "lucide-react";
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -481,9 +481,8 @@ export default function CreateRun() {
                   <LocationInput
                     value={start}
                     onChange={setStart}
-                    placeholder="Saisissez l'adresse de départ"
+                    placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
                     icon="start"
-                    onMapSelect={() => setIsSelectingLocation("start")}
                   />
                 </div>
 
@@ -494,9 +493,8 @@ export default function CreateRun() {
                   <LocationInput
                     value={end}
                     onChange={setEnd}
-                    placeholder="Saisissez l'adresse d'arrivée"
+                    placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
                     icon="end"
-                    onMapSelect={() => setIsSelectingLocation("end")}
                   />
                 </div>
 
@@ -508,6 +506,13 @@ export default function CreateRun() {
                     </span>
                   </div>
                 )}
+
+                <div className="flex items-start gap-2 p-3 bg-muted/40 rounded-lg">
+                  <Lightbulb className="h-4 w-4 text-primary mt-0.5" />
+                  <p className="text-sm text-foreground">
+                    Après avoir renseigné votre point de départ et votre point d’arrivée, appuyez n’importe où sur la carte pour ajouter des étapes et personnaliser votre parcours.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
