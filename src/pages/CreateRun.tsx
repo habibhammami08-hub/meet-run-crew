@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate } from "react-router-dom";
-import { getSupabase, getCurrentUserSafe } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { LocationInput } from "@/components/ui/location-input";
@@ -40,6 +40,9 @@ export default function CreateRun() {
   // Étape mobile (progressive): "start" | "end" | "done"
   const [mobileStep, setMobileStep] = useState<"start" | "end" | "done">("start");
 
+  // Ref racine pour masquage robuste de “Sélectionner sur la carte”
+  const rootRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(p =>
@@ -56,16 +59,12 @@ export default function CreateRun() {
         if (alive) setUserReady("none"); 
         return; 
       }
-      
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!alive) return;
-        
-        console.log("[CreateRun] User check result:", user?.id || "no user");
         setCurrentUser(user);
         setUserReady(user ? "ok" : "none");
-      } catch (error) {
-        console.error("[CreateRun] Auth error:", error);
+      } catch {
         if (alive) setUserReady("none");
       }
     })();
@@ -87,7 +86,6 @@ export default function CreateRun() {
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
     const lat = e.latLng?.lat(), lng = e.latLng?.lng();
     if (lat == null || lng == null) return;
-    
     if (isSelectingLocation === "start") {
       setStart({ lat, lng });
       setIsSelectingLocation(null);
@@ -106,7 +104,6 @@ export default function CreateRun() {
   async function calcRoute(origin?: Pt | null, dest?: Pt | null, wps?: Pt[]) {
     const o = origin ?? start, d = dest ?? end;
     if (!o || !d) return;
-    
     try {
       const svc = new google.maps.DirectionsService();
       const res = await svc.route({
@@ -130,6 +127,41 @@ export default function CreateRun() {
     return () => clearTimeout(t);
   }, [JSON.stringify(start), JSON.stringify(end), JSON.stringify(waypoints)]);
 
+  // Sync de l'étape mobile
+  useEffect(() => {
+    if (!start) setMobileStep("start");
+    else if (!end) setMobileStep("end");
+    else setMobileStep("done");
+  }, [start, end]);
+
+  // Masquage ciblé de “Sélectionner sur la carte” (sans toucher à “Ma position”)
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const hideSelectOnMap = () => {
+      const candidates = root.querySelectorAll<HTMLElement>('button, [role="button"], [aria-label], [title]');
+      candidates.forEach((el) => {
+        const txt = (el.innerText || "").trim().toLowerCase();
+        const aria = (el.getAttribute("aria-label") || "").toLowerCase();
+        const title = (el.getAttribute("title") || "").toLowerCase();
+        const isSelectOnMap =
+          txt.includes("sélectionner sur la carte") ||
+          aria.includes("sélectionner sur la carte") ||
+          title.includes("sélectionner sur la carte") ||
+          txt.includes("select on map") ||
+          aria.includes("select on map") ||
+          title.includes("select on map");
+        if (isSelectOnMap) {
+          el.style.display = "none";
+        }
+      });
+    };
+    hideSelectOnMap();
+    const obs = new MutationObserver(() => hideSelectOnMap());
+    obs.observe(root, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [mobileStep]);
+
   function toIsoFromLocal(input: string): string | null {
     if (!input) return null;
     const d = new Date(input);
@@ -137,26 +169,15 @@ export default function CreateRun() {
     return d.toISOString();
   }
 
-  // Sync de l'étape mobile en fonction de start/end
-  useEffect(() => {
-    if (!start) setMobileStep("start");
-    else if (!end) setMobileStep("end");
-    else setMobileStep("done");
-  }, [start, end]);
-
-  // Fonction de création de profil séparée
   const ensureProfileExists = async () => {
     if (!currentUser) return false;
-    
     try {
-      const { data: prof, error: pe } = await supabase
+      const { data: prof } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', currentUser.id)
         .maybeSingle();
-
       if (!prof) {
-        console.log("[CreateRun] Creating profile for user:", currentUser.id);
         const { error: upErr } = await supabase.from('profiles').upsert({ 
           id: currentUser.id, 
           email: currentUser.email || '',
@@ -165,60 +186,35 @@ export default function CreateRun() {
           sessions_joined: 0,
           total_km: 0
         });
-        
         if (upErr) {
-          console.error("[CreateRun] Profile creation error:", upErr);
           alert("Impossible de créer votre profil. Reconnectez-vous puis réessayez.");
           return false;
         }
       }
       return true;
-    } catch (profileError) {
-      console.error("[CreateRun] Profile check error:", profileError);
+    } catch {
       alert("Erreur lors de la vérification du profil.");
       return false;
     }
   };
 
-  // Fonction de validation des données séparée
   const validateSessionData = () => {
-    if (!start || !end) { 
-      alert("Définissez un départ et une arrivée (clics sur la carte)."); 
-      return false; 
-    }
-    
-    if (!dirResult) { 
-      alert("Impossible de calculer l'itinéraire."); 
-      return false; 
-    }
-    
-    if (!title?.trim()) { 
-      alert("Indiquez un titre."); 
-      return false; 
-    }
-    
+    if (!start || !end) { alert("Définissez un départ et une arrivée (clics sur la carte)."); return false; }
+    if (!dirResult) { alert("Impossible de calculer l'itinéraire."); return false; }
+    if (!title?.trim()) { alert("Indiquez un titre."); return false; }
     const scheduledIso = toIsoFromLocal(dateTime);
-    if (!scheduledIso) { 
-      alert("Date/heure invalide."); 
-      return false; 
-    }
-
+    if (!scheduledIso) { alert("Date/heure invalide."); return false; }
     const now = new Date();
     const scheduled = new Date(scheduledIso);
-    if (scheduled <= now) { 
-      alert("La date doit être dans le futur."); 
-      return false; 
-    }
+    if (scheduled <= now) { alert("La date doit être dans le futur."); return false; }
     if (scheduled.getTime() - now.getTime() < 45 * 60 * 1000) {
       alert("La date et l'heure doivent être au minimum dans 45 minutes.");
       return false;
     }
-
     if (Number.isNaN(Number(maxParticipantsState)) || maxParticipantsState < 2 || maxParticipantsState > 11) {
       alert("Le nombre maximum de participants doit être compris entre 2 et 11.");
       return false;
     }
-    
     return { scheduledIso };
   };
 
@@ -230,10 +226,10 @@ export default function CreateRun() {
     const startAddr = legs[0]?.start_address ?? null;
     const endAddr = legs[legs.length - 1]?.end_address ?? null;
 
-    const sessionTypeMapping: { [key: string]: string } = {
-      "mixed": "mixed",
-      "women": "women_only",
-      "men": "men_only"
+    const sessionTypeMapping: Record<string, string> = {
+      mixed: "mixed",
+      women: "women_only",
+      men: "men_only",
     };
 
     const boundedMax = Math.min(11, Math.max(2, Number(maxParticipantsState) || 10));
@@ -260,13 +256,7 @@ export default function CreateRun() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    
-    if (description?.trim()) {
-      payload.description = description.trim();
-    }
-
-    console.log("[CreateRun] Session type mapping:", sessionTypeState, "->", sessionTypeMapping[sessionTypeState]);
-
+    if (description?.trim()) payload.description = description.trim();
     return payload;
   };
 
@@ -277,7 +267,6 @@ export default function CreateRun() {
         .select('sessions_hosted')
         .eq('id', currentUser.id)
         .single();
-      
       if (currentProfile) {
         await supabase
           .from('profiles')
@@ -287,110 +276,44 @@ export default function CreateRun() {
           })
           .eq('id', currentUser.id);
       }
-      
-      window.dispatchEvent(new CustomEvent('profileRefresh', { 
-        detail: { 
-          userId: currentUser.id,
-          action: 'session_created',
-          sessionId: sessionData.id 
-        } 
-      }));
-      
-      window.dispatchEvent(new CustomEvent('mapRefresh', { 
-        detail: { 
-          newSession: sessionData,
-          userId: currentUser.id 
-        } 
-      }));
-      
-      console.log("[CreateRun] Update events dispatched");
-    } catch (profileError) {
-      console.warn("[CreateRun] Profile update failed (non-blocking):", profileError);
-    }
+      window.dispatchEvent(new CustomEvent('profileRefresh', { detail: { userId: currentUser.id, action: 'session_created', sessionId: sessionData.id } }));
+      window.dispatchEvent(new CustomEvent('mapRefresh', { detail: { newSession: sessionData, userId: currentUser.id } }));
+    } catch {}
   };
 
   const resetForm = () => {
-    setStart(null); 
-    setEnd(null); 
-    setWaypoints([]); 
-    setDirResult(null); 
-    setDistanceKm(null);
-    setTitle(""); 
-    setDescription(""); 
-    setDateTime(""); 
-    setIntensityState("course modérée"); 
-    setSessionTypeState("mixed"); 
-    setMaxParticipantsState(10);
+    setStart(null); setEnd(null); setWaypoints([]); setDirResult(null); setDistanceKm(null);
+    setTitle(""); setDescription(""); setDateTime(""); setIntensityState("course modérée"); setSessionTypeState("mixed"); setMaxParticipantsState(10);
   };
 
   async function onSubmit() {
-    if (!supabase) { 
-      alert("Configuration Supabase manquante."); 
-      return; 
-    }
-    
+    if (!supabase) { alert("Configuration Supabase manquante."); return; }
     setIsSaving(true);
     try {
-      console.info("[CreateRun] Starting session creation", { 
-        title, 
-        dateTime, 
-        hasStart: !!start, 
-        hasEnd: !!end, 
-        hasDir: !!dirResult 
-      });
-
-      if (!currentUser) {
-        alert("Veuillez vous connecter pour créer une session.");
-        return;
-      }
-
+      if (!currentUser) { alert("Veuillez vous connecter pour créer une session."); return; }
       const profileExists = await ensureProfileExists();
       if (!profileExists) return;
-
       const validation = validateSessionData();
       if (!validation) return;
       const { scheduledIso } = validation;
-
       if (!dirResult) {
         await calcRoute();
-        if (!dirResult) {
-          alert("Impossible de calculer l'itinéraire.");
-          return;
-        }
+        if (!dirResult) { alert("Impossible de calculer l'itinéraire."); return; }
       }
-
       const payload = createSessionPayload(scheduledIso);
-      console.info("[CreateRun] Inserting session payload:", payload);
-      
       const { data, error } = await supabase
         .from("sessions")
         .insert(payload)
         .select("id,title,scheduled_at")
         .single();
-      
-      if (error) { 
-        console.error("[CreateRun] Insert error:", error); 
-        alert("Création impossible : " + (error.message || error.details || "erreur inconnue")); 
-        return; 
-      }
-
-      console.info("[CreateRun] Session created successfully:", data);
+      if (error) { alert("Création impossible : " + (error.message || error.details || "erreur inconnue")); return; }
       await handlePostCreation(data);
-      
       alert(`🎉 Session créée avec succès !\n\n"${data.title}"\nID: ${data.id}\n\nVous allez être redirigé vers la carte pour voir votre session.`);
       resetForm();
-      
       setTimeout(() => {
-        navigate("/map", { 
-          state: { 
-            newSessionId: data.id,
-            shouldFocus: true 
-          } 
-        });
+        navigate("/map", { state: { newSessionId: data.id, shouldFocus: true } });
       }, 1500);
-      
     } catch (e: any) {
-      console.error("[CreateRun] Fatal error:", e);
       alert("Erreur lors de la création : " + (e.message || "Erreur inconnue"));
     } finally {
       setIsSaving(false);
@@ -431,23 +354,14 @@ export default function CreateRun() {
     );
   }
 
-  const minDateForPicker = new Date(Date.now() + 45 * 60 * 1000);
-
   return (
-    <div className="min-h-screen bg-background">
-      {/* CSS ciblé : masque "Sélectionner sur la carte" + placeholder plus petit */}
+    <div ref={rootRef} className="min-h-screen bg-background">
+      {/* CSS : placeholder + masquage sélectif */}
       <style>{`
-        .hide-map-select [aria-label="Sélectionner sur la carte"],
-        .hide-map-select [title="Sélectionner sur la carte"],
-        .hide-map-select button[data-action="map-select"],
-        .hide-map-select .map-select,
-        .hide-map-select .btn-map-select {
-          display: none !important;
-        }
-        .hide-map-select input::placeholder {
-          font-size: 0.75rem; /* ~ text-xs */
-          line-height: 1rem;
-        }
+        /* Placeholder plus petit dans nos wrappers */
+        .li-no-mapselect input::placeholder { font-size: 0.75rem; line-height: 1rem; }
+        /* Si le bouton interne a ces classes explicites, on le masque */
+        .li-no-mapselect .map-select, .li-no-mapselect .btn-map-select { display: none !important; }
       `}</style>
 
       <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -460,7 +374,7 @@ export default function CreateRun() {
           </p>
         </div>
 
-        {/* === MOBILE : Carte tout en haut + saisie progressive intégrée === */}
+        {/* === MOBILE : Carte + saisie progressive intégrée === */}
         <div className="lg:hidden space-y-4">
           <Card className="shadow-card overflow-hidden">
             <CardContent className="p-0">
@@ -469,23 +383,14 @@ export default function CreateRun() {
                   mapContainerStyle={{ width: "100%", height: "60vh" }}
                   zoom={13}
                   center={start ?? center}
-                  options={{ 
-                    mapTypeControl: false, 
-                    streetViewControl: false, 
-                    fullscreenControl: false
-                  }}
+                  options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false }}
                   onClick={handleMapClick}
                 >
                   {start && (
                     <MarkerF 
                       position={start}
                       icon={{
-                        url: "data:image/svg+xml;base64," + btoa(`
-                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/>
-                            <circle cx="16" cy="15" r="6" fill="white"/>
-                          </svg>
-                        `),
+                        url: "data:image/svg+xml;base64," + btoa(`<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/><circle cx="16" cy="15" r="6" fill="white"/></svg>`),
                         scaledSize: new google.maps.Size(32, 40),
                         anchor: new google.maps.Point(16, 40)
                       }}
@@ -495,12 +400,7 @@ export default function CreateRun() {
                     <MarkerF 
                       position={end}
                       icon={{
-                        url: "data:image/svg+xml;base64," + btoa(`
-                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
-                            <circle cx="16" cy="15" r="6" fill="white"/>
-                          </svg>
-                        `),
+                        url: "data:image/svg+xml;base64," + btoa(`<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/><circle cx="16" cy="15" r="6" fill="white"/></svg>`),
                         scaledSize: new google.maps.Size(32, 40),
                         anchor: new google.maps.Point(16, 40)
                       }}
@@ -509,50 +409,47 @@ export default function CreateRun() {
                   {start && end && dirResult && (
                     <DirectionsRenderer
                       directions={dirResult}
-                      options={{ 
-                        suppressMarkers: true,
-                        polylineOptions: {
-                          strokeColor: "#3b82f6",
-                          strokeWeight: 4,
-                          strokeOpacity: 0.8
-                        }
-                      }}
+                      options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 4, strokeOpacity: 0.8 } }}
                     />
                   )}
                 </GoogleMap>
 
-                {/* Overlay mobile compact pour saisie progressive */}
+                {/* Overlay mobile compact */}
                 <div className="absolute inset-x-3 top-3 bg-background/85 backdrop-blur-sm rounded-xl shadow-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Route className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold">Définir le parcours</h3>
                   </div>
 
-                  {/* Étape 1 : adresse de départ */}
+                  {/* Étape 1 : départ */}
                   {mobileStep === "start" && (
-                    <div className="space-y-1 hide-map-select text-xs">
+                    <div className="space-y-1 li-no-mapselect text-xs">
                       <LocationInput
                         value={start}
                         onChange={(val) => setStart(val)}
                         placeholder="Adresse de départ (ou touchez la carte)"
                         icon="start"
+                        onMapSelect={() => {}}
+                        showMapSelect={false as any}
                       />
                     </div>
                   )}
 
-                  {/* Étape 2 : adresse d'arrivée */}
+                  {/* Étape 2 : arrivée */}
                   {mobileStep === "end" && (
-                    <div className="space-y-1 hide-map-select text-xs">
+                    <div className="space-y-1 li-no-mapselect text-xs">
                       <LocationInput
                         value={end}
                         onChange={(val) => setEnd(val)}
                         placeholder="Adresse d'arrivée (ou touchez la carte)"
                         icon="end"
+                        onMapSelect={() => {}}
+                        showMapSelect={false as any}
                       />
                     </div>
                   )}
 
-                  {/* Étape 3 : message d'aide après départ + arrivée */}
+                  {/* Étape 3 : message d'aide */}
                   {mobileStep === "done" && (
                     <div className="flex items-start gap-2 p-2 bg-muted/60 rounded-lg">
                       <span aria-hidden className="text-2xl leading-none">💡</span>
@@ -566,9 +463,7 @@ export default function CreateRun() {
                   {distanceKm && (
                     <div className="mt-2 flex items-center gap-2 p-2 bg-muted/60 rounded-lg">
                       <MapPin className="h-4 w-4 text-primary" />
-                      <span className="text-xs">
-                        Distance calculée : <strong>{distanceKm.toFixed(2)} km</strong>
-                      </span>
+                      <span className="text-xs">Distance calculée : <strong>{distanceKm.toFixed(2)} km</strong></span>
                     </div>
                   )}
                 </div>
@@ -576,15 +471,12 @@ export default function CreateRun() {
             </CardContent>
           </Card>
 
-          {/* Bouton "Supprimer les points..." juste sous la carte (mobile) */}
+          {/* Bouton "Supprimer les points..." sous la carte (mobile) */}
           {waypoints.length > 0 && (
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                setWaypoints([]);
-                if (start && end) calcRoute(start, end, []);
-              }}
+              onClick={() => { setWaypoints([]); if (start && end) calcRoute(start, end, []); }}
               className="w-full"
             >
               Supprimer les points intermédiaires ({waypoints.length})
@@ -592,45 +484,42 @@ export default function CreateRun() {
           )}
         </div>
 
-        {/* === DESKTOP & TABLET (lg+) : mise en page précédente conservée === */}
+        {/* === DESKTOP & TABLET (lg+) === */}
         <div className="grid lg:grid-cols-2 gap-6 mt-6">
           <div className="space-y-6">
-            {/* Définir le parcours : visible seulement en desktop/tablette */}
             <Card className="shadow-card hidden lg:block">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Route className="h-5 w-5 text-primary" />
                   Définir le parcours
                 </CardTitle>
-                <CardDescription>
-                  Sélectionnez vos points de départ et d'arrivée
-                </CardDescription>
+                <CardDescription>Sélectionnez vos points de départ et d'arrivée</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Point de départ *
-                  </label>
-                  <div className="hide-map-select text-xs">
+                  <label className="text-sm font-medium text-foreground">Point de départ *</label>
+                  <div className="li-no-mapselect text-xs">
                     <LocationInput
                       value={start}
                       onChange={setStart}
                       placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
                       icon="start"
+                      onMapSelect={() => {}}
+                      showMapSelect={false as any}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Point d'arrivée *
-                  </label>
-                  <div className="hide-map-select text-xs">
+                  <label className="text-sm font-medium text-foreground">Point d'arrivée *</label>
+                  <div className="li-no-mapselect text-xs">
                     <LocationInput
                       value={end}
                       onChange={setEnd}
                       placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
                       icon="end"
+                      onMapSelect={() => {}}
+                      showMapSelect={false as any}
                     />
                   </div>
                 </div>
@@ -638,9 +527,7 @@ export default function CreateRun() {
                 {distanceKm && (
                   <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
                     <MapPin className="h-4 w-4 text-primary" />
-                    <span className="text-sm">
-                      Distance calculée: <strong>{distanceKm.toFixed(2)} km</strong>
-                    </span>
+                    <span className="text-sm">Distance calculée: <strong>{distanceKm.toFixed(2)} km</strong></span>
                   </div>
                 )}
 
@@ -653,15 +540,12 @@ export default function CreateRun() {
               </CardContent>
             </Card>
 
-            {/* Bouton "Supprimer les points..." sous Définir le parcours (desktop) */}
+            {/* Bouton "Supprimer les points..." (desktop) */}
             {waypoints.length > 0 && (
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setWaypoints([]);
-                  if (start && end) calcRoute(start, end, []);
-                }}
+                onClick={() => { setWaypoints([]); if (start && end) calcRoute(start, end, []); }}
                 className="w-full hidden lg:inline-flex"
               >
                 Supprimer les points intermédiaires ({waypoints.length})
@@ -675,50 +559,23 @@ export default function CreateRun() {
                   <Calendar className="h-5 w-5 text-primary" />
                   Informations générales
                 </CardTitle>
-                <CardDescription>
-                  Définissez les détails de votre session
-                </CardDescription>
+                <CardDescription>Définissez les détails de votre session</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Titre de la session *
-                  </label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="ex: Course matinale au parc"
-                    className="h-12 text-base"
-                    maxLength={100}
-                  />
+                  <label className="text-sm font-medium text-foreground">Titre de la session *</label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex: Course matinale au parc" className="h-12 text-base" maxLength={100} />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Description (optionnel)
-                  </label>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
-                    className="min-h-[100px] text-base"
-                    maxLength={500}
-                  />
+                  <label className="text-sm font-medium text-foreground">Description (optionnel)</label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Décrivez votre session: niveau requis, équipements, conseils..." className="min-h-[100px] text-base" maxLength={500} />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Date et heure *
-                  </label>
-                  <DateTimePicker
-                    value={dateTime}
-                    onChange={setDateTime}
-                    placeholder="Choisir la date et l'heure"
-                    minDateTime={minDateForPicker as any}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    ⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.
-                  </p>
+                  <label className="text-sm font-medium text-foreground">Date et heure *</label>
+                  <DateTimePicker value={dateTime} onChange={setDateTime} placeholder="Choisir la date et l'heure" />
+                  <p className="text-xs text-muted-foreground">⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.</p>
                 </div>
               </CardContent>
             </Card>
@@ -733,44 +590,27 @@ export default function CreateRun() {
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Intensité
-                    </label>
+                    <label className="text-sm font-medium text-foreground">Intensité</label>
                     <Select value={intensityState} onValueChange={setIntensityState}>
-                      <SelectTrigger className="h-12">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="marche">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">Facile</Badge>
-                            Marche
-                          </div>
+                          <div className="flex items-center gap-2"><Badge variant="secondary" className="bg-green-100 text-green-800">Facile</Badge>Marche</div>
                         </SelectItem>
                         <SelectItem value="course modérée">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Modéré</Badge>
-                            Course modérée
-                          </div>
+                          <div className="flex items-center gap-2"><Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Modéré</Badge>Course modérée</div>
                         </SelectItem>
                         <SelectItem value="course intensive">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-red-100 text-red-800">Intense</Badge>
-                            Course intensive
-                          </div>
+                          <div className="flex items-center gap-2"><Badge variant="secondary" className="bg-red-100 text-red-800">Intense</Badge>Course intensive</div>
                         </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Type de session
-                    </label>
+                    <label className="text-sm font-medium text-foreground">Type de session</label>
                     <Select value={sessionTypeState} onValueChange={(value: any) => setSessionTypeState(value)}>
-                      <SelectTrigger className="h-12">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="mixed">Mixte</SelectItem>
                         <SelectItem value="women">Femmes uniquement</SelectItem>
@@ -781,20 +621,13 @@ export default function CreateRun() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Nombre maximum de participants (2–11)
-                  </label>
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2"><Users className="h-4 w-4" />Nombre maximum de participants (2–11)</label>
                   <Input
                     type="number"
                     min={2}
                     max={11}
                     value={maxParticipantsState}
-                    onChange={(e) => {
-                      const v = Number(e.target.value || 10);
-                      const clamped = Math.min(11, Math.max(2, v));
-                      setMaxParticipantsState(clamped);
-                    }}
+                    onChange={(e) => setMaxParticipantsState(Math.min(11, Math.max(2, Number(e.target.value || 10))))}
                     className="h-12"
                   />
                 </div>
@@ -802,13 +635,7 @@ export default function CreateRun() {
             </Card>
 
             <div className="space-y-4">
-              <Button
-                type="button"
-                onClick={onSubmit}
-                disabled={!!disabledReason()}
-                className="w-full h-12 text-base font-medium gradient-primary"
-                size="lg"
-              >
+              <Button type="button" onClick={onSubmit} disabled={!!disabledReason()} className="w-full h-12 text-base font-medium gradient-primary" size="lg">
                 {isSaving ? (
                   <div className="flex items-center gap-2">
                     <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
@@ -831,36 +658,23 @@ export default function CreateRun() {
           </div>
 
           <div className="lg:sticky lg:top-6">
-            {/* Carte interactive : cachée sur mobile, visible en desktop/tablette */}
             <Card className="shadow-card overflow-hidden hidden lg:block">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-primary" />
-                  Carte interactive
-                </CardTitle>
+                <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" />Carte interactive</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <GoogleMap
                   mapContainerStyle={{ width: "100%", height: "500px" }}
                   zoom={13}
                   center={start ?? center}
-                  options={{ 
-                    mapTypeControl: false, 
-                    streetViewControl: false, 
-                    fullscreenControl: false
-                  }}
+                  options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false }}
                   onClick={handleMapClick}
                 >
                   {start && (
                     <MarkerF 
                       position={start}
                       icon={{
-                        url: "data:image/svg+xml;base64," + btoa(`
-                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/>
-                            <circle cx="16" cy="15" r="6" fill="white"/>
-                          </svg>
-                        `),
+                        url: "data:image/svg+xml;base64," + btoa(`<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#16a34a" stroke="white" stroke-width="2"/><circle cx="16" cy="15" r="6" fill="white"/></svg>`),
                         scaledSize: new google.maps.Size(32, 40),
                         anchor: new google.maps.Point(16, 40)
                       }}
@@ -870,12 +684,7 @@ export default function CreateRun() {
                     <MarkerF 
                       position={end}
                       icon={{
-                        url: "data:image/svg+xml;base64," + btoa(`
-                          <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
-                            <circle cx="16" cy="15" r="6" fill="white"/>
-                          </svg>
-                        `),
+                        url: "data:image/svg+xml;base64," + btoa(`<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/><circle cx="16" cy="15" r="6" fill="white"/></svg>`),
                         scaledSize: new google.maps.Size(32, 40),
                         anchor: new google.maps.Point(16, 40)
                       }}
@@ -884,14 +693,7 @@ export default function CreateRun() {
                   {start && end && dirResult && (
                     <DirectionsRenderer
                       directions={dirResult}
-                      options={{ 
-                        suppressMarkers: true,
-                        polylineOptions: {
-                          strokeColor: "#3b82f6",
-                          strokeWeight: 4,
-                          strokeOpacity: 0.8
-                        }
-                      }}
+                      options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 4, strokeOpacity: 0.8 } }}
                     />
                   )}
                 </GoogleMap>
