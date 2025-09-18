@@ -40,6 +40,9 @@ export default function CreateRun() {
   // Étape mobile (progressive): "start" | "end" | "done"
   const [mobileStep, setMobileStep] = useState<"start" | "end" | "done">("start");
 
+  // Ref racine pour masquer l'élément "Sélectionner sur la carte" au cas où
+  const rootRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(p =>
@@ -143,6 +146,31 @@ export default function CreateRun() {
     else if (!end) setMobileStep("end");
     else setMobileStep("done");
   }, [start, end]);
+
+  // Masquage défensif de l'élément "Sélectionner sur la carte" (quel que soit son rendu)
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const hide = () => {
+      const candidates = root.querySelectorAll<HTMLElement>('button, [role="button"]');
+      candidates.forEach((el) => {
+        const txt = (el.innerText || el.getAttribute?.("aria-label") || el.getAttribute?.("title") || "").toLowerCase();
+        if (
+          txt.includes("sélectionner sur la carte") ||
+          txt === "sélectionner" ||
+          txt.includes("sélectionner") ||
+          txt.includes("select on map")
+        ) {
+          el.style.display = "none";
+        }
+      });
+    };
+    // premier passage + après chaque changement d'étape mobile
+    hide();
+    const obs = new MutationObserver(() => hide());
+    obs.observe(root, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [mobileStep]);
 
   // Fonction de création de profil séparée
   const ensureProfileExists = async () => {
@@ -434,17 +462,25 @@ export default function CreateRun() {
   const minDateForPicker = new Date(Date.now() + 45 * 60 * 1000);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div ref={rootRef} className="min-h-screen bg-background">
       {/* CSS ciblé : masque "Sélectionner sur la carte" + placeholder plus petit */}
       <style>{`
-        .hide-map-select [aria-label="Sélectionner sur la carte"],
-        .hide-map-select [title="Sélectionner sur la carte"],
-        .hide-map-select button[data-action="map-select"],
-        .hide-map-select .map-select,
-        .hide-map-select .btn-map-select {
+        /* Cache de nombreux patterns possibles de ce bouton */
+        .li-no-mapselect [aria-label="Sélectionner sur la carte"],
+        .li-no-mapselect [title="Sélectionner sur la carte"],
+        .li-no-mapselect [aria-label="Select on map"],
+        .li-no-mapselect [title="Select on map"],
+        .li-no-mapselect .map-select,
+        .li-no-mapselect .btn-map-select {
           display: none !important;
         }
-        .hide-map-select input::placeholder {
+        /* Fallback générique : si deux boutons sont côte à côte, cache le second */
+        .li-no-mapselect .actions button:nth-of-type(2),
+        .li-no-mapselect button+button {
+          display: none !important;
+        }
+        /* Placeholder plus petit */
+        .li-no-mapselect input::placeholder {
           font-size: 0.75rem; /* ~ text-xs */
           line-height: 1rem;
         }
@@ -530,24 +566,26 @@ export default function CreateRun() {
 
                   {/* Étape 1 : adresse de départ */}
                   {mobileStep === "start" && (
-                    <div className="space-y-1 hide-map-select text-xs">
+                    <div className="space-y-1 li-no-mapselect text-xs">
                       <LocationInput
                         value={start}
                         onChange={(val) => setStart(val)}
                         placeholder="Adresse de départ (ou touchez la carte)"
                         icon="start"
+                        onMapSelect={() => {}}
                       />
                     </div>
                   )}
 
                   {/* Étape 2 : adresse d'arrivée */}
                   {mobileStep === "end" && (
-                    <div className="space-y-1 hide-map-select text-xs">
+                    <div className="space-y-1 li-no-mapselect text-xs">
                       <LocationInput
                         value={end}
                         onChange={(val) => setEnd(val)}
                         placeholder="Adresse d'arrivée (ou touchez la carte)"
                         icon="end"
+                        onMapSelect={() => {}}
                       />
                     </div>
                   )}
@@ -611,12 +649,13 @@ export default function CreateRun() {
                   <label className="text-sm font-medium text-foreground">
                     Point de départ *
                   </label>
-                  <div className="hide-map-select text-xs">
+                  <div className="li-no-mapselect text-xs">
                     <LocationInput
                       value={start}
                       onChange={setStart}
                       placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
                       icon="start"
+                      onMapSelect={() => {}}
                     />
                   </div>
                 </div>
@@ -625,12 +664,13 @@ export default function CreateRun() {
                   <label className="text-sm font-medium text-foreground">
                     Point d'arrivée *
                   </label>
-                  <div className="hide-map-select text-xs">
+                  <div className="li-no-mapselect text-xs">
                     <LocationInput
                       value={end}
                       onChange={setEnd}
                       placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
                       icon="end"
+                      onMapSelect={() => {}}
                     />
                   </div>
                 </div>
@@ -714,7 +754,6 @@ export default function CreateRun() {
                     value={dateTime}
                     onChange={setDateTime}
                     placeholder="Choisir la date et l'heure"
-                    minDateTime={minDateForPicker as any}
                   />
                   <p className="text-xs text-muted-foreground">
                     ⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.
