@@ -544,13 +544,13 @@ export default function CreateRun() {
     onChange, 
     placeholder, 
     icon, 
-    type 
+    locationType
   }: {
     value: Pt | null;
     onChange: (val: Pt | null) => void;
     placeholder: string;
     icon: string;
-    type: "start" | "end";
+    locationType: "start" | "end";
   }) => {
     return (
       <div className="flex gap-2">
@@ -567,7 +567,7 @@ export default function CreateRun() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setMyPosition(type)}
+          onClick={() => setMyPosition(locationType)}
           className="px-3 h-10 text-xs whitespace-nowrap"
           title="Utiliser ma position actuelle"
         >
@@ -781,7 +781,7 @@ export default function CreateRun() {
                       onChange={setStart}
                       placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
                       icon="start"
-                      type="start"
+                      locationType="start"
                     />
                   </div>
                 </div>
@@ -796,7 +796,7 @@ export default function CreateRun() {
                       onChange={setEnd}
                       placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
                       icon="end"
-                      type="end"
+                      locationType="end"
                     />
                   </div>
                 </div>
