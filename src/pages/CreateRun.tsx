@@ -517,7 +517,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
     value: Pt | null;
     onChange: (val: Pt | null) => void;
     placeholder: string;
-    icon: string;
+    icon: "start" | "end";
     locationType: "start" | "end";
   }) => {
     return (
