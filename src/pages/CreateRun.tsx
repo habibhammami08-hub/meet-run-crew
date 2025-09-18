@@ -508,13 +508,28 @@ export default function CreateRun() {
                 )}
 
                 <div className="flex items-start gap-3 p-3 bg-muted/40 rounded-lg">
-                  <span aria-hidden className="text-3xl leading-none">💡</span>
+                  <span aria-hidden className="text-2xl leading-none">💡</span>
                   <p className="text-xs text-slate-600">
                     Après avoir renseigné votre point de départ et votre point d’arrivée, appuyez n’importe où sur la carte pour ajouter des étapes et personnaliser votre parcours.
                   </p>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Bouton "Supprimer les points..." juste sous "Définir le parcours" */}
+            {waypoints.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setWaypoints([]);
+                  if (start && end) calcRoute(start, end, []);
+                }}
+                className="w-full"
+              >
+                Supprimer les points intermédiaires ({waypoints.length})
+              </Button>
+            )}
 
             {/* --- Informations générales (désormais sous « Définir le parcours ») --- */}
             <Card className="shadow-card">
@@ -566,7 +581,7 @@ export default function CreateRun() {
                     minDateTime={minDateForPicker as any}
                   />
                   <p className="text-xs text-muted-foreground">
-                    ⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.
+                    ⚠️ La date et l'heure doivent être au minimum dans 45 minutes.
                   </p>
                 </div>
               </CardContent>
@@ -652,20 +667,6 @@ export default function CreateRun() {
             </Card>
 
             <div className="space-y-4">
-              {waypoints.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setWaypoints([]);
-                    if (start && end) calcRoute(start, end, []);
-                  }}
-                  className="w-full"
-                >
-                  Supprimer les points intermédiaires ({waypoints.length})
-                </Button>
-              )}
-
               <Button
                 type="button"
                 onClick={onSubmit}
