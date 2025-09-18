@@ -219,7 +219,7 @@ export default function CreateRun() {
   const createSessionPayload = (scheduledIso: string) => {
     const r = (dirResult || {} as any).routes?.[0];
     const legs = r?.legs ?? [];
-    const meters = legs.reduce((s: number, l: any) => s + (l?.distance?.value ?? 0), 0);
+       const meters = legs.reduce((s: number, l: any) => s + (l?.distance?.value ?? 0), 0);
     const poly = r?.overview_polyline?.toString?.() ?? r?.overview_polyline?.points ?? "";
     const startAddr = legs[0]?.start_address ?? null;
     const endAddr = legs[legs.length - 1]?.end_address ?? null;
@@ -483,6 +483,7 @@ export default function CreateRun() {
                     onChange={setStart}
                     placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
                     icon="start"
+                    showMapSelect={false}
                   />
                 </div>
 
@@ -495,6 +496,7 @@ export default function CreateRun() {
                     onChange={setEnd}
                     placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
                     icon="end"
+                    showMapSelect={false}
                   />
                 </div>
 
