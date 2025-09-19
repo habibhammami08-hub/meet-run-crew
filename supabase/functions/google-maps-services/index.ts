@@ -22,6 +22,8 @@ serve(async (req) => {
         return await handleDirections(params);
       case 'distance_matrix':
         return await handleDistanceMatrix(params);
+      case 'autocomplete':
+        return await handleAutocomplete(params);
       default:
         throw new Error('Action non supportée');
     }
@@ -103,6 +105,20 @@ async function handleDistanceMatrix({
   
   const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsParam}&destinations=${destinationsParam}&mode=${mode}&units=${units}&key=${apiKey}`;
   
+  const response = await fetch(url);
+  const data = await response.json();
+
+  return new Response(
+    JSON.stringify(data),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+async function handleAutocomplete({ input }: { input: string }) {
+  const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
+  if (!apiKey) throw new Error('Clé API Places manquante');
+
+  const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}&language=fr&types=address`;
   const response = await fetch(url);
   const data = await response.json();
 
