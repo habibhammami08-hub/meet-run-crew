@@ -572,10 +572,11 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
 
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent mb-3">
+          {/* ↓↓↓ TITRES plus petits sur mobile, identiques sur desktop/tablette */}
+          <h1 className="font-bold gradient-primary bg-clip-text text-transparent mb-3 text-2xl lg:text-3xl">
             Créer une nouvelle session
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-base lg:text-lg">
             Planifiez votre prochaine session et rencontrez de nouvelles personnes.
           </p>
         </div>
@@ -586,7 +587,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
             <CardContent className="p-0">
               <div className="relative">
                 <GoogleMap
-                  mapContainerStyle={{ width: "100%", height: "60vh" }}
+                  mapContainerStyle={{ width: "100%", height: "70vh" }}  // ↑ carte plus haute sur mobile
                   zoom={13}
                   center={start ?? center}
                   options={{ 
@@ -600,7 +601,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
-                      onClick={() => setStart(null)}              // 👈 Ajout
+                      onClick={() => setStart(null)}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -616,7 +617,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
-                      onClick={() => setEnd(null)}                // 👈 Ajout
+                      onClick={() => setEnd(null)}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -644,7 +645,8 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   )}
                 </GoogleMap>
 
-                <div className="absolute inset-x-3 top-3 bg-background/85 backdrop-blur-sm rounded-xl shadow-lg p-3">
+                {/* ↓↓↓ Bloc plus transparent et légèrement plus compact sur mobile */}
+                <div className="absolute inset-x-2 top-2 bg-background/50 backdrop-blur-sm rounded-lg shadow-lg p-2">
                   <div className="flex items-center gap-2 mb-2">
                     <Route className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold">Définir le parcours</h3>
@@ -971,7 +973,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
-                      onClick={() => setStart(null)}              // 👈 Ajout
+                      onClick={() => setStart(null)}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -987,7 +989,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
-                      onClick={() => setEnd(null)}                // 👈 Ajout
+                      onClick={() => setEnd(null)}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
