@@ -156,6 +156,19 @@ export default function CreateRun() {
     }
   };
 
+  // Gestionnaires pour supprimer les points en cliquant dessus
+  const handleStartMarkerClick = () => {
+    setStart(null);
+    setDirResult(null);
+    setDistanceKm(null);
+  };
+
+  const handleEndMarkerClick = () => {
+    setEnd(null);
+    setDirResult(null);
+    setDistanceKm(null);
+  };
+
   async function calcRoute(origin?: Pt | null, dest?: Pt | null, wps?: Pt[]) {
     const o = origin ?? start, d = dest ?? end;
     if (!o || !d) return;
@@ -600,6 +613,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
+                      onClick={handleStartMarkerClick}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -615,6 +629,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
+                      onClick={handleEndMarkerClick}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -969,6 +984,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
+                      onClick={handleStartMarkerClick}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -984,8 +1000,9 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
+                      onClick={handleEndMarkerClick}
                       icon={{
-                        url: "data:image/svg+xml;base64," + btoa(`
+                        url: "data:image/svg+xml;base64=" + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M16 0C24.284 0 31 6.716 31 15C31 23.284 16 40 16 40S1 23.284 1 15C1 6.716 7.716 0 16 0Z" fill="#dc2626" stroke="white" stroke-width="2"/>
                             <circle cx="16" cy="15" r="6" fill="white"/>
