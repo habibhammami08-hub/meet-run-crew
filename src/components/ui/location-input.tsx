@@ -20,6 +20,7 @@ export function LocationInput({
   className 
 }: LocationInputProps) {
   const [address, setAddress] = React.useState("")
+  const [isTyping, setIsTyping] = React.useState(false)
   const [isGeocoding, setIsGeocoding] = React.useState(false)
   const [suggestions, setSuggestions] = React.useState<any[]>([])
   const [showSuggestions, setShowSuggestions] = React.useState(false)
@@ -93,6 +94,7 @@ export function LocationInput({
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newAddress = e.target.value
     setAddress(newAddress)
+    setIsTyping(true)
   }
 
   // Rechercher des suggestions avec debounce
@@ -113,6 +115,7 @@ export function LocationInput({
   const selectSuggestion = (suggestion: any) => {
     setAddress(suggestion.description)
     setShowSuggestions(false)
+    setIsTyping(false)
     geocodeAddress(suggestion.description)
   }
 
@@ -121,6 +124,7 @@ export function LocationInput({
     // Délai pour permettre le clic sur une suggestion
     setTimeout(() => {
       setShowSuggestions(false)
+      setIsTyping(false)
       if (address.trim()) {
         geocodeAddress(address)
       }
@@ -130,15 +134,22 @@ export function LocationInput({
   // Gérer l'appui sur Entrée
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && address.trim()) {
+      setIsTyping(false)
+      setShowSuggestions(false)
       geocodeAddress(address)
     }
   }
 
   const displayValue = React.useMemo(() => {
-    if (address) return address
-    if (value) return `${value.lat.toFixed(4)}, ${value.lng.toFixed(4)}`
+    // Si l'utilisateur est en train de taper, on affiche ce qu'il tape
+    if (isTyping && address) return address
+    // Sinon si on a une adresse définie, on l'affiche
+    if (address && !isTyping) return address
+    // Sinon si on a des coordonnées, on les affiche
+    if (value && !isTyping) return `${value.lat.toFixed(4)}, ${value.lng.toFixed(4)}`
+    // Sinon rien
     return ""
-  }, [address, value])
+  }, [address, value, isTyping])
 
   return (
     <div className={cn("flex items-center space-x-2 relative", className)}>
