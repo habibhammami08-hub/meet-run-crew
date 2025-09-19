@@ -522,8 +522,8 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
   }) => {
     return (
       <div className="space-y-2">
+        {/* ⚠️ CHANGEMENT UNIQUE : on NE transmet PLUS `value` à LocationInput */}
         <LocationInput
-          value={value}
           onChange={onChange}
           placeholder={placeholder}
           icon={icon}
@@ -575,7 +575,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
           <h1 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent mb-3">
             Créer une nouvelle session
           </h1>
-          <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-lg">
             Planifiez votre prochaine session et rencontrez de nouvelles personnes.
           </p>
         </div>
