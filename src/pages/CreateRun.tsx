@@ -600,6 +600,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
+                      onClick={() => setStart(null)}              // 👈 Ajout
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -615,6 +616,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
+                      onClick={() => setEnd(null)}                // 👈 Ajout
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -969,6 +971,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
+                      onClick={() => setStart(null)}              // 👈 Ajout
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -984,6 +987,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
+                      onClick={() => setEnd(null)}                // 👈 Ajout
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
