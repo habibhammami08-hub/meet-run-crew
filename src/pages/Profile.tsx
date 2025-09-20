@@ -18,6 +18,7 @@ type Profile = {
   full_name: string;
   age?: number | null;
   city?: string | null;
+  gender?: "homme" | "femme" | null; // ✅ ajouté
   sport_level?: "Occasionnel" | "Confirmé" | "Athlète" | null;
   avatar_url?: string | null;
   sessions_hosted?: number;
@@ -53,6 +54,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState<number | "">("");
   const [city, setCity] = useState("");
+  const [gender, setGender] = useState<"homme" | "femme" | "">(""); // ✅ ajouté
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
@@ -138,7 +140,7 @@ export default function ProfilePage() {
       );
 
       // Filtrer les null et vérifier si le composant est encore monté
-      const validSessions = sessionsWithCounts.filter(Boolean);
+      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
       
       if (mountedRef.current) {
         console.log("[Profile] Sessions loaded:", validSessions.length);
@@ -213,7 +215,7 @@ export default function ProfilePage() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, full_name, age, city, avatar_url, sessions_hosted, sessions_joined, total_km")
+        .select("id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km") // ✅ gender
         .eq("id", userId)
         .maybeSingle();
 
@@ -228,10 +230,11 @@ export default function ProfilePage() {
         });
       } else if (profileData) {
         console.log("Profile loaded:", profileData);
-        setProfile(profileData);
+        setProfile(profileData as Profile);
         setFullName(profileData.full_name || "");
         setAge(profileData.age ?? "");
         setCity(profileData.city || "");
+        setGender(profileData.gender ?? ""); // ✅
         setSportLevel("Occasionnel");
       } else {
         console.log("No profile found, creating one...");
@@ -251,10 +254,11 @@ export default function ProfilePage() {
         if (signal.aborted || !mountedRef.current) return;
 
         if (!createError && newProfile) {
-          setProfile(newProfile);
+          setProfile(newProfile as Profile);
           setFullName(newProfile.full_name || "");
           setAge(newProfile.age ?? "");
           setCity(newProfile.city || "");
+          setGender(newProfile.gender ?? ""); // ✅
           setSportLevel("Occasionnel");
         }
       }
@@ -363,12 +367,14 @@ export default function ProfilePage() {
       if (!mountedRef.current) return;
 
       const ageValue = age === "" ? null : Number(age);
+      const genderValue = gender === "" ? null : gender;
       const { error } = await supabase
         .from("profiles")
         .update({
           full_name: fullName,
           age: ageValue,
           city: city,
+          gender: genderValue, // ✅ sauvegarde
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString()
         })
@@ -390,6 +396,7 @@ export default function ProfilePage() {
         full_name: fullName,
         age: ageValue,
         city: city,
+        gender: genderValue as Profile["gender"],
         avatar_url: avatarUrl
       } : null);
 
@@ -514,6 +521,20 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {/* ✅ Nouveau champ Genre au même endroit que ville/âge */}
+              <div className="space-y-2">
+                <Label htmlFor="gender">Genre</Label>
+                <Select value={gender || ""} onValueChange={(value: "homme" | "femme") => setGender(value)}>
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Votre genre" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="homme">Homme</SelectItem>
+                    <SelectItem value="femme">Femme</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="city">Ville</Label>
                 <Input
@@ -575,7 +596,13 @@ export default function ProfilePage() {
                 )}
                 <div>
                   <h2 className="text-xl font-semibold">{profile.full_name}</h2>
-                  {profile.age && <p className="text-muted-foreground">{profile.age} ans</p>}
+                  {(profile.age || profile.gender) && (
+                    <p className="text-muted-foreground">
+                      {profile.age ? `${profile.age} ans` : null}
+                      {profile.age && profile.gender ? ' · ' : ''}
+                      {profile.gender ? (profile.gender === 'homme' ? 'Homme' : 'Femme') : null}
+                    </p>
+                  )}
                   {profile.city && (
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <MapPin className="w-4 h-4" />
