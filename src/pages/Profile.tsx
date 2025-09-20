@@ -9,16 +9,24 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Trash2, Users } from "lucide-react";
+import { Calendar, MapPin, Trash2, Users, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
+/**
+ * NOTE FRONTEND-ONLY: Modernisation UI + Galerie multi-photos type "Tinder".
+ * - AUCUN changement de backend (pas de nouvelle colonne).
+ * - Les photos supplémentaires sont stockées dans Supabase Storage (même bucket `avatars`),
+ *   au chemin `avatars/${user.id}/photo_<timestamp>_<index>.<ext>`.
+ * - On liste et on affiche toutes les photos du dossier `avatars/${user.id}` (avatar inclus).
+ */
 
 type Profile = {
   id: string;
   full_name: string;
   age?: number | null;
   city?: string | null;
-  gender?: "homme" | "femme" | null; // ✅ ajouté
+  gender?: "homme" | "femme" | null; // déjà ajouté précédemment
   sport_level?: "Occasionnel" | "Confirmé" | "Athlète" | null;
   avatar_url?: string | null;
   sessions_hosted?: number;
@@ -50,11 +58,16 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
+  // Galerie
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
   // Form state
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState<number | "">("");
   const [city, setCity] = useState("");
-  const [gender, setGender] = useState<"homme" | "femme" | "">(""); // ✅ ajouté
+  const [gender, setGender] = useState<"homme" | "femme" | "">("");
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
@@ -64,29 +77,22 @@ export default function ProfilePage() {
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // CORRECTION: Redirection avec cleanup
+  // Redirection + chargement
   useEffect(() => {
     if (user === null) {
       navigate('/auth?returnTo=/profile');
       return;
     }
-    
-    if (user === undefined) {
-      return;
-    }
-    
+    if (user === undefined) return;
     if (user && loading && mountedRef.current) {
       loadProfile(user.id);
     }
   }, [user, navigate]);
 
-  // CORRECTION: Fonction de chargement des sessions avec AbortController
+  // --- Sessions ---
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
-
     try {
-      console.log("[Profile] Fetching sessions for user:", userId);
-      
       const { data: sessions, error } = await supabase
         .from('sessions')
         .select(`
@@ -105,76 +111,40 @@ export default function ProfilePage() {
         .order('scheduled_at', { ascending: false });
 
       if (!mountedRef.current) return;
+      if (error || !sessions) return;
 
-      if (error) {
-        console.error('[Profile] Error fetching sessions:', error);
-        return;
-      }
-
-      if (!sessions) return;
-
-      // Compter les participants avec gestion d'erreur
       const sessionsWithCounts = await Promise.all(
         sessions.map(async (session) => {
           if (!mountedRef.current) return null;
-          
           try {
             const { count } = await supabase
               .from('enrollments')
               .select('*', { count: 'exact' })
               .eq('session_id', session.id)
               .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-
-            return {
-              ...session,
-              current_participants: (count || 0) + 1
-            };
-          } catch (error) {
-            console.warn(`[Profile] Error counting participants for session ${session.id}:`, error);
-            return {
-              ...session,
-              current_participants: 1
-            };
+            return { ...session, current_participants: (count || 0) + 1 };
+          } catch (_) {
+            return { ...session, current_participants: 1 };
           }
         })
       );
 
-      // Filtrer les null et vérifier si le composant est encore monté
-      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
-      
-      if (mountedRef.current) {
-        console.log("[Profile] Sessions loaded:", validSessions.length);
-        setMySessions(validSessions);
-      }
-    } catch (error) {
-      if (mountedRef.current) {
-        console.error('[Profile] Error fetching sessions:', error);
-      }
+      const valid = sessionsWithCounts.filter(Boolean) as Session[];
+      if (mountedRef.current) setMySessions(valid);
+    } catch (err) {
+      if (mountedRef.current) console.error('[Profile] Error fetching sessions:', err);
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de mise à jour des stats avec vérification mounted
+  // --- Stats ---
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
-
     try {
-      console.log("[Profile] Updating profile statistics for user:", userId);
-      
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
-        supabase
-          .from('sessions')
-          .select('*', { count: 'exact' })
-          .eq('host_id', userId)
-          .eq('status', 'published'),
-        supabase
-          .from('enrollments')
-          .select('*', { count: 'exact' })
-          .eq('user_id', userId)
-          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+        supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
+        supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
-
       if (!mountedRef.current) return;
-
       await supabase
         .from('profiles')
         .update({ 
@@ -183,254 +153,191 @@ export default function ProfilePage() {
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
-
-      console.log("[Profile] Stats updated successfully");
-    } catch (error) {
-      if (mountedRef.current) {
-        console.error('[Profile] Error updating profile stats:', error);
-      }
+    } catch (err) {
+      if (mountedRef.current) console.error('[Profile] Error updating stats:', err);
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de chargement du profil avec AbortController
+  // --- Galerie: lister les images du dossier avatars/{userId} ---
+  const refreshGallery = useCallback(async (userId: string, mainAvatarUrl?: string | null) => {
+    if (!supabase || !mountedRef.current) return;
+    try {
+      const folder = `avatars/${userId}`; // dans le bucket "avatars"
+      const { data: files, error } = await supabase.storage.from('avatars').list(folder, { limit: 100, sortBy: { column: 'created_at', order: 'asc' } as any });
+      if (error) throw error;
+      if (!files) return;
+
+      // Construire les URLs publiques
+      const urls: string[] = [];
+      for (const f of files) {
+        // filtrer uniquement les images connues
+        if (!/(png|jpg|jpeg|webp|gif|avif)$/i.test(f.name)) continue;
+        const path = `${folder}/${f.name}`;
+        const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+        if (data?.publicUrl) urls.push(data.publicUrl);
+      }
+
+      // Mettre l'avatar principal en tête si présent
+      let ordered = urls;
+      if (mainAvatarUrl) {
+        ordered = [mainAvatarUrl, ...urls.filter(u => u !== mainAvatarUrl)];
+      }
+
+      if (mountedRef.current) {
+        setGalleryUrls(ordered);
+        setActiveIndex(0);
+      }
+    } catch (err) {
+      console.warn('[Profile] Galerie non disponible:', err);
+    }
+  }, [supabase]);
+
+  // --- Chargement profil ---
   const loadProfile = useCallback(async (userId: string) => {
-    if (!supabase || !mountedRef.current) {
-      setLoading(false);
-      return;
-    }
-
-    // Annuler la requête précédente
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // Créer un nouveau controller
+    if (!supabase || !mountedRef.current) { setLoading(false); return; }
+    if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
     setLoading(true);
-    
     try {
-      console.log("[Profile] Loading profile for user:", userId);
-
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km") // ✅ gender
+        .select("id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km")
         .eq("id", userId)
         .maybeSingle();
 
       if (signal.aborted || !mountedRef.current) return;
 
       if (profileError) {
-        console.error("Profile fetch error:", profileError);
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger le profil",
-          variant: "destructive"
-        });
+        toast({ title: "Erreur", description: "Impossible de charger le profil", variant: "destructive" });
       } else if (profileData) {
-        console.log("Profile loaded:", profileData);
         setProfile(profileData as Profile);
         setFullName(profileData.full_name || "");
         setAge(profileData.age ?? "");
         setCity(profileData.city || "");
-        setGender(profileData.gender ?? ""); // ✅
-        setSportLevel("Occasionnel");
+        setGender(profileData.gender ?? "");
+        // Charger la galerie (avatar inclus)
+        await refreshGallery(userId, profileData.avatar_url);
       } else {
-        console.log("No profile found, creating one...");
-        const { data: newProfile, error: createError } = await supabase
+        const { data: newProfile } = await supabase
           .from("profiles")
-          .upsert({
-            id: userId,
-            email: user?.email || '',
-            full_name: user?.email?.split('@')[0] || 'Runner',
-            sessions_hosted: 0,
-            sessions_joined: 0,
-            total_km: 0
-          })
+          .upsert({ id: userId, email: user?.email || '', full_name: user?.email?.split('@')[0] || 'Runner', sessions_hosted: 0, sessions_joined: 0, total_km: 0 })
           .select()
           .single();
-
         if (signal.aborted || !mountedRef.current) return;
-
-        if (!createError && newProfile) {
+        if (newProfile) {
           setProfile(newProfile as Profile);
           setFullName(newProfile.full_name || "");
           setAge(newProfile.age ?? "");
           setCity(newProfile.city || "");
-          setGender(newProfile.gender ?? ""); // ✅
-          setSportLevel("Occasionnel");
+          setGender(newProfile.gender ?? "");
+          await refreshGallery(userId, newProfile.avatar_url);
         }
       }
 
       if (signal.aborted || !mountedRef.current) return;
-
-      // Charger les sessions et mettre à jour les stats
-      await Promise.all([
-        fetchMySessions(userId),
-        updateProfileStats(userId)
-      ]);
-
+      await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log("[Profile] Request aborted");
-      } else if (mountedRef.current) {
-        console.error("Error loading profile:", error);
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue lors du chargement",
-          variant: "destructive"
-        });
+      if (error?.name !== 'AbortError') {
+        toast({ title: "Erreur", description: "Une erreur est survenue lors du chargement", variant: "destructive" });
       }
     } finally {
-      if (!signal.aborted && mountedRef.current) {
-        setLoading(false);
-      }
+      if (!signal.aborted && mountedRef.current) setLoading(false);
     }
-  }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
+  }, [supabase, user, toast, fetchMySessions, updateProfileStats, refreshGallery]);
 
-  // CORRECTION: Fonction de suppression avec vérification mounted
+  // Suppression session (inchangé)
   const handleDeleteSession = async (sessionId: string) => {
     if (!supabase || !user?.id || !mountedRef.current) return;
-
     setDeletingSession(sessionId);
     try {
-      console.log("[Profile] Deleting session:", sessionId);
-      
-      const { error: sessionError } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId)
-        .eq('host_id', user.id);
-
-      if (sessionError) {
-        throw sessionError;
-      }
-
-      if (mountedRef.current) {
-        toast({
-          title: "Session supprimée",
-          description: "La session a été supprimée avec succès."
-        });
-
-        await fetchMySessions(user.id);
-        updateProfileStats(user.id);
-      }
-      
+      const { error: sessionError } = await supabase.from('sessions').delete().eq('id', sessionId).eq('host_id', user.id);
+      if (sessionError) throw sessionError;
+      toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
+      await fetchMySessions(user.id);
+      updateProfileStats(user.id);
     } catch (error: any) {
-      if (mountedRef.current) {
-        console.error('[Profile] Delete error:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de supprimer la session: " + error.message,
-          variant: "destructive"
-        });
-      }
+      toast({ title: "Erreur", description: "Impossible de supprimer la session: " + error.message, variant: "destructive" });
     } finally {
-      if (mountedRef.current) {
-        setDeletingSession(null);
-      }
+      setDeletingSession(null);
     }
   };
 
-  // CORRECTION: Fonction de sauvegarde avec vérification mounted
+  // Sauvegarde profil (inchangé côté backend)
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
-    
     setSaving(true);
     try {
       let avatarUrl = profile.avatar_url || null;
-
       if (avatarFile) {
         const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
         const path = `avatars/${user.id}/avatar.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(path, avatarFile, { upsert: true });
-
+        const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
         if (uploadError) {
-          if (mountedRef.current) {
-            toast({
-              title: "Erreur",
-              description: "Erreur upload image : " + uploadError.message,
-              variant: "destructive"
-            });
-          }
+          toast({ title: "Erreur", description: "Erreur upload image : " + uploadError.message, variant: "destructive" });
           return;
         }
-
         const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
         avatarUrl = pub.publicUrl;
       }
 
-      if (!mountedRef.current) return;
-
       const ageValue = age === "" ? null : Number(age);
       const genderValue = gender === "" ? null : gender;
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          age: ageValue,
-          city: city,
-          gender: genderValue, // ✅ sauvegarde
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
-
-      if (!mountedRef.current) return;
-
-      if (error) {
-        toast({
-          title: "Erreur",
-          description: "Erreur de sauvegarde: " + error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setProfile(prev => prev ? {
-        ...prev,
+      const { error } = await supabase.from("profiles").update({
         full_name: fullName,
         age: ageValue,
         city: city,
-        gender: genderValue as Profile["gender"],
-        avatar_url: avatarUrl
-      } : null);
+        gender: genderValue,
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString()
+      }).eq("id", user.id);
 
+      if (error) {
+        toast({ title: "Erreur", description: "Erreur de sauvegarde: " + error.message, variant: "destructive" });
+        return;
+      }
+
+      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city: city, gender: genderValue as Profile["gender"], avatar_url: avatarUrl } : null);
       setEditing(false);
       setAvatarFile(null);
-      
-      toast({
-        title: "Profil mis à jour",
-        description: "Vos modifications ont été sauvegardées."
-      });
-    } catch (error: any) {
-      if (mountedRef.current) {
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue: " + error.message,
-          variant: "destructive"
-        });
-      }
+      toast({ title: "Profil mis à jour", description: "Vos modifications ont été sauvegardées." });
+      // Mettre à jour la galerie si l'avatar a changé
+      await refreshGallery(user.id, avatarUrl);
+    } catch (err: any) {
+      toast({ title: "Erreur", description: "Une erreur est survenue: " + err.message, variant: "destructive" });
     } finally {
-      if (mountedRef.current) {
-        setSaving(false);
-      }
+      setSaving(false);
     }
   }
 
-  // CORRECTION: Cleanup général strict
+  // Upload multi-photos (galerie) — sans toucher au backend
+  const handleAddGalleryPhotos = async (files: FileList | null) => {
+    if (!files || !supabase || !user?.id) return;
+    const toUpload = Array.from(files).filter(f => /^image\//.test(f.type));
+    if (toUpload.length === 0) return;
+
+    try {
+      await Promise.all(toUpload.map(async (file, idx) => {
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `avatars/${user.id}/photo_${Date.now()}_${idx}.${ext}`;
+        const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: false });
+        if (error) throw error;
+      }));
+      toast({ title: "Photos ajoutées", description: `${toUpload.length} photo(s) ajoutée(s) à votre galerie.` });
+      await refreshGallery(user.id, profile?.avatar_url);
+    } catch (err: any) {
+      toast({ title: "Erreur", description: `Échec d'upload: ${err.message}` , variant: "destructive"});
+    } finally {
+      if (galleryInputRef.current) galleryInputRef.current.value = ""; // reset input
+    }
+  };
+
+  // Cleanup
   useEffect(() => {
     mountedRef.current = true;
-    
     return () => {
-      console.log("[Profile] Component unmounting - cleaning up all resources");
       mountedRef.current = false;
-      
-      // Cleanup AbortController
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -438,12 +345,8 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Si l'utilisateur n'est pas connecté, on ne render rien (redirection en cours)
-  if (user === null) {
-    return null;
-  }
-
-  // Si on est en cours de chargement de l'auth
+  // Auth/loading
+  if (user === null) return null;
   if (user === undefined) {
     return (
       <div className="container mx-auto p-4 space-y-6">
@@ -456,8 +359,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
-  // Si on est en cours de chargement du profil
   if (loading) {
     return (
       <div className="container mx-auto p-4 space-y-6">
@@ -470,87 +371,112 @@ export default function ProfilePage() {
       </div>
     );
   }
-
   if (!profile) {
     return (
       <div className="container mx-auto p-4">
         <div className="text-center py-8">
           <p>Impossible de charger le profil</p>
-          <Button onClick={() => window.location.reload()} className="mt-4">
-            Réessayer
-          </Button>
+          <Button onClick={() => window.location.reload()} className="mt-4">Réessayer</Button>
         </div>
       </div>
     );
   }
 
+  // Images à afficher: avatar prioritaire puis autres
+  const photos = galleryUrls.length > 0
+    ? galleryUrls
+    : (profile.avatar_url ? [profile.avatar_url] : []);
+
+  const goPrev = () => setActiveIndex((idx) => (idx - 1 + photos.length) % photos.length);
+  const goNext = () => setActiveIndex((idx) => (idx + 1) % photos.length);
+
   return (
     <div className="container mx-auto p-4 space-y-6">
-      {/* Profile Header */}
+      {/* Profile Header modernisé avec grand carrousel type Tinder */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-6">
+        <CardContent className="p-0 md:p-6">
+          <div className="flex items-start justify-between px-6 pt-6 mb-4">
             <h1 className="text-2xl font-bold">Mon Profil</h1>
-            {!editing && (
-              <Button onClick={() => setEditing(true)}>
-                Modifier
-              </Button>
-            )}
+            {!editing && (<Button onClick={() => setEditing(true)}>Modifier</Button>)}
+          </div>
+
+          {/* Bloc visuel modernisé */}
+          <div className="px-0 md:px-6 pb-6">
+            <div className="relative w-full mx-auto rounded-2xl shadow-sm overflow-hidden bg-muted/40" style={{ aspectRatio: '4 / 5' }}>
+              {photos.length > 0 ? (
+                <img
+                  key={photos[activeIndex]}
+                  src={photos[activeIndex]}
+                  alt={`Photo ${activeIndex + 1}`}
+                  className="h-full w-full object-cover transition-all duration-500"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">Aucune photo</div>
+              )}
+
+              {/* Contrôles */}
+              {photos.length > 1 && (
+                <>
+                  <button onClick={goPrev} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white">
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button onClick={goNext} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white">
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+
+                  {/* Dots */}
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                    {photos.map((_, i) => (
+                      <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/60'}`} />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Bouton d'ajout rapide en mode édition */}
+              {editing && (
+                <div className="absolute top-3 right-3">
+                  <Button variant="secondary" size="sm" onClick={() => galleryInputRef.current?.click()}>
+                    <Plus className="w-4 h-4 mr-1" /> Photos
+                  </Button>
+                  <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddGalleryPhotos(e.target.files)} />
+                </div>
+              )}
+            </div>
           </div>
 
           {editing ? (
-            <div className="space-y-4">
+            <div className="px-6 pb-6 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="full-name">Nom complet</Label>
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Votre nom complet"
-                />
+                <Input id="full-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Votre nom complet" />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="age">Âge</Label>
-                <Input
-                  id="age"
-                  type="number"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="Votre âge"
-                />
-              </div>
-
-              {/* ✅ Nouveau champ Genre au même endroit que ville/âge */}
-              <div className="space-y-2">
-                <Label htmlFor="gender">Genre</Label>
-                <Select value={gender || ""} onValueChange={(value: "homme" | "femme") => setGender(value)}>
-                  <SelectTrigger id="gender">
-                    <SelectValue placeholder="Votre genre" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="homme">Homme</SelectItem>
-                    <SelectItem value="femme">Femme</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="city">Ville</Label>
-                <Input
-                  id="city"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Votre ville"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="age">Âge</Label>
+                  <Input id="age" type="number" value={age} onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))} placeholder="Votre âge" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Genre</Label>
+                  <Select value={gender || ""} onValueChange={(value: "homme" | "femme") => setGender(value)}>
+                    <SelectTrigger id="gender"><SelectValue placeholder="Votre genre" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="homme">Homme</SelectItem>
+                      <SelectItem value="femme">Femme</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">Ville</Label>
+                  <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Votre ville" />
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="sport-level">Niveau sportif</Label>
                 <Select value={sportLevel} onValueChange={(value: "Occasionnel"|"Confirmé"|"Athlète") => setSportLevel(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Occasionnel">Occasionnel</SelectItem>
                     <SelectItem value="Confirmé">Confirmé</SelectItem>
@@ -559,42 +485,33 @@ export default function ProfilePage() {
                 </Select>
               </div>
 
+              {/* Avatar principal (inchangé) */}
               <div className="space-y-2">
-                <Label htmlFor="avatar">Photo de profil</Label>
-                <Input
-                  id="avatar"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
-                />
+                <Label htmlFor="avatar">Photo de profil (principale)</Label>
+                <Input id="avatar" type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
+                <p className="text-xs text-muted-foreground">Astuce : utilisez la galerie pour ajouter plusieurs photos sans modifier l'avatar principal.</p>
               </div>
 
+              {/* Aperçu grille des photos */}
+              {photos.length > 0 && (
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  {photos.map((u, i) => (
+                    <img key={u + i} src={u} alt={`mini-${i}`} className={`h-24 w-full object-cover rounded-md ${i === activeIndex ? 'ring-2 ring-primary' : ''}`} onClick={() => setActiveIndex(i)} />
+                  ))}
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "Sauvegarde..." : "Sauvegarder"}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setEditing(false);
-                    setAvatarFile(null);
-                  }}
-                >
+                <Button onClick={handleSave} disabled={saving}>{saving ? "Sauvegarde..." : "Sauvegarder"}</Button>
+                <Button variant="outline" onClick={() => { setEditing(false); setAvatarFile(null); }}>
                   Annuler
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                {profile.avatar_url && (
-                  <img 
-                    src={profile.avatar_url} 
-                    alt="Avatar" 
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                )}
-                <div>
+            <div className="px-6 pb-6 space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="flex-1">
                   <h2 className="text-xl font-semibold">{profile.full_name}</h2>
                   {(profile.age || profile.gender) && (
                     <p className="text-muted-foreground">
@@ -604,24 +521,23 @@ export default function ProfilePage() {
                     </p>
                   )}
                   {profile.city && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <MapPin className="w-4 h-4" />
-                      {profile.city}
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                      <MapPin className="w-4 h-4" /> {profile.city}
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-center p-4 bg-muted/50 rounded-xl">
                   <div className="text-2xl font-bold text-primary">{profile.sessions_hosted || 0}</div>
                   <div className="text-sm text-muted-foreground">Sessions organisées</div>
                 </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-center p-4 bg-muted/50 rounded-xl">
                   <div className="text-2xl font-bold text-primary">{profile.sessions_joined || 0}</div>
                   <div className="text-sm text-muted-foreground">Sessions participées</div>
                 </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-center p-4 bg-muted/50 rounded-xl">
                   <div className="text-2xl font-bold text-primary">{profile.total_km || 0}</div>
                   <div className="text-sm text-muted-foreground">Kilomètres parcourus</div>
                 </div>
@@ -634,20 +550,11 @@ export default function ProfilePage() {
       {/* My Sessions */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Mes Sessions ({mySessions.length})
-          </h2>
-          
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><Calendar className="w-5 h-5" /> Mes Sessions ({mySessions.length})</h2>
           {mySessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>Vous n'avez pas encore organisé de sessions.</p>
-              <Button 
-                onClick={() => navigate('/create')} 
-                className="mt-4"
-              >
-                Créer ma première session
-              </Button>
+              <Button onClick={() => navigate('/create')} className="mt-4">Créer ma première session</Button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -659,70 +566,31 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
-                        {session.start_place && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            {session.start_place}
-                          </div>
-                        )}
-                        {session.distance_km && (
-                          <span>{session.distance_km} km</span>
-                        )}
-                        {session.intensity && (
-                          <Badge variant="secondary">{session.intensity}</Badge>
-                        )}
+                        {session.start_place && (<div className="flex items-center gap-1"><MapPin className="w-4 h-4" />{session.start_place}</div>)}
+                        {session.distance_km && (<span>{session.distance_km} km</span>)}
+                        {session.intensity && (<Badge variant="secondary">{session.intensity}</Badge>)}
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Users className="w-4 h-4" />
-                          {session.current_participants}/{session.max_participants} participants
-                        </div>
-                        <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
-                          {session.status === 'published' ? 'Publiée' : session.status}
-                        </Badge>
+                        <div className="flex items-center gap-1 text-sm"><Users className="w-4 h-4" />{session.current_participants}/{session.max_participants} participants</div>
+                        <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>{session.status === 'published' ? 'Publiée' : session.status}</Badge>
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/session/${session.id}`)}
-                      >
-                        Voir
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/session/${session.id}`)}>Voir</Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={deletingSession === session.id}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          <Button variant="outline" size="sm" disabled={deletingSession === session.id}><Trash2 className="w-4 h-4" /></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.
-                            </AlertDialogDescription>
+                            <AlertDialogDescription>Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annuler</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteSession(session.id)}
-                              className="bg-destructive hover:bg-destructive/90"
-                            >
-                              Supprimer
-                            </AlertDialogAction>
+                            <AlertDialogAction onClick={() => handleDeleteSession(session.id)} className="bg-destructive hover:bg-destructive/90">Supprimer</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -745,9 +613,7 @@ export default function ProfilePage() {
                 <h3 className="font-medium">Se déconnecter</h3>
                 <p className="text-sm text-muted-foreground">Déconnexion de votre compte</p>
               </div>
-              <Button variant="outline" onClick={signOut}>
-                Se déconnecter
-              </Button>
+              <Button variant="outline" onClick={signOut}>Se déconnecter</Button>
             </div>
             <AccountDeletionComponent />
           </div>
