@@ -9,16 +9,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Trash2, Users, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Calendar, MapPin, Trash2, Users, ChevronLeft, ChevronRight, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 /**
- * NOTE FRONTEND-ONLY: Modernisation UI + Galerie multi-photos type "Tinder".
- * - AUCUN changement de backend (pas de nouvelle colonne).
- * - Les photos supplémentaires sont stockées dans Supabase Storage (même bucket `avatars`),
- *   au chemin `avatars/${user.id}/photo_<timestamp>_<index>.<ext>`.
- * - On liste et on affiche toutes les photos du dossier `avatars/${user.id}` (avatar inclus).
+ * Frontend-only: galerie multi-photos avec 5 emplacements, ajout/suppression/réorganisation.
+ * - Aucun changement de backend ni de logique côté DB.
+ * - Les photos sont stockées dans le bucket Supabase Storage `avatars/` sous `avatars/${user.id}`.
  */
 
 type Profile = {
@@ -47,6 +45,8 @@ type Session = {
   status: string;
 };
 
+type GalleryItem = { url: string; path: string };
+
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -59,10 +59,7 @@ export default function ProfilePage() {
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   // Galerie
-  type GalleryItem = { url: string; path: string };
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -76,11 +73,11 @@ export default function ProfilePage() {
 
   const supabase = getSupabase();
 
-  // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
+  // Refs / cleanup
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Redirection + chargement
+  // Redirection + premier chargement
   useEffect(() => {
     if (user === null) {
       navigate('/auth?returnTo=/profile');
@@ -92,7 +89,7 @@ export default function ProfilePage() {
     }
   }, [user, navigate]);
 
-  // --- Sessions ---
+  // Sessions
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
@@ -125,9 +122,9 @@ export default function ProfilePage() {
               .select('*', { count: 'exact' })
               .eq('session_id', session.id)
               .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-            return { ...session, current_participants: (count || 0) + 1 };
+            return { ...session, current_participants: (count || 0) + 1 } as Session;
           } catch (_) {
-            return { ...session, current_participants: 1 };
+            return { ...session, current_participants: 1 } as Session;
           }
         })
       );
@@ -139,7 +136,7 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
-  // --- Stats ---
+  // Stats
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
@@ -161,7 +158,7 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
-  // --- Galerie: lister les images du dossier avatars/{userId} ---
+  // Galerie: lister images du dossier avatars/{userId}
   const refreshGallery = useCallback(async (userId: string, mainAvatarUrl?: string | null) => {
     if (!supabase || !mountedRef.current) return;
     try {
@@ -178,7 +175,6 @@ export default function ProfilePage() {
         if (data?.publicUrl) items.push({ url: data.publicUrl, path });
       }
 
-      // Mettre l'avatar en premier s'il existe
       let ordered = items;
       if (mainAvatarUrl) {
         ordered = items.sort((a, b) => (a.url === mainAvatarUrl ? -1 : b.url === mainAvatarUrl ? 1 : 0));
@@ -193,6 +189,78 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
+  // Chargement du profil
+  const loadProfile = useCallback(async (userId: string) => {
+    if (!supabase || !mountedRef.current) { setLoading(false); return; }
+
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    setLoading(true);
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (signal.aborted || !mountedRef.current) return;
+
+      if (profileError) {
+        toast({ title: 'Erreur', description: 'Impossible de charger le profil', variant: 'destructive' });
+      } else if (profileData) {
+        setProfile(profileData as Profile);
+        setFullName(profileData.full_name || "");
+        setAge(profileData.age ?? "");
+        setCity(profileData.city || "");
+        setGender(profileData.gender ?? "");
+        await refreshGallery(userId, profileData.avatar_url);
+      } else {
+        const { data: newProfile } = await supabase
+          .from('profiles')
+          .upsert({ id: userId, email: user?.email || '', full_name: user?.email?.split('@')[0] || 'Runner', sessions_hosted: 0, sessions_joined: 0, total_km: 0 })
+          .select()
+          .single();
+        if (signal.aborted || !mountedRef.current) return;
+        if (newProfile) {
+          setProfile(newProfile as Profile);
+          setFullName(newProfile.full_name || "");
+          setAge(newProfile.age ?? "");
+          setCity(newProfile.city || "");
+          setGender(newProfile.gender ?? "");
+          await refreshGallery(userId, newProfile.avatar_url);
+        }
+      }
+
+      if (signal.aborted || !mountedRef.current) return;
+      await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        toast({ title: 'Erreur', description: 'Une erreur est survenue lors du chargement', variant: 'destructive' });
+      }
+    } finally {
+      if (!signal.aborted && mountedRef.current) setLoading(false);
+    }
+  }, [supabase, user, toast, fetchMySessions, updateProfileStats, refreshGallery]);
+
+  // Suppression session (inchangé)
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!supabase || !user?.id || !mountedRef.current) return;
+    setDeletingSession(sessionId);
+    try {
+      const { error: sessionError } = await supabase.from('sessions').delete().eq('id', sessionId).eq('host_id', user.id);
+      if (sessionError) throw sessionError;
+      toast({ title: 'Session supprimée', description: 'La session a été supprimée avec succès.' });
+      await fetchMySessions(user.id);
+      updateProfileStats(user.id);
+    } catch (error: any) {
+      toast({ title: 'Erreur', description: 'Impossible de supprimer la session: ' + error.message, variant: 'destructive' });
+    } finally {
+      setDeletingSession(null);
+    }
+  };
+
   // Sauvegarde profil (inchangé côté backend)
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
@@ -200,47 +268,46 @@ export default function ProfilePage() {
     try {
       let avatarUrl = profile.avatar_url || null;
       if (avatarFile) {
-        const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
+        const ext = (avatarFile.name.split('.').pop() || 'jpg').toLowerCase();
         const path = `avatars/${user.id}/avatar.${ext}`;
-        const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true });
         if (uploadError) {
-          toast({ title: "Erreur", description: "Erreur upload image : " + uploadError.message, variant: "destructive" });
+          toast({ title: 'Erreur', description: 'Erreur upload image : ' + uploadError.message, variant: 'destructive' });
           return;
         }
-        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+        const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
         avatarUrl = pub.publicUrl;
       }
 
       const ageValue = age === "" ? null : Number(age);
       const genderValue = gender === "" ? null : gender;
-      const { error } = await supabase.from("profiles").update({
+      const { error } = await supabase.from('profiles').update({
         full_name: fullName,
         age: ageValue,
         city: city,
         gender: genderValue,
         avatar_url: avatarUrl,
         updated_at: new Date().toISOString()
-      }).eq("id", user.id);
+      }).eq('id', user.id);
 
       if (error) {
-        toast({ title: "Erreur", description: "Erreur de sauvegarde: " + error.message, variant: "destructive" });
+        toast({ title: 'Erreur', description: 'Erreur de sauvegarde: ' + error.message, variant: 'destructive' });
         return;
       }
 
-      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city: city, gender: genderValue as Profile["gender"], avatar_url: avatarUrl } : null);
+      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city: city, gender: genderValue as Profile['gender'], avatar_url: avatarUrl } : null);
       setEditing(false);
       setAvatarFile(null);
-      toast({ title: "Profil mis à jour", description: "Vos modifications ont été sauvegardées." });
-      // Mettre à jour la galerie si l'avatar a changé
+      toast({ title: 'Profil mis à jour', description: 'Vos modifications ont été sauvegardées.' });
       await refreshGallery(user.id, avatarUrl);
     } catch (err: any) {
-      toast({ title: "Erreur", description: "Une erreur est survenue: " + err.message, variant: "destructive" });
+      toast({ title: 'Erreur', description: 'Une erreur est survenue: ' + err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   }
 
-  // Upload multi-photos (galerie) — sans toucher au backend
+  // Upload multi-photos (galerie) — sans backend additionnel
   const handleAddGalleryPhotos = async (files: FileList | null) => {
     if (!files || !supabase || !user?.id) return;
     const toUpload = Array.from(files).filter(f => /^image\//.test(f.type));
@@ -253,13 +320,45 @@ export default function ProfilePage() {
         const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: false });
         if (error) throw error;
       }));
-      toast({ title: "Photos ajoutées", description: `${toUpload.length} photo(s) ajoutée(s) à votre galerie.` });
+      toast({ title: 'Photos ajoutées', description: `${toUpload.length} photo(s) ajoutée(s) à votre galerie.` });
       await refreshGallery(user.id, profile?.avatar_url);
     } catch (err: any) {
-      toast({ title: "Erreur", description: `Échec d'upload: ${err.message}` , variant: "destructive"});
+      toast({ title: 'Erreur', description: `Échec d'upload: ${err.message}`, variant: 'destructive' });
     } finally {
-      if (galleryInputRef.current) galleryInputRef.current.value = ""; // reset input
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
     }
+  };
+
+  // Suppression photo de la galerie
+  const handleDeletePhoto = async (idx: number) => {
+    const item = photos[idx];
+    if (!item) return;
+    try {
+      if (item.path) {
+        await supabase.storage.from('avatars').remove([item.path]);
+      }
+      const next = photos.filter((_, i) => i !== idx) as GalleryItem[];
+      setGallery(next);
+      setActiveIndex((prev) => Math.max(0, Math.min(prev, next.length - 1)));
+      toast({ title: 'Photo supprimée', description: 'Votre photo a été supprimée.' });
+    } catch (err: any) {
+      toast({ title: 'Erreur', description: `Suppression impossible: ${err.message}`, variant: 'destructive' });
+    }
+  };
+
+  // DnD (réordonnancement front-only)
+  const dragSrc = useRef<number | null>(null);
+  const onDragStart = (i: number) => (e: React.DragEvent) => { dragSrc.current = i; e.dataTransfer.effectAllowed = 'move'; };
+  const onDragOver = (i: number) => (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  const onDrop = (i: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSrc.current; if (src === null || src === i) return;
+    const next = [...photos];
+    const [moved] = next.splice(src, 1);
+    next.splice(i, 0, moved);
+    setGallery(next.filter(p => p.path || p.url) as GalleryItem[]);
+    setActiveIndex(i);
+    dragSrc.current = null;
   };
 
   // Cleanup
@@ -311,49 +410,15 @@ export default function ProfilePage() {
     );
   }
 
-  // Images à afficher: avatar prioritaire puis autres
-  const photos = gallery.length > 0 ? gallery : (profile.avatar_url ? [{ url: profile.avatar_url, path: '' }] : []);
-
+  // Photos (avatar prioritaire)
+  const photos: GalleryItem[] = gallery.length > 0 ? gallery : (profile.avatar_url ? [{ url: profile.avatar_url, path: '' }] : []);
   const goPrev = () => setActiveIndex((idx) => (idx - 1 + photos.length) % photos.length);
   const goNext = () => setActiveIndex((idx) => (idx + 1) % photos.length);
-
-  // Drag & Drop reordering (front only)
-  const dragSrc = useRef<number | null>(null);
-  const onDragStart = (i: number) => (e: React.DragEvent) => { dragSrc.current = i; e.dataTransfer.effectAllowed = 'move'; };
-  const onDragOver = (i: number) => (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
-  const onDrop = (i: number) => (e: React.DragEvent) => {
-    e.preventDefault();
-    const src = dragSrc.current; if (src === null || src === i) return;
-    const next = [...photos];
-    const [moved] = next.splice(src, 1);
-    next.splice(i, 0, moved);
-    setGallery(next.filter(p => p.path || p.url) as GalleryItem[]);
-    setActiveIndex(i);
-    dragSrc.current = null;
-  };
-
-  const handleDeletePhoto = async (idx: number) => {
-    const item = photos[idx];
-    if (!item) return;
-    try {
-      // Si path connu (fichier dans storage), on supprime côté storage
-      if (item.path) {
-        await supabase.storage.from('avatars').remove([item.path]);
-      }
-      const next = photos.filter((_, i) => i !== idx) as GalleryItem[];
-      setGallery(next);
-      setActiveIndex((prev) => Math.max(0, Math.min(prev, next.length - 1)));
-      toast({ title: 'Photo supprimée', description: 'Votre photo a été supprimée.' });
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: `Suppression impossible: ${err.message}`, variant: 'destructive' });
-    }
-  };
-
   const handleQuickAdd = () => galleryInputRef.current?.click();
 
   return (
     <div className="container mx-auto p-4 space-y-6">
-      {/* Profile Header modernisé avec grand carrousel type Tinder */}
+      {/* Profil + galerie */}
       <Card>
         <CardContent className="p-0 md:p-6">
           <div className="flex items-start justify-between px-6 pt-6 mb-4">
@@ -361,30 +426,29 @@ export default function ProfilePage() {
             {!editing && (<Button onClick={() => setEditing(true)}>Modifier</Button>)}
           </div>
 
-          {/* Bloc visuel modernisé */}
-          <div className=\"px-0 md:px-6 pb-6\">
-            {/* Carrousel responsive: plus contenu sur desktop */}
-            <div className=\"relative mx-auto rounded-2xl shadow-sm overflow-hidden bg-muted/40 max-w-md md:max-w-xl lg:max-w-2xl\" style={{ aspectRatio: '3 / 4', maxHeight: '70vh' }}>
+          {/* Carrousel responsive, contenu sur desktop */}
+          <div className="px-0 md:px-6 pb-6">
+            <div className="relative mx-auto rounded-2xl shadow-sm overflow-hidden bg-muted/40 max-w-md md:max-w-xl lg:max-w-2xl" style={{ aspectRatio: '3 / 4', maxHeight: '70vh' }}>
               {photos.length > 0 ? (
                 <img
                   key={photos[activeIndex].url}
                   src={photos[activeIndex].url}
-                  alt={"Photo " + (activeIndex + 1)}
-                  className=\"h-full w-full object-cover transition-all duration-500\"
+                  alt={`Photo ${activeIndex + 1}`}
+                  className="h-full w-full object-cover transition-all duration-500"
                 />
               ) : (
-                <div className=\"flex items-center justify-center h-full text-muted-foreground\">Aucune photo</div>
+                <div className="flex items-center justify-center h-full text-muted-foreground">Aucune photo</div>
               )}
 
               {photos.length > 1 && (
                 <>
-                  <button onClick={goPrev} className=\"absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white\">
-                    <ChevronLeft className=\"w-5 h-5\" />
+                  <button onClick={goPrev} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white">
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <button onClick={goNext} className=\"absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white\">
-                    <ChevronRight className=\"w-5 h-5\" />
+                  <button onClick={goNext} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white">
+                    <ChevronRight className="w-5 h-5" />
                   </button>
-                  <div className=\"absolute bottom-3 left-0 right-0 flex justify-center gap-1.5\">
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
                     {photos.map((_, i) => (
                       <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/60'}`} />
                     ))}
@@ -393,17 +457,16 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Barre action sous la photo: bouton caméra pour ajout rapide */}
-            <div className=\"flex items-center justify-center gap-3 mt-3\">
-              <Button variant=\"secondary\" size=\"sm\" onClick={handleQuickAdd}>
-                <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" className=\"w-4 h-4 mr-1\"><path d=\"M9 2a1 1 0 0 0-.894.553L7.382 4H5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3h-2.382l-.724-1.447A1 1 0 0 0 14 2H9zM5 8h14v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8z\"/></svg>
-                Ajouter une photo
+            {/* Barre action sous la photo: bouton caméra */}
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <Button variant="secondary" size="sm" onClick={handleQuickAdd}>
+                <Camera className="w-4 h-4 mr-1" /> Ajouter une photo
               </Button>
-              <input ref={galleryInputRef} type=\"file\" accept=\"image/*\" multiple className=\"hidden\" onChange={(e) => handleAddGalleryPhotos(e.target.files)} />
+              <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddGalleryPhotos(e.target.files)} />
             </div>
 
-            {/* Grille 5 emplacements avec DnD + suppression (édition) */}
-            <div className=\"mt-4 grid grid-cols-5 gap-2\">
+            {/* Grille 5 slots avec DnD + suppression en mode édition */}
+            <div className="mt-4 grid grid-cols-5 gap-2">
               {Array.from({ length: 5 }).map((_, i) => {
                 const item = photos[i];
                 return (
@@ -417,27 +480,27 @@ export default function ProfilePage() {
                   >
                     {item ? (
                       <>
-                        <img src={item.url} alt={`slot-${i}`} className=\"w-full h-full object-cover\" onClick={() => setActiveIndex(i)} />
+                        <img src={item.url} alt={`slot-${i}`} className="w-full h-full object-cover" onClick={() => setActiveIndex(i)} />
                         {editing && (
                           <button
-                            type=\"button\"
+                            type="button"
                             onClick={() => handleDeletePhoto(i)}
-                            className=\"absolute top-1 right-1 p-1 rounded-full bg-black/50 hover:bg-black/70 text-white\"
-                            aria-label=\"Supprimer la photo\"
+                            className="absolute top-1 right-1 p-1 rounded-full bg-black/50 hover:bg-black/70 text-white"
+                            aria-label="Supprimer la photo"
                           >
-                            <Trash2 className=\"w-4 h-4\" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </>
                     ) : (
                       <button
-                        type=\"button\"
+                        type="button"
                         onClick={editing ? handleQuickAdd : undefined}
-                        className=\"absolute inset-0 flex flex-col items-center justify-center text-muted-foreground hover:text-foreground\"
-                        aria-label=\"Ajouter une photo\"
+                        className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground hover:text-foreground"
+                        aria-label="Ajouter une photo"
                       >
-                        <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" className=\"w-6 h-6 mb-1\"><path d=\"M9 2a1 1 0 0 0-.894.553L7.382 4H5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3h-2.382l-.724-1.447A1 1 0 0 0 14 2H9zM12 8a1 1 0 0 1 1 1v2h2a1 1 0 1 1 0 2h-2v2a1 1 0 1 1-2 0v-2H9a1 1 0 1 1 0-2h2V9a1 1 0 0 1 1-1z\"/></svg>
-                        <span className=\"text-xs\">Ajouter</span>
+                        <Camera className="w-6 h-6 mb-1" />
+                        <span className="text-xs">Ajouter</span>
                       </button>
                     )}
                   </div>
@@ -456,11 +519,11 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="age">Âge</Label>
-                  <Input id="age" type="number" value={age} onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))} placeholder="Votre âge" />
+                  <Input id="age" type="number" value={age} onChange={(e) => setAge(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Votre âge" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="gender">Genre</Label>
-                  <Select value={gender || ""} onValueChange={(value: "homme" | "femme") => setGender(value)}>
+                  <Select value={gender || ''} onValueChange={(value: "homme" | "femme") => setGender(value)}>
                     <SelectTrigger id="gender"><SelectValue placeholder="Votre genre" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="homme">Homme</SelectItem>
@@ -486,24 +549,22 @@ export default function ProfilePage() {
                 </Select>
               </div>
 
-              {/* Avatar principal (inchangé) */}
               <div className="space-y-2">
                 <Label htmlFor="avatar">Photo de profil (principale)</Label>
                 <Input id="avatar" type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
                 <p className="text-xs text-muted-foreground">Astuce : utilisez la galerie pour ajouter plusieurs photos sans modifier l'avatar principal.</p>
               </div>
 
-              {/* Aperçu grille des photos */}
               {photos.length > 0 && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                  {photos.map((u, i) => (
-                    <img key={u + i} src={u} alt={`mini-${i}`} className={`h-24 w-full object-cover rounded-md ${i === activeIndex ? 'ring-2 ring-primary' : ''}`} onClick={() => setActiveIndex(i)} />
+                  {photos.map((p, i) => (
+                    <img key={p.url + i} src={p.url} alt={`mini-${i}`} className={`h-24 w-full object-cover rounded-md ${i === activeIndex ? 'ring-2 ring-primary' : ''}`} onClick={() => setActiveIndex(i)} />
                   ))}
                 </div>
               )}
 
               <div className="flex gap-2">
-                <Button onClick={handleSave} disabled={saving}>{saving ? "Sauvegarde..." : "Sauvegarder"}</Button>
+                <Button onClick={handleSave} disabled={saving}>{saving ? 'Sauvegarde...' : 'Sauvegarder'}</Button>
                 <Button variant="outline" onClick={() => { setEditing(false); setAvatarFile(null); }}>
                   Annuler
                 </Button>
@@ -548,7 +609,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* My Sessions */}
+      {/* Mes sessions */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><Calendar className="w-5 h-5" /> Mes Sessions ({mySessions.length})</h2>
@@ -604,7 +665,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Account Management */}
+      {/* Gestion du compte */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4">Gestion du compte</h2>
