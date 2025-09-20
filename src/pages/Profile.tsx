@@ -26,7 +26,7 @@ type Profile = {
   full_name: string;
   age?: number | null;
   city?: string | null;
-  gender?: "homme" | "femme" | null; // déjà ajouté précédemment
+  gender?: "homme" | "femme" | null;
   sport_level?: "Occasionnel" | "Confirmé" | "Athlète" | null;
   avatar_url?: string | null;
   sessions_hosted?: number;
@@ -59,7 +59,10 @@ export default function ProfilePage() {
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   // Galerie
-  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  type GalleryItem = { url: string; path: string };
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -162,107 +165,33 @@ export default function ProfilePage() {
   const refreshGallery = useCallback(async (userId: string, mainAvatarUrl?: string | null) => {
     if (!supabase || !mountedRef.current) return;
     try {
-      const folder = `avatars/${userId}`; // dans le bucket "avatars"
+      const folder = `avatars/${userId}`;
       const { data: files, error } = await supabase.storage.from('avatars').list(folder, { limit: 100, sortBy: { column: 'created_at', order: 'asc' } as any });
       if (error) throw error;
       if (!files) return;
 
-      // Construire les URLs publiques
-      const urls: string[] = [];
+      const items: GalleryItem[] = [];
       for (const f of files) {
-        // filtrer uniquement les images connues
         if (!/(png|jpg|jpeg|webp|gif|avif)$/i.test(f.name)) continue;
         const path = `${folder}/${f.name}`;
         const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-        if (data?.publicUrl) urls.push(data.publicUrl);
+        if (data?.publicUrl) items.push({ url: data.publicUrl, path });
       }
 
-      // Mettre l'avatar principal en tête si présent
-      let ordered = urls;
+      // Mettre l'avatar en premier s'il existe
+      let ordered = items;
       if (mainAvatarUrl) {
-        ordered = [mainAvatarUrl, ...urls.filter(u => u !== mainAvatarUrl)];
+        ordered = items.sort((a, b) => (a.url === mainAvatarUrl ? -1 : b.url === mainAvatarUrl ? 1 : 0));
       }
 
       if (mountedRef.current) {
-        setGalleryUrls(ordered);
+        setGallery(ordered);
         setActiveIndex(0);
       }
     } catch (err) {
       console.warn('[Profile] Galerie non disponible:', err);
     }
   }, [supabase]);
-
-  // --- Chargement profil ---
-  const loadProfile = useCallback(async (userId: string) => {
-    if (!supabase || !mountedRef.current) { setLoading(false); return; }
-    if (abortControllerRef.current) abortControllerRef.current.abort();
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-
-    setLoading(true);
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (signal.aborted || !mountedRef.current) return;
-
-      if (profileError) {
-        toast({ title: "Erreur", description: "Impossible de charger le profil", variant: "destructive" });
-      } else if (profileData) {
-        setProfile(profileData as Profile);
-        setFullName(profileData.full_name || "");
-        setAge(profileData.age ?? "");
-        setCity(profileData.city || "");
-        setGender(profileData.gender ?? "");
-        // Charger la galerie (avatar inclus)
-        await refreshGallery(userId, profileData.avatar_url);
-      } else {
-        const { data: newProfile } = await supabase
-          .from("profiles")
-          .upsert({ id: userId, email: user?.email || '', full_name: user?.email?.split('@')[0] || 'Runner', sessions_hosted: 0, sessions_joined: 0, total_km: 0 })
-          .select()
-          .single();
-        if (signal.aborted || !mountedRef.current) return;
-        if (newProfile) {
-          setProfile(newProfile as Profile);
-          setFullName(newProfile.full_name || "");
-          setAge(newProfile.age ?? "");
-          setCity(newProfile.city || "");
-          setGender(newProfile.gender ?? "");
-          await refreshGallery(userId, newProfile.avatar_url);
-        }
-      }
-
-      if (signal.aborted || !mountedRef.current) return;
-      await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
-    } catch (error: any) {
-      if (error?.name !== 'AbortError') {
-        toast({ title: "Erreur", description: "Une erreur est survenue lors du chargement", variant: "destructive" });
-      }
-    } finally {
-      if (!signal.aborted && mountedRef.current) setLoading(false);
-    }
-  }, [supabase, user, toast, fetchMySessions, updateProfileStats, refreshGallery]);
-
-  // Suppression session (inchangé)
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!supabase || !user?.id || !mountedRef.current) return;
-    setDeletingSession(sessionId);
-    try {
-      const { error: sessionError } = await supabase.from('sessions').delete().eq('id', sessionId).eq('host_id', user.id);
-      if (sessionError) throw sessionError;
-      toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-      await fetchMySessions(user.id);
-      updateProfileStats(user.id);
-    } catch (error: any) {
-      toast({ title: "Erreur", description: "Impossible de supprimer la session: " + error.message, variant: "destructive" });
-    } finally {
-      setDeletingSession(null);
-    }
-  };
 
   // Sauvegarde profil (inchangé côté backend)
   async function handleSave() {
@@ -383,12 +312,44 @@ export default function ProfilePage() {
   }
 
   // Images à afficher: avatar prioritaire puis autres
-  const photos = galleryUrls.length > 0
-    ? galleryUrls
-    : (profile.avatar_url ? [profile.avatar_url] : []);
+  const photos = gallery.length > 0 ? gallery : (profile.avatar_url ? [{ url: profile.avatar_url, path: '' }] : []);
 
   const goPrev = () => setActiveIndex((idx) => (idx - 1 + photos.length) % photos.length);
   const goNext = () => setActiveIndex((idx) => (idx + 1) % photos.length);
+
+  // Drag & Drop reordering (front only)
+  const dragSrc = useRef<number | null>(null);
+  const onDragStart = (i: number) => (e: React.DragEvent) => { dragSrc.current = i; e.dataTransfer.effectAllowed = 'move'; };
+  const onDragOver = (i: number) => (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  const onDrop = (i: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSrc.current; if (src === null || src === i) return;
+    const next = [...photos];
+    const [moved] = next.splice(src, 1);
+    next.splice(i, 0, moved);
+    setGallery(next.filter(p => p.path || p.url) as GalleryItem[]);
+    setActiveIndex(i);
+    dragSrc.current = null;
+  };
+
+  const handleDeletePhoto = async (idx: number) => {
+    const item = photos[idx];
+    if (!item) return;
+    try {
+      // Si path connu (fichier dans storage), on supprime côté storage
+      if (item.path) {
+        await supabase.storage.from('avatars').remove([item.path]);
+      }
+      const next = photos.filter((_, i) => i !== idx) as GalleryItem[];
+      setGallery(next);
+      setActiveIndex((prev) => Math.max(0, Math.min(prev, next.length - 1)));
+      toast({ title: 'Photo supprimée', description: 'Votre photo a été supprimée.' });
+    } catch (err: any) {
+      toast({ title: 'Erreur', description: `Suppression impossible: ${err.message}`, variant: 'destructive' });
+    }
+  };
+
+  const handleQuickAdd = () => galleryInputRef.current?.click();
 
   return (
     <div className="container mx-auto p-4 space-y-6">
@@ -401,47 +362,87 @@ export default function ProfilePage() {
           </div>
 
           {/* Bloc visuel modernisé */}
-          <div className="px-0 md:px-6 pb-6">
-            <div className="relative w-full mx-auto rounded-2xl shadow-sm overflow-hidden bg-muted/40" style={{ aspectRatio: '4 / 5' }}>
+          <div className=\"px-0 md:px-6 pb-6\">
+            {/* Carrousel responsive: plus contenu sur desktop */}
+            <div className=\"relative mx-auto rounded-2xl shadow-sm overflow-hidden bg-muted/40 max-w-md md:max-w-xl lg:max-w-2xl\" style={{ aspectRatio: '3 / 4', maxHeight: '70vh' }}>
               {photos.length > 0 ? (
                 <img
-                  key={photos[activeIndex]}
-                  src={photos[activeIndex]}
-                  alt={`Photo ${activeIndex + 1}`}
-                  className="h-full w-full object-cover transition-all duration-500"
+                  key={photos[activeIndex].url}
+                  src={photos[activeIndex].url}
+                  alt={"Photo " + (activeIndex + 1)}
+                  className=\"h-full w-full object-cover transition-all duration-500\"
                 />
               ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Aucune photo</div>
+                <div className=\"flex items-center justify-center h-full text-muted-foreground\">Aucune photo</div>
               )}
 
-              {/* Contrôles */}
               {photos.length > 1 && (
                 <>
-                  <button onClick={goPrev} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white">
-                    <ChevronLeft className="w-5 h-5" />
+                  <button onClick={goPrev} className=\"absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white\">
+                    <ChevronLeft className=\"w-5 h-5\" />
                   </button>
-                  <button onClick={goNext} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white">
-                    <ChevronRight className="w-5 h-5" />
+                  <button onClick={goNext} className=\"absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white\">
+                    <ChevronRight className=\"w-5 h-5\" />
                   </button>
-
-                  {/* Dots */}
-                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                  <div className=\"absolute bottom-3 left-0 right-0 flex justify-center gap-1.5\">
                     {photos.map((_, i) => (
                       <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/60'}`} />
                     ))}
                   </div>
                 </>
               )}
+            </div>
 
-              {/* Bouton d'ajout rapide en mode édition */}
-              {editing && (
-                <div className="absolute top-3 right-3">
-                  <Button variant="secondary" size="sm" onClick={() => galleryInputRef.current?.click()}>
-                    <Plus className="w-4 h-4 mr-1" /> Photos
-                  </Button>
-                  <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddGalleryPhotos(e.target.files)} />
-                </div>
-              )}
+            {/* Barre action sous la photo: bouton caméra pour ajout rapide */}
+            <div className=\"flex items-center justify-center gap-3 mt-3\">
+              <Button variant=\"secondary\" size=\"sm\" onClick={handleQuickAdd}>
+                <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" className=\"w-4 h-4 mr-1\"><path d=\"M9 2a1 1 0 0 0-.894.553L7.382 4H5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3h-2.382l-.724-1.447A1 1 0 0 0 14 2H9zM5 8h14v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8z\"/></svg>
+                Ajouter une photo
+              </Button>
+              <input ref={galleryInputRef} type=\"file\" accept=\"image/*\" multiple className=\"hidden\" onChange={(e) => handleAddGalleryPhotos(e.target.files)} />
+            </div>
+
+            {/* Grille 5 emplacements avec DnD + suppression (édition) */}
+            <div className=\"mt-4 grid grid-cols-5 gap-2\">
+              {Array.from({ length: 5 }).map((_, i) => {
+                const item = photos[i];
+                return (
+                  <div
+                    key={i}
+                    className={`relative aspect-square rounded-lg overflow-hidden ${item ? 'bg-muted/30' : 'bg-muted/60'} ${editing ? 'cursor-move' : ''}`}
+                    draggable={editing && !!item}
+                    onDragStart={editing ? onDragStart(i) : undefined}
+                    onDragOver={editing ? onDragOver(i) : undefined}
+                    onDrop={editing ? onDrop(i) : undefined}
+                  >
+                    {item ? (
+                      <>
+                        <img src={item.url} alt={`slot-${i}`} className=\"w-full h-full object-cover\" onClick={() => setActiveIndex(i)} />
+                        {editing && (
+                          <button
+                            type=\"button\"
+                            onClick={() => handleDeletePhoto(i)}
+                            className=\"absolute top-1 right-1 p-1 rounded-full bg-black/50 hover:bg-black/70 text-white\"
+                            aria-label=\"Supprimer la photo\"
+                          >
+                            <Trash2 className=\"w-4 h-4\" />
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        type=\"button\"
+                        onClick={editing ? handleQuickAdd : undefined}
+                        className=\"absolute inset-0 flex flex-col items-center justify-center text-muted-foreground hover:text-foreground\"
+                        aria-label=\"Ajouter une photo\"
+                      >
+                        <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" className=\"w-6 h-6 mb-1\"><path d=\"M9 2a1 1 0 0 0-.894.553L7.382 4H5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3h-2.382l-.724-1.447A1 1 0 0 0 14 2H9zM12 8a1 1 0 0 1 1 1v2h2a1 1 0 1 1 0 2h-2v2a1 1 0 1 1-2 0v-2H9a1 1 0 1 1 0-2h2V9a1 1 0 0 1 1-1z\"/></svg>
+                        <span className=\"text-xs\">Ajouter</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
