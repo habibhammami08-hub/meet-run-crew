@@ -438,19 +438,32 @@ export default function ProfilePage() {
 
   // Suppression de compte — appelle l’Edge Function delete-account2
   const handleConfirmDeleteAccount = async () => {
-    if (!supabase || !user?.id) return;
+    if (!supabase) return;
     setDeletingAccount(true);
 
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const { data, error } = await supabase.functions.invoke("delete-account2", {
         headers: { Authorization: `Bearer ${token}` },
+        body: {}, // explicite pour certains proxys
       });
 
       if (error) throw error;
 
       setDeleteSuccess(true);
+
+      // Feedback visible
+      toast({
+        title: "Compte supprimé",
+        description: "Votre compte et vos données ont été supprimés.",
+      });
+
+      // Invalider la session locale puis rediriger
+      await supabase.auth.signOut();
+      setDeleteDialogOpen(false);
+      navigate("/", { replace: true });
     } catch (e: any) {
+      console.error("[DeleteAccount] invoke error", e);
       toast({
         title: "Suppression impossible",
         description: e?.message || "Une erreur est survenue lors de la suppression du compte.",
