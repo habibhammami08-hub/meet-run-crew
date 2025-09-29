@@ -180,7 +180,8 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
+  // ⬇️ Ajout minimal : on extrait refreshSubscription
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, refreshSubscription } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -250,6 +251,24 @@ function MapPageInner() {
   useEffect(() => {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
+
+  // ✅ Ajout minimal : forcer la réconciliation d’abonnement dès que l’utilisateur est connu
+  useEffect(() => {
+    if (currentUser?.id) {
+      refreshSubscription?.();
+    }
+  }, [currentUser?.id, refreshSubscription]);
+
+  // ✅ Ajout minimal : re-check à chaque retour d’onglet
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && currentUser?.id) {
+        refreshSubscription?.();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [currentUser?.id, refreshSubscription]);
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
@@ -852,7 +871,7 @@ function MapPageInner() {
                                     {dbToUiIntensity(session.intensity)}
                                   </Badge>
                                 )}
-                                {session.session_type && (
+                                {session.session_type and (
                                   <Badge variant={badgeVariant} className="text-xs py-0">
                                     {renderIcon("text-[11px] leading-none")}
                                     {tLabel}
