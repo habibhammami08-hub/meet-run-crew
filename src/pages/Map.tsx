@@ -750,16 +750,45 @@ function MapPageInner() {
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setSelectedSession(s.id);
-                                  setCenter({ lat: s.start_lat, lng: s.start_lng });
-                                }}
-                              >
-                                Zoomer
-                              </Button>
+                              {(() => {
+                                const now = Date.now();
+                                const sessionTime = new Date(s.scheduled_at).getTime();
+                                const minutesUntil = (sessionTime - now) / 60000;
+                                const canUnenroll = minutesUntil >= 30;
+
+                                return canUnenroll ? (
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={async () => {
+                                      if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                                      try {
+                                        const { error } = await supabase
+                                          .from("enrollments")
+                                          .delete()
+                                          .eq("session_id", s.id)
+                                          .eq("user_id", currentUser!.id);
+                                        
+                                        if (error) throw error;
+                                        await fetchMyEnrollments();
+                                      } catch (e: any) {
+                                        alert("Erreur lors de la désinscription: " + e.message);
+                                      }
+                                    }}
+                                  >
+                                    Se désinscrire
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled
+                                    title="Désinscription impossible moins de 30 minutes avant le début"
+                                  >
+                                    Se désinscrire
+                                  </Button>
+                                );
+                              })()}
                               <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Voir</Button>
                             </div>
                           </div>
