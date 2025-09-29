@@ -29,7 +29,7 @@ type AuthCtx = {
 const Ctx = createContext<AuthCtx | null>(null);
 
 // ✅ Considère 'active' OU 'trialing' comme abonné.
-//    Et n’exige PAS la date de fin (certains webhooks ne la posent pas tout de suite).
+//    Et n'exige PAS la date de fin (certains webhooks ne la posent pas tout de suite).
 function isSubActive(status?: string | null, end?: string | null) {
   if (!status) return false;
   const s = status.trim().toLowerCase();
@@ -54,14 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Charge/rafraîchit le profil
-  const refreshProfile = async () => {
+  const refreshProfile = async (skipLoadingState = false) => {
     if (!user) {
       setProfile(null);
       return;
     }
+    
+    const shouldSetLoading = !skipLoadingState && !loadingRef.current;
+    
     try {
-      // ✅ Ne pas remettre loading à true ici si on est déjà en train de charger au mount
-      if (!loadingRef.current) {
+      if (shouldSetLoading) {
         loadingRef.current = true;
         setLoading(true);
       }
@@ -85,8 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
       }
     } finally {
-      loadingRef.current = false;
-      setLoading(false);
+      if (shouldSetLoading) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
     }
   };
 
@@ -105,14 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(sessUser);
 
         if (sessUser) {
-          // ✅ ATTENDRE que refreshProfile soit terminé avant de passer ready=true
-          await refreshProfile();
+          // ✅ Passer skipLoadingState=true car on gère déjà loading dans ce useEffect
+          await refreshProfile(true);
         } else {
           setProfile(null);
         }
       } catch (e) {
         console.warn("[useAuth] getSession error:", e);
       } finally {
+        // ✅ On passe ready=true ET loading=false APRÈS le chargement complet du profil
         setReady(true);
         setLoading(false);
         loadingRef.current = false;
@@ -125,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(nextUser);
 
       if (nextUser) {
+        // Pas de skipLoadingState ici car c'est un changement d'état auth
         await refreshProfile();
       } else {
         setProfile(null);
@@ -132,13 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
     });
 
-    // Rafraîchir quand l’onglet redevient visible
+    // Rafraîchir quand l'onglet redevient visible
     const onVisible = async () => {
       if (document.visibilityState === "visible") {
         try {
           await supabase.auth.refreshSession();
         } catch {}
-        if (user) await refreshProfile();
+        if (user) await refreshProfile(); // Pas de skipLoadingState ici
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -155,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   //     pour répercuter instantanément les updates du webhook Stripe.
   useEffect(() => {
     if (!user) return;
-    // IMPORTANT : il faut que 'profiles' soit bien dans la publication supabase_realtime (tu l’as déjà ajouté)
+    // IMPORTANT : il faut que 'profiles' soit bien dans la publication supabase_realtime (tu l'as déjà ajouté)
     const channel = supabase
       .channel(`realtime-profiles-${user.id}`)
       .on(
