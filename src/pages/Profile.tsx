@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Trash2, Users, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Calendar, MapPin, Trash2, Users, AlertTriangle, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -22,12 +22,15 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 
+// ⭐ Nouveaux imports pour l'écran plein écran (même pattern que Auth)
+import { CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+
 type Profile = {
   id: string;
   full_name: string;
   age?: number | null;
   city?: string | null;
-  gender?: "homme" | "femme" | null; // ✅ ajouté
+  gender?: "homme" | "femme" | null;
   sport_level?: "Occasionnel" | "Confirmé" | "Athlète" | null;
   avatar_url?: string | null;
   sessions_hosted?: number;
@@ -59,7 +62,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
-  // --- Nouvel état pour la suppression de compte
+  // --- État suppression compte
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState(false);
@@ -68,39 +71,31 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState<number | "">("");
   const [city, setCity] = useState("");
-  const [gender, setGender] = useState<"homme" | "femme" | "">(""); // ✅ ajouté
+  const [gender, setGender] = useState<"homme" | "femme" | "">("");
   const [sportLevel, setSportLevel] = useState<"Occasionnel"|"Confirmé"|"Athlète">("Occasionnel");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const supabase = getSupabase();
 
-  // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
+  // Refs
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // CORRECTION: Redirection avec cleanup
+  // Redirection : on la BLOQUE si deleteSuccess === true pour montrer l'écran
   useEffect(() => {
-    if (user === null) {
+    if (user === null && !deleteSuccess) {
       navigate('/auth?returnTo=/profile');
       return;
     }
-    
-    if (user === undefined) {
-      return;
-    }
-    
+    if (user === undefined) return;
     if (user && loading && mountedRef.current) {
       loadProfile(user.id);
     }
-  }, [user, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, navigate, deleteSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // CORRECTION: Fonction de chargement des sessions avec AbortController
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
-
     try {
-      console.log("[Profile] Fetching sessions for user:", userId);
-      
       const { data: sessions, error } = await supabase
         .from('sessions')
         .select(`
@@ -119,76 +114,38 @@ export default function ProfilePage() {
         .order('scheduled_at', { ascending: false });
 
       if (!mountedRef.current) return;
+      if (error || !sessions) return;
 
-      if (error) {
-        console.error('[Profile] Error fetching sessions:', error);
-        return;
-      }
-
-      if (!sessions) return;
-
-      // Compter les participants avec gestion d'erreur
       const sessionsWithCounts = await Promise.all(
         sessions.map(async (session) => {
           if (!mountedRef.current) return null;
-          
           try {
             const { count } = await supabase
               .from('enrollments')
               .select('*', { count: 'exact' })
               .eq('session_id', session.id)
               .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-
-            return {
-              ...session,
-              current_participants: (count || 0) + 1
-            };
-          } catch (error) {
-            console.warn(`[Profile] Error counting participants for session ${session.id}:`, error);
-            return {
-              ...session,
-              current_participants: 1
-            };
+            return { ...session, current_participants: (count || 0) + 1 };
+          } catch {
+            return { ...session, current_participants: 1 };
           }
         })
       );
-
-      // Filtrer les null et vérifier si le composant est encore monté
       const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
-      
-      if (mountedRef.current) {
-        console.log("[Profile] Sessions loaded:", validSessions.length);
-        setMySessions(validSessions);
-      }
+      if (mountedRef.current) setMySessions(validSessions);
     } catch (error) {
-      if (mountedRef.current) {
-        console.error('[Profile] Error fetching sessions:', error);
-      }
+      if (mountedRef.current) console.error('[Profile] Error fetching sessions:', error);
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de mise à jour des stats avec vérification mounted
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
-
     try {
-      console.log("[Profile] Updating profile statistics for user:", userId);
-      
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
-        supabase
-          .from('sessions')
-          .select('*', { count: 'exact' })
-          .eq('host_id', userId)
-          .eq('status', 'published'),
-        supabase
-          .from('enrollments')
-          .select('*', { count: 'exact' })
-          .eq('user_id', userId)
-          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+        supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
+        supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
-
       if (!mountedRef.current) return;
-
       await supabase
         .from('profiles')
         .update({ 
@@ -197,61 +154,40 @@ export default function ProfilePage() {
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
-
-      console.log("[Profile] Stats updated successfully");
     } catch (error) {
-      if (mountedRef.current) {
-        console.error('[Profile] Error updating profile stats:', error);
-      }
+      if (mountedRef.current) console.error('[Profile] Error updating profile stats:', error);
     }
   }, [supabase]);
 
-  // CORRECTION: Fonction de chargement du profil avec AbortController
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase || !mountedRef.current) {
       setLoading(false);
       return;
     }
-
-    // Annuler la requête précédente
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // Créer un nouveau controller
+    if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
     setLoading(true);
-    
     try {
-      console.log("[Profile] Loading profile for user:", userId);
-
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km") // ✅ gender
+        .select("id, full_name, age, city, gender, avatar_url, sessions_hosted, sessions_joined, total_km")
         .eq("id", userId)
         .maybeSingle();
 
       if (signal.aborted || !mountedRef.current) return;
 
       if (profileError) {
-        console.error("Profile fetch error:", profileError);
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger le profil",
-          variant: "destructive"
-        });
+        toast({ title: "Erreur", description: "Impossible de charger le profil", variant: "destructive" });
       } else if (profileData) {
-        console.log("Profile loaded:", profileData);
         setProfile(profileData as Profile);
         setFullName(profileData.full_name || "");
         setAge(profileData.age ?? "");
         setCity(profileData.city || "");
-        setGender(profileData.gender ?? ""); // ✅
+        setGender(profileData.gender ?? "");
         setSportLevel("Occasionnel");
       } else {
-        console.log("No profile found, creating one...");
         const { data: newProfile, error: createError } = await supabase
           .from("profiles")
           .upsert({
@@ -266,91 +202,55 @@ export default function ProfilePage() {
           .single();
 
         if (signal.aborted || !mountedRef.current) return;
-
         if (!createError && newProfile) {
           setProfile(newProfile as Profile);
           setFullName(newProfile.full_name || "");
           setAge(newProfile.age ?? "");
           setCity(newProfile.city || "");
-          setGender(newProfile.gender ?? ""); // ✅
+          setGender(newProfile.gender ?? "");
           setSportLevel("Occasionnel");
         }
       }
 
       if (signal.aborted || !mountedRef.current) return;
-
-      // Charger les sessions et mettre à jour les stats
-      await Promise.all([
-        fetchMySessions(userId),
-        updateProfileStats(userId)
-      ]);
-
+      await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log("[Profile] Request aborted");
-      } else if (mountedRef.current) {
+      if (error.name !== 'AbortError' && mountedRef.current) {
         console.error("Error loading profile:", error);
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue lors du chargement",
-          variant: "destructive"
-        });
+        toast({ title: "Erreur", description: "Une erreur est survenue lors du chargement", variant: "destructive" });
       }
     } finally {
-      if (!signal.aborted && mountedRef.current) {
-        setLoading(false);
-      }
+      if (!signal.aborted && mountedRef.current) setLoading(false);
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
-  // CORRECTION: Fonction de suppression avec vérification mounted
   const handleDeleteSession = async (sessionId: string) => {
     if (!supabase || !user?.id || !mountedRef.current) return;
-
     setDeletingSession(sessionId);
     try {
-      console.log("[Profile] Deleting session:", sessionId);
-      
       const { error: sessionError } = await supabase
         .from('sessions')
         .delete()
         .eq('id', sessionId)
         .eq('host_id', user.id);
-
-      if (sessionError) {
-        throw sessionError;
-      }
+      if (sessionError) throw sessionError;
 
       if (mountedRef.current) {
-        toast({
-          title: "Session supprimée",
-          description: "La session a été supprimée avec succès."
-        });
-
+        toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
         await fetchMySessions(user.id);
         updateProfileStats(user.id);
       }
-      
     } catch (error: any) {
       if (mountedRef.current) {
-        console.error('[Profile] Delete error:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de supprimer la session: " + error.message,
-          variant: "destructive"
-        });
+        toast({ title: "Erreur", description: "Impossible de supprimer la session: " + error.message, variant: "destructive" });
       }
     } finally {
-      if (mountedRef.current) {
-        setDeletingSession(null);
-      }
+      if (mountedRef.current) setDeletingSession(null);
     }
   };
 
-  // CORRECTION: Fonction de sauvegarde avec vérification mounted
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
-    
     setSaving(true);
     try {
       let avatarUrl = profile.avatar_url || null;
@@ -358,22 +258,11 @@ export default function ProfilePage() {
       if (avatarFile) {
         const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
         const path = `avatars/${user.id}/avatar.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(path, avatarFile, { upsert: true });
-
+        const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
         if (uploadError) {
-          if (mountedRef.current) {
-            toast({
-              title: "Erreur",
-              description: "Erreur upload image : " + uploadError.message,
-              variant: "destructive"
-            });
-          }
+          if (mountedRef.current) toast({ title: "Erreur", description: "Erreur upload image : " + uploadError.message, variant: "destructive" });
           return;
         }
-
         const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
         avatarUrl = pub.publicUrl;
       }
@@ -388,7 +277,7 @@ export default function ProfilePage() {
           full_name: fullName,
           age: ageValue,
           city: city,
-          gender: genderValue, // ✅ sauvegarde
+          gender: genderValue,
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString()
         })
@@ -397,80 +286,40 @@ export default function ProfilePage() {
       if (!mountedRef.current) return;
 
       if (error) {
-        toast({
-          title: "Erreur",
-          description: "Erreur de sauvegarde: " + error.message,
-          variant: "destructive"
-        });
+        toast({ title: "Erreur", description: "Erreur de sauvegarde: " + error.message, variant: "destructive" });
         return;
       }
 
-      setProfile(prev => prev ? {
-        ...prev,
-        full_name: fullName,
-        age: ageValue,
-        city: city,
-        gender: genderValue as Profile["gender"],
-        avatar_url: avatarUrl
-      } : null);
-
+      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city, gender: genderValue as Profile["gender"], avatar_url: avatarUrl } : null);
       setEditing(false);
       setAvatarFile(null);
-      
-      toast({
-        title: "Profil mis à jour",
-        description: "Vos modifications ont été sauvegardées."
-      });
+      toast({ title: "Profil mis à jour", description: "Vos modifications ont été sauvegardées." });
     } catch (error: any) {
-      if (mountedRef.current) {
-        toast({
-          title: "Erreur",
-          description: "Une erreur est survenue: " + error.message,
-          variant: "destructive"
-        });
-      }
+      if (mountedRef.current) toast({ title: "Erreur", description: "Une erreur est survenue: " + error.message, variant: "destructive" });
     } finally {
-      if (mountedRef.current) {
-        setSaving(false);
-      }
+      if (mountedRef.current) setSaving(false);
     }
   }
 
-  // Suppression de compte — appelle l’Edge Function delete-account2
+  // Suppression de compte — appelle l’Edge Function puis montre l'écran plein écran façon Auth
   const handleConfirmDeleteAccount = async () => {
-    if (!supabase || !user?.id) return;
+    if (!supabase) return;
     setDeletingAccount(true);
-
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const { data, error } = await supabase.functions.invoke("delete-account2", {
+      const { error } = await supabase.functions.invoke("delete-account2", {
         headers: { Authorization: `Bearer ${token}` },
-        body: {}, // explicite pour certains proxys
+        body: {}, // explicite
       });
-
       if (error) throw error;
 
-      // ✅ Succès : on met l'UI en état "succès" (modale) ET on force la sortie + redirection
+      // On affiche l'écran de succès en PLEIN ÉCRAN
       setDeleteSuccess(true);
-
-      // Laisse React peindre la vue de succès (petit délai microtask)
-      await new Promise((r) => setTimeout(r, 50));
-
-      // Invalider la session locale pour éviter l'état "connecté fantôme"
-      await supabase.auth.signOut();
-
-      // Ferme la modale (évite blocages d'historique sur mobile)
       setDeleteDialogOpen(false);
 
-      // Redirection douce
-      navigate("/", { replace: true });
-
-      // Fallback dur (certains webviews/Android bloquent parfois navigate)
-      setTimeout(() => {
-        if (typeof window !== "undefined" && window.location.pathname !== "/") {
-          window.location.replace("/");
-        }
-      }, 250);
+      // On invalide la session localement pour que l'app ne "pense" plus que l'user est connecté
+      // mais on NE redirige pas ici : on laisse l'utilisateur lire le message.
+      await supabase.auth.signOut();
     } catch (e: any) {
       toast({
         title: "Suppression impossible",
@@ -483,15 +332,11 @@ export default function ProfilePage() {
     }
   };
 
-  // CORRECTION: Cleanup général strict
+  // Cleanup
   useEffect(() => {
     mountedRef.current = true;
-    
     return () => {
-      console.log("[Profile] Component unmounting - cleaning up all resources");
       mountedRef.current = false;
-      
-      // Cleanup AbortController
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -499,12 +344,57 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Si l'utilisateur n'est pas connecté, on ne render rien (redirection en cours)
+  // ✅ ÉCRAN PLEIN ÉCRAN DE SUCCÈS (inspiré de Auth) — mobile-first
+  if (deleteSuccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="text-center pb-6">
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-foreground">
+              Vous allez nous manquer 😕
+            </CardTitle>
+            <CardDescription className="text-base">
+              Votre compte a bien été supprimé. Merci d’avoir fait un bout de chemin avec nous.
+              <br className="hidden sm:block" />
+              Vous serez toujours la bienvenue si vous souhaitez revenir. 💛
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4 text-center">
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Vos sessions et inscriptions ont été annulées conformément à nos règles.</p>
+              <p>Vous pouvez revenir quand vous voulez — on gardera la piste prête 🏃‍♀️.</p>
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => navigate("/", { replace: true })}
+            >
+              Retour à l’accueil
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => navigate("/auth?mode=signin", { replace: true })}
+            >
+              Se reconnecter
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  // Si l'utilisateur n'est pas connecté ET on n'est pas en succès (cas normal)
   if (user === null) {
     return null;
   }
 
-  // Si on est en cours de chargement de l'auth
   if (user === undefined) {
     return (
       <div className="container mx-auto p-4 space-y-6">
@@ -518,7 +408,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Si on est en cours de chargement du profil
   if (loading) {
     return (
       <div className="container mx-auto p-4 space-y-6">
@@ -582,7 +471,6 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* ✅ Nouveau champ Genre au même endroit que ville/âge */}
               <div className="space-y-2">
                 <Label htmlFor="gender">Genre</Label>
                 <Select value={gender || ""} onValueChange={(value: "homme" | "femme") => setGender(value)}>
@@ -801,14 +689,12 @@ export default function ProfilePage() {
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4">Gestion du compte</h2>
 
-          {/* Ligne: bouton déconnexion à gauche (sans texte inutile) */}
           <div className="flex items-center justify-start mb-6">
             <Button variant="outline" onClick={signOut}>
               Se déconnecter
             </Button>
           </div>
 
-          {/* Zone dangereuse — moderne et bien centrée */}
           <div className="rounded-2xl border border-red-200 bg-red-50/60 p-6">
             <div className="max-w-3xl mx-auto text-center space-y-4">
               <div className="flex items-center justify-center gap-2 text-red-700">
@@ -824,10 +710,7 @@ export default function ProfilePage() {
 
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    className="mt-2"
-                  >
+                  <Button variant="destructive" className="mt-2">
                     Supprimer mon compte
                   </Button>
                 </AlertDialogTrigger>
@@ -862,57 +745,8 @@ export default function ProfilePage() {
                       </AlertDialogFooter>
                     </>
                   ) : (
-                    <>
-                      {/* --- ÉCRAN DE SUCCÈS CENTRAL & MOBILE-FIRST --- */}
-                      <AlertDialogHeader className="sr-only">
-                        <AlertDialogTitle>Compte supprimé</AlertDialogTitle>
-                        <AlertDialogDescription>Confirmation</AlertDialogDescription>
-                      </AlertDialogHeader>
-
-                      <div className="mx-auto w-full px-2">
-                        <div className="mx-auto max-w-md rounded-2xl border bg-white p-6 shadow-lg">
-                          <div className="mb-4 flex items-center justify-center">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
-                              <svg className="h-7 w-7 text-green-600" viewBox="0 0 24 24" fill="none">
-                                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </div>
-                          </div>
-
-                          <h3 className="mb-2 text-center text-2xl font-bold">
-                            Vous allez nous manquer 😕
-                          </h3>
-                          <p className="mb-6 text-center text-sm text-muted-foreground">
-                            Votre compte a bien été supprimé. Merci d’avoir fait un bout de chemin avec nous.
-                            <br className="hidden sm:block" />
-                            Vous serez toujours la bienvenue si vous souhaitez revenir. 💛
-                          </p>
-
-                          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-                            <Button
-                              onClick={() => {
-                                setDeleteDialogOpen(false);
-                                navigate("/", { replace: true });
-                              }}
-                              className="w-full sm:w-auto"
-                            >
-                              Retour à l’accueil
-                            </Button>
-
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setDeleteDialogOpen(false);
-                              }}
-                              className="w-full sm:w-auto"
-                            >
-                              Fermer
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      {/* --------------------------------------------- */}
-                    </>
+                    // On ne montre normalement jamais ce bloc car on ferme la modale au succès
+                    <></>
                   )}
                 </AlertDialogContent>
               </AlertDialog>
