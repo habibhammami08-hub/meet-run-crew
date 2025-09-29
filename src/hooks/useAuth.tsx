@@ -48,9 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadingRef = useRef(false);
 
   // Charge / rafraîchit le profil
-  const refreshProfile = async (targetUserId?: string) => {
-    const userId = targetUserId || user?.id;
-    if (!userId) {
+  const refreshProfile = async () => {
+    if (!user) {
       setProfile(null);
       return;
     }
@@ -60,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
-        .eq("id", userId)
+        .eq("id", user.id)
         .maybeSingle();
 
       if (error) {
@@ -88,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // 2) Si connecté → charge le profil
         if (sessUser) {
-          await refreshProfile(sessUser.id);
+          await refreshProfile();
         } else {
           setProfile(null);
         }
@@ -108,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // En cas de SIGNED_IN / TOKEN_REFRESHED / etc. → recharge le profil
       if (nextUser) {
-        await refreshProfile(nextUser.id);
+        await refreshProfile();
       } else {
         setProfile(null);
       }
