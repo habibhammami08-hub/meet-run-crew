@@ -438,32 +438,20 @@ export default function ProfilePage() {
 
   // Suppression de compte — appelle l’Edge Function delete-account2
   const handleConfirmDeleteAccount = async () => {
-    if (!supabase) return;
+    if (!supabase || !user?.id) return;
     setDeletingAccount(true);
 
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const { data, error } = await supabase.functions.invoke("delete-account2", {
         headers: { Authorization: `Bearer ${token}` },
-        body: {}, // explicite pour certains proxys
       });
 
       if (error) throw error;
 
+      // Afficher l'écran de succès centré (pas d'auto-redirect)
       setDeleteSuccess(true);
-
-      // Feedback visible
-      toast({
-        title: "Compte supprimé",
-        description: "Votre compte et vos données ont été supprimés.",
-      });
-
-      // Invalider la session locale puis rediriger
-      await supabase.auth.signOut();
-      setDeleteDialogOpen(false);
-      navigate("/", { replace: true });
     } catch (e: any) {
-      console.error("[DeleteAccount] invoke error", e);
       toast({
         title: "Suppression impossible",
         description: e?.message || "Une erreur est survenue lors de la suppression du compte.",
@@ -855,32 +843,57 @@ export default function ProfilePage() {
                     </>
                   ) : (
                     <>
-                      <AlertDialogHeader className="space-y-2">
-                        <div className="flex items-center justify-center">
-                          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none">
-                              <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
+                      {/* --- ÉCRAN DE SUCCÈS CENTRAL & MOBILE-FIRST --- */}
+                      <AlertDialogHeader className="sr-only">
+                        <AlertDialogTitle>Compte supprimé</AlertDialogTitle>
+                        <AlertDialogDescription>Confirmation</AlertDialogDescription>
+                      </AlertDialogHeader>
+
+                      <div className="mx-auto w-full px-2">
+                        <div className="mx-auto max-w-md rounded-2xl border bg-white p-6 shadow-lg">
+                          <div className="mb-4 flex items-center justify-center">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                              <svg className="h-7 w-7 text-green-600" viewBox="0 0 24 24" fill="none">
+                                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </div>
+                          </div>
+
+                          <h3 className="mb-2 text-center text-2xl font-bold">
+                            Vous allez nous manquer 😕
+                          </h3>
+                          <p className="mb-6 text-center text-sm text-muted-foreground">
+                            Votre compte a bien été supprimé. Merci d’avoir fait un bout de chemin avec nous.
+                            <br className="hidden sm:block" />
+                            Vous serez toujours la bienvenue si vous souhaitez revenir. 💛
+                          </p>
+
+                          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                            <Button
+                              onClick={async () => {
+                                await supabase.auth.signOut();
+                                setDeleteDialogOpen(false);
+                                navigate("/", { replace: true });
+                              }}
+                              className="w-full sm:w-auto"
+                            >
+                              Retour à l’accueil
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              onClick={async () => {
+                                await supabase.auth.signOut();
+                                setDeleteDialogOpen(false);
+                              }}
+                              className="w-full sm:w-auto"
+                            >
+                              Fermer
+                            </Button>
                           </div>
                         </div>
-                        <AlertDialogTitle className="text-center">
-                          Compte supprimé
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-center">
-                          Nous sommes tristes de vous voir partir, mais notre porte vous reste ouverte. ❤️
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="sm:justify-center">
-                        <Button
-                          onClick={() => {
-                            setDeleteDialogOpen(false);
-                            navigate("/");
-                          }}
-                          className="w-full sm:w-auto"
-                        >
-                          Retour à l’accueil
-                        </Button>
-                      </AlertDialogFooter>
+                      </div>
+                      {/* --------------------------------------------- */}
                     </>
                   )}
                 </AlertDialogContent>
