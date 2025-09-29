@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Trash2, Users, AlertTriangle, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Calendar, MapPin, Trash2, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -49,13 +49,10 @@ type Session = {
   max_participants: number;
   current_participants: number;
   status: string;
-  // ▼▼▼ Ajouts pour distinguer hôte vs participant
-  is_host?: boolean;
-  is_joined?: boolean;
 };
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasActiveSubscription: hasSub } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -99,8 +96,7 @@ export default function ProfilePage() {
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
-      // Sessions hébergées (identique à avant)
-      const { data: hosted, error: hostedError } = await supabase
+      const { data: sessions, error } = await supabase
         .from('sessions')
         .select(`
           id,
@@ -118,10 +114,10 @@ export default function ProfilePage() {
         .order('scheduled_at', { ascending: false });
 
       if (!mountedRef.current) return;
-      if (hostedError) return;
+      if (error || !sessions) return;
 
-      const hostedWithCounts = await Promise.all(
-        (hosted ?? []).map(async (session) => {
+      const sessionsWithCounts = await Promise.all(
+        sessions.map(async (session) => {
           if (!mountedRef.current) return null;
           try {
             const { count } = await supabase
@@ -129,132 +125,37 @@ export default function ProfilePage() {
               .select('*', { count: 'exact' })
               .eq('session_id', session.id)
               .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-            return { ...session, current_participants: (count || 0) + 1, is_host: true };
+            return { ...session, current_participants: (count || 0) + 1 };
           } catch {
-            return { ...session, current_participants: 1, is_host: true };
+            return { ...session, current_participants: 1 };
           }
         })
       );
-
-      // Sessions où l'utilisateur est inscrit comme participant (paid / included_by_subscription / confirmed)
-      const { data: joined, error: joinedError } = await supabase
-        .from('enrollments')
-        .select(`
-          session_id,
-          sessions:session_id (
-            id,
-            title,
-            scheduled_at,
-            start_place,
-            distance_km,
-            intensity,
-            max_participants,
-            status
-          )
-        `)
-        .eq('user_id', userId)
-        .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-
-      if (joinedError) {
-        // On continue quand même avec les sessions hébergées
-      }
-
-      const joinedSessionsRaw = (joined ?? [])
-        .map((row: any) => row.sessions)
-        .filter(Boolean) as Session[];
-
-      const joinedWithCounts = await Promise.all(
-        joinedSessionsRaw.map(async (session) => {
-          if (!mountedRef.current) return null;
-          try {
-            const { count } = await supabase
-              .from('enrollments')
-              .select('*', { count: 'exact' })
-              .eq('session_id', session.id)
-              .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-            return { ...session, current_participants: (count || 0) + 1, is_joined: true };
-          } catch {
-            return { ...session, current_participants: 1, is_joined: true };
-          }
-        })
-      );
-
-      // Fusion + dédoublonnage par id (priorité aux objets marqués is_host)
-      const mapById = new Map<string, Session>();
-      for (const s of (hostedWithCounts.filter(Boolean) as Session[])) {
-        mapById.set(s.id, s);
-      }
-      for (const s of (joinedWithCounts.filter(Boolean) as Session[])) {
-        if (!mapById.has(s.id)) {
-          mapById.set(s.id, s);
-        } else {
-          // Si la même session est aussi host, on conserve la version host (déjà présente)
-        }
-      }
-
-      // Tri par date desc
-      const finalList = Array.from(mapById.values()).sort(
-        (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
-      );
-
-      if (mountedRef.current) setMySessions(finalList);
+      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
+      if (mountedRef.current) setMySessions(validSessions);
     } catch (error) {
       if (mountedRef.current) console.error('[Profile] Error fetching sessions:', error);
     }
   }, [supabase]);
 
   const updateProfileStats = useCallback(async (userId: string) => {
-    if (!supabase || !userId || !mountedRef.current) return 0;
+    if (!supabase || !userId || !mountedRef.current) return;
     try {
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
         supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
-
-      // ▼▼▼ Calcul du kilométrage total (host + inscrit), dédoublonné par session
-      const [hostedDistances, joinedRows] = await Promise.all([
-        supabase
-          .from('sessions')
-          .select('id, distance_km')
-          .eq('host_id', userId)
-          .in('status', ['published', 'active']),
-        supabase
-          .from('enrollments')
-          .select('session_id, sessions:session_id (id, distance_km)')
-          .eq('user_id', userId)
-          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
-      ]);
-
-      const kmById = new Map<string, number>();
-
-      (hostedDistances.data ?? []).forEach((s: any) => {
-        if (s && s.id) kmById.set(s.id, Number(s.distance_km || 0));
-      });
-      (joinedRows.data ?? []).forEach((r: any) => {
-        const s = r?.sessions;
-        if (s && s.id && !kmById.has(s.id)) {
-          kmById.set(s.id, Number(s.distance_km || 0));
-        }
-      });
-
-      const totalKm = Array.from(kmById.values()).reduce((acc, v) => acc + (isFinite(v) ? v : 0), 0);
-
-      if (!mountedRef.current) return totalKm;
-
+      if (!mountedRef.current) return;
       await supabase
         .from('profiles')
         .update({ 
           sessions_hosted: sessionsHosted || 0,
           sessions_joined: sessionsJoined || 0,
-          total_km: totalKm,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
-
-      return totalKm;
     } catch (error) {
       if (mountedRef.current) console.error('[Profile] Error updating profile stats:', error);
-      return 0;
     }
   }, [supabase]);
 
@@ -312,10 +213,7 @@ export default function ProfilePage() {
       }
 
       if (signal.aborted || !mountedRef.current) return;
-      const [_, totalKm] = await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
-      if (mountedRef.current && typeof totalKm === "number") {
-        setProfile(prev => prev ? { ...prev, total_km: totalKm } : prev);
-      }
+      await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
     } catch (error: any) {
       if (error.name !== 'AbortError' && mountedRef.current) {
         console.error("Error loading profile:", error);
@@ -342,10 +240,7 @@ export default function ProfilePage() {
       if (mountedRef.current) {
         toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
         await fetchMySessions(user.id);
-        const totalKm = await updateProfileStats(user.id);
-        if (typeof totalKm === "number") {
-          setProfile(prev => prev ? { ...prev, total_km: totalKm } : prev);
-        }
+        updateProfileStats(user.id);
       }
     } catch (error: any) {
       if (mountedRef.current) {
@@ -355,29 +250,6 @@ export default function ProfilePage() {
       if (mountedRef.current) setDeletingSession(null);
     }
   };
-
-  // ▼▼▼ Ajout : désinscription d'une session où je suis participant
-  const handleUnenroll = async (sessionId: string) => {
-    if (!supabase || !user?.id || !mountedRef.current) return;
-    try {
-      const { error } = await supabase
-        .from('enrollments')
-        .delete()
-        .eq('session_id', sessionId)
-        .eq('user_id', user.id);
-      if (error) throw error;
-
-      toast({ title: "Désinscription effectuée", description: "Vous avez été désinscrit de la session." });
-      await fetchMySessions(user.id);
-      const totalKm = await updateProfileStats(user.id);
-      if (typeof totalKm === "number") {
-        setProfile(prev => prev ? { ...prev, total_km: totalKm } : prev);
-      }
-    } catch (e: any) {
-      toast({ title: "Erreur", description: "Erreur lors de la désinscription: " + e.message, variant: "destructive" });
-    }
-  };
-  // ▲▲▲
 
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
@@ -667,7 +539,22 @@ export default function ProfilePage() {
                   />
                 )}
                 <div>
-                  <h2 className="text-xl font-semibold">{profile.full_name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-semibold">{profile.full_name}</h2>
+                    {hasSub && (
+                      <Button
+                        size="sm"
+                        onClick={() => navigate("/subscription")}
+                        variant="secondary"
+                        className="ml-1 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm"
+                        aria-label="Abonnement actif : gérer"
+                        title="Abonnement actif : MeetRun Unlimited"
+                      >
+                        <Crown className="w-4 h-4" />
+                        Unlimited
+                      </Button>
+                    )}
+                  </div>
                   {(profile.age || profile.gender) && (
                     <p className="text-muted-foreground">
                       {profile.age ? `${profile.age} ans` : null}
@@ -695,7 +582,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <div className="text-2xl font-bold text-primary">{profile.total_km || 0}</div>
-                  <div className="text-sm text-muted-foreground">Kilomètre total</div>
+                  <div className="text-sm text-muted-foreground">Kilomètres parcourus</div>
                 </div>
               </div>
             </div>
@@ -770,69 +657,34 @@ export default function ProfilePage() {
                       >
                         Voir
                       </Button>
-
-                      {/* ▼▼▼ Ajout : si je suis hôte -> bouton supprimer (inchangé), sinon -> bouton se désinscrire */}
-                      {session.is_host ? (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={deletingSession === session.id}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={deletingSession === session.id}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteSession(session.id)}
+                              className="bg-destructive hover:bg-destructive/90"
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteSession(session.id)}
-                                className="bg-destructive hover:bg-destructive/90"
-                              >
-                                Supprimer
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      ) : (
-                        // Bouton "Se désinscrire" identique à celui demandé (logique 30 min)
-                        (() => {
-                          const now = Date.now();
-                          const sessionTime = new Date(session.scheduled_at).getTime();
-                          const minutesUntil = (sessionTime - now) / 60000;
-                          const canUnenroll = minutesUntil >= 30;
-
-                          return canUnenroll ? (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={async () => {
-                                if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
-                                await handleUnenroll(session.id);
-                              }}
-                            >
-                              Se désinscrire
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled
-                              title="Désinscription impossible moins de 30 minutes avant le début"
-                            >
-                              Se désinscrire
-                            </Button>
-                          );
-                        })()
-                      )}
-                      {/* ▲▲▲ */}
+                              Supprimer
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </div>
