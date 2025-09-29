@@ -13,7 +13,7 @@ import { logger } from "@/utils/logger";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user, hasActiveSubscription } = useAuth();
+  const { user, hasActiveSubscription, refreshSubscriptionStatus } = useAuth();
   const { toast } = useToast();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +25,16 @@ const Home = () => {
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // NOUVEAU: Vérification de l'abonnement au chargement
+  useEffect(() => {
+    if (user?.id && mountedRef.current && refreshSubscriptionStatus) {
+      console.log("[Home] Checking subscription status for user:", user.id);
+      refreshSubscriptionStatus().catch(error => {
+        logger.error('[Home] Error checking subscription:', error);
+      });
+    }
+  }, [user?.id, refreshSubscriptionStatus]);
 
   // CORRECTION: Fonction de fetch avec AbortController strict
   const fetchUserActivity = useCallback(async (userId: string) => {
