@@ -42,7 +42,7 @@ const Navigation = () => {
           </Button>
         </Link>
         
-<Link to="/subscription">
+        <Link to="/subscription">
           <Button 
             variant="ghost" 
             size="sm" 
@@ -52,10 +52,10 @@ const Navigation = () => {
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
             }`}
           >
-            <Crown size={20} />
+            <Crown size={20} className={user && hasActiveSubscription ? 'text-blue-600' : ''} />
             <span className="text-xs font-medium">Abonnement</span>
             {user && hasActiveSubscription && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full shadow-sm"></div>
             )}
           </Button>
         </Link>
