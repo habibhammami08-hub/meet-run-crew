@@ -180,7 +180,7 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, refreshSubscription } = useAuth();
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -218,17 +218,12 @@ function MapPageInner() {
   }), []);
 
   const requestGeolocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      console.warn('[Map] Navigator.geolocation not available');
-      return;
-    }
-    console.log('[Map] Requesting geolocation', { currentUser: currentUser?.id || 'none', hasTriedGeolocation });
+    if (!navigator.geolocation) return;
     setHasTriedGeolocation(true);
 
     const successCallback = (position: GeolocationPosition) => {
       if (!mountedRef.current) return;
       const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
-      console.log('[Map] Geolocation success', userPos);
       setCenter(userPos);
       setUserLocation(userPos);
     };
@@ -255,12 +250,6 @@ function MapPageInner() {
   useEffect(() => {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
-
-  useEffect(() => {
-    if (!authLoading && currentUser) {
-      refreshSubscription?.();
-    }
-  }, [authLoading, currentUser, refreshSubscription]);
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
@@ -336,11 +325,7 @@ function MapPageInner() {
   }, [fetchSessions]);
 
   const sessionsWithDistance = useMemo(() => {
-    if (!userLocation) {
-      console.log('[Map] userLocation is null, distanceFromUser will be null for all sessions');
-      return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
-    }
-    console.log('[Map] userLocation available, calculating distances', { userLocation, sessionsCount: sessions.length });
+    if (!userLocation) return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
     return sessions.map(s => ({
       ...s,
       distanceFromUser: calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng),
@@ -395,19 +380,12 @@ function MapPageInner() {
     return filtered;
   }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, __tick]);
 
-  const filteredNearestSessions = useMemo(() => {
-    const nearest = filteredSessions
+  const filteredNearestSessions = useMemo(() => (
+    filteredSessions
       .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= 25)
       .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-      .slice(0, 6);
-    console.log('[Map] filteredNearestSessions calculated', { 
-      filteredCount: filteredSessions.length, 
-      nearestCount: nearest.length,
-      userLocation: userLocation ? 'available' : 'null',
-      hasDistance: filteredSessions.filter(s => s.distanceFromUser !== null).length
-    });
-    return nearest;
-  }, [filteredSessions, userLocation]);
+      .slice(0, 6)
+  ), [filteredSessions]);
 
   // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
   const myEnrolledSessions = useMemo(() => {
@@ -822,29 +800,15 @@ function MapPageInner() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {(() => {
-                  console.log('[Map] Rendering "près de vous" section', { 
-                    loading, 
-                    sessionsCount: filteredNearestSessions.length,
-                    currentUser: currentUser?.id || 'none',
-                    userLocation: userLocation ? 'available' : 'null'
-                  });
-                  
-                  if (loading) {
-                    return <div className="space-y-3">{[1,2,3].map(i => (<div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>))}</div>;
-                  }
-                  
-                  if (filteredNearestSessions.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-gray-500">
-                        <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p className="text-sm">Aucune session proche trouvée</p>
-                        <p className="text-xs mt-1">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres" : "Activez la géolocalisation"}</p>
-                      </div>
-                    );
-                  }
-                  
-                  return (
+                {loading ? (
+                  <div className="space-y-3">{[1,2,3].map(i => (<div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>))}</div>
+                ) : filteredNearestSessions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Aucune session proche trouvée</p>
+                    <p className="text-xs mt-1">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres" : "Activez la géolocalisation"}</p>
+                  </div>
+                ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
                       const blur = shouldBlur(session);
@@ -915,8 +879,7 @@ function MapPageInner() {
                       );
                     })}
                   </div>
-                  );
-                })()}
+                )}
               </CardContent>
             </Card>
 
