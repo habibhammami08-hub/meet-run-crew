@@ -7,11 +7,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import AccountDeletionComponent from "@/components/AccountDeletionComponent";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Trash2, Users } from "lucide-react";
+import { Calendar, MapPin, Trash2, Users, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 
 type Profile = {
   id: string;
@@ -50,6 +59,11 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
+  // --- Nouvel état pour la suppression de compte
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
+
   // Form state
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState<number | "">("");
@@ -78,7 +92,7 @@ export default function ProfilePage() {
     if (user && loading && mountedRef.current) {
       loadProfile(user.id);
     }
-  }, [user, navigate]);
+  }, [user, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CORRECTION: Fonction de chargement des sessions avec AbortController
   const fetchMySessions = useCallback(async (userId: string) => {
@@ -422,6 +436,32 @@ export default function ProfilePage() {
     }
   }
 
+  // Suppression de compte — appelle l’Edge Function delete-account2
+  const handleConfirmDeleteAccount = async () => {
+    if (!supabase || !user?.id) return;
+    setDeletingAccount(true);
+
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const { data, error } = await supabase.functions.invoke("delete-account2", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error) throw error;
+
+      setDeleteSuccess(true);
+    } catch (e: any) {
+      toast({
+        title: "Suppression impossible",
+        description: e?.message || "Une erreur est survenue lors de la suppression du compte.",
+        variant: "destructive",
+      });
+      setDeleteSuccess(false);
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   // CORRECTION: Cleanup général strict
   useEffect(() => {
     mountedRef.current = true;
@@ -739,17 +779,100 @@ export default function ProfilePage() {
       <Card>
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4">Gestion du compte</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Se déconnecter</h3>
-                <p className="text-sm text-muted-foreground">Déconnexion de votre compte</p>
+
+          {/* Ligne: bouton déconnexion à gauche (sans texte inutile) */}
+          <div className="flex items-center justify-start mb-6">
+            <Button variant="outline" onClick={signOut}>
+              Se déconnecter
+            </Button>
+          </div>
+
+          {/* Zone dangereuse — moderne et bien centrée */}
+          <div className="rounded-2xl border border-red-200 bg-red-50/60 p-6">
+            <div className="max-w-3xl mx-auto text-center space-y-4">
+              <div className="flex items-center justify-center gap-2 text-red-700">
+                <ShieldAlert className="w-5 h-5" />
+                <span className="font-semibold">Zone sensible</span>
               </div>
-              <Button variant="outline" onClick={signOut}>
-                Se déconnecter
-              </Button>
+              <h3 className="text-xl font-bold text-red-800">Supprimer mon compte</h3>
+              <p className="text-sm text-red-700 leading-relaxed">
+                Cette action est <strong>définitive</strong>. Toutes vos données seront supprimées (profil, inscriptions,
+                sessions créées…). <br />
+                <strong>Attention :</strong> la suppression du compte entraînera la <u>résiliation immédiate de votre abonnement</u> s’il est en cours.
+              </p>
+
+              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    className="mt-2"
+                  >
+                    Supprimer mon compte
+                  </Button>
+                </AlertDialogTrigger>
+
+                <AlertDialogContent className="sm:max-w-lg">
+                  {!deleteSuccess ? (
+                    <>
+                      <AlertDialogHeader className="space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                            <AlertTriangle className="w-6 h-6 text-red-600" />
+                          </div>
+                        </div>
+                        <AlertDialogTitle className="text-center">
+                          Confirmer la suppression
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-center">
+                          Êtes-vous sûr de vouloir supprimer définitivement votre compte ?
+                          <br />
+                          Cela résiliera immédiatement votre abonnement s’il est actif.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="sm:justify-center gap-2">
+                        <AlertDialogCancel disabled={deletingAccount}>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/90"
+                          onClick={handleConfirmDeleteAccount}
+                          disabled={deletingAccount}
+                        >
+                          {deletingAccount ? "Suppression..." : "Confirmer la suppression"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </>
+                  ) : (
+                    <>
+                      <AlertDialogHeader className="space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none">
+                              <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                        <AlertDialogTitle className="text-center">
+                          Compte supprimé
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-center">
+                          Nous sommes tristes de vous voir partir, mais notre porte vous reste ouverte. ❤️
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="sm:justify-center">
+                        <Button
+                          onClick={() => {
+                            setDeleteDialogOpen(false);
+                            navigate("/");
+                          }}
+                          className="w-full sm:w-auto"
+                        >
+                          Retour à l’accueil
+                        </Button>
+                      </AlertDialogFooter>
+                    </>
+                  )}
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
-            <AccountDeletionComponent />
           </div>
         </CardContent>
       </Card>
