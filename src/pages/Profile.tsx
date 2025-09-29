@@ -204,23 +204,57 @@ export default function ProfilePage() {
   }, [supabase]);
 
   const updateProfileStats = useCallback(async (userId: string) => {
-    if (!supabase || !userId || !mountedRef.current) return;
+    if (!supabase || !userId || !mountedRef.current) return 0;
     try {
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
         supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
-      if (!mountedRef.current) return;
+
+      // ▼▼▼ Calcul du kilométrage total (host + inscrit), dédoublonné par session
+      const [hostedDistances, joinedRows] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('id, distance_km')
+          .eq('host_id', userId)
+          .in('status', ['published', 'active']),
+        supabase
+          .from('enrollments')
+          .select('session_id, sessions:session_id (id, distance_km)')
+          .eq('user_id', userId)
+          .in('status', ['paid', 'included_by_subscription', 'confirmed'])
+      ]);
+
+      const kmById = new Map<string, number>();
+
+      (hostedDistances.data ?? []).forEach((s: any) => {
+        if (s && s.id) kmById.set(s.id, Number(s.distance_km || 0));
+      });
+      (joinedRows.data ?? []).forEach((r: any) => {
+        const s = r?.sessions;
+        if (s && s.id && !kmById.has(s.id)) {
+          kmById.set(s.id, Number(s.distance_km || 0));
+        }
+      });
+
+      const totalKm = Array.from(kmById.values()).reduce((acc, v) => acc + (isFinite(v) ? v : 0), 0);
+
+      if (!mountedRef.current) return totalKm;
+
       await supabase
         .from('profiles')
         .update({ 
           sessions_hosted: sessionsHosted || 0,
           sessions_joined: sessionsJoined || 0,
+          total_km: totalKm,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
+
+      return totalKm;
     } catch (error) {
       if (mountedRef.current) console.error('[Profile] Error updating profile stats:', error);
+      return 0;
     }
   }, [supabase]);
 
@@ -278,7 +312,10 @@ export default function ProfilePage() {
       }
 
       if (signal.aborted || !mountedRef.current) return;
-      await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
+      const [_, totalKm] = await Promise.all([fetchMySessions(userId), updateProfileStats(userId)]);
+      if (mountedRef.current && typeof totalKm === "number") {
+        setProfile(prev => prev ? { ...prev, total_km: totalKm } : prev);
+      }
     } catch (error: any) {
       if (error.name !== 'AbortError' && mountedRef.current) {
         console.error("Error loading profile:", error);
@@ -305,7 +342,10 @@ export default function ProfilePage() {
       if (mountedRef.current) {
         toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
         await fetchMySessions(user.id);
-        updateProfileStats(user.id);
+        const totalKm = await updateProfileStats(user.id);
+        if (typeof totalKm === "number") {
+          setProfile(prev => prev ? { ...prev, total_km: totalKm } : prev);
+        }
       }
     } catch (error: any) {
       if (mountedRef.current) {
@@ -329,7 +369,10 @@ export default function ProfilePage() {
 
       toast({ title: "Désinscription effectuée", description: "Vous avez été désinscrit de la session." });
       await fetchMySessions(user.id);
-      updateProfileStats(user.id);
+      const totalKm = await updateProfileStats(user.id);
+      if (typeof totalKm === "number") {
+        setProfile(prev => prev ? { ...prev, total_km: totalKm } : prev);
+      }
     } catch (e: any) {
       toast({ title: "Erreur", description: "Erreur lors de la désinscription: " + e.message, variant: "destructive" });
     }
@@ -652,7 +695,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <div className="text-2xl font-bold text-primary">{profile.total_km || 0}</div>
-                  <div className="text-sm text-muted-foreground">Kilomètres parcourus</div>
+                  <div className="text-sm text-muted-foreground">Kilomètre total</div>
                 </div>
               </div>
             </div>
