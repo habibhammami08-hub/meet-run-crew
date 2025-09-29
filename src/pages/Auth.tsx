@@ -317,7 +317,7 @@ const Auth = () => {
             </div>
             <div className="text-center p-3 bg-white/50 backdrop-blur-sm rounded-lg border border-primary/10">
               <Users className="h-5 w-5 text-primary mx-auto mb-1" />
-              <div className="text-sm font-semibold text-foreground">+200</div>
+              <div className="text-sm font-semibold text-foreground">+1000</div>
               <div className="text-xs text-muted-foreground">Runners</div>
             </div>
             <div className="text-center p-3 bg-white/50 backdrop-blur-sm rounded-lg border border-primary/10">
