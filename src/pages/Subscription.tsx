@@ -59,15 +59,28 @@ const Subscription = () => {
     setIsPortalLoading(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
+
       const { data, error } = await supabase.functions.invoke("create-customer-portal-session", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+
+      // ✅ l’Edge Function renvoie { portal_url, id, expires_at }
+      const portalUrl =
+        (data as any)?.portal_url ||
+        (data as any)?.url ||
+        (data as any)?.checkout_url;
+
+      if (!portalUrl) {
+        throw new Error("Aucune URL de portail reçue depuis le serveur.");
+      }
+
+      // Redirection dans le même onglet pour fiabilité
+      window.location.assign(portalUrl);
     } catch (error: any) {
       toast({
         title: "Erreur",
-        description: error.message,
+        description: error.message ?? "Impossible d’ouvrir le portail client.",
         variant: "destructive",
       });
     } finally {
@@ -270,9 +283,6 @@ const Subscription = () => {
                 >
                   <ExternalLink size={16} />
                   {isPortalLoading ? "Redirection..." : "Gérer mon abonnement"}
-                </Button>
-                <Button onClick={refreshSubscription} variant="ghost" size="sm">
-                  Actualiser
                 </Button>
               </div>
             </CardContent>
