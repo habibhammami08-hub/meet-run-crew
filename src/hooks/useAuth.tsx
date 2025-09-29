@@ -48,9 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadingRef = useRef(false);
 
   // Charge / rafraîchit le profil
-  const refreshProfile = async (userId?: string) => {
-    const targetUserId = userId || user?.id;
-    if (!targetUserId) {
+  const refreshProfile = async (targetUserId?: string) => {
+    const userId = targetUserId || user?.id;
+    if (!userId) {
       setProfile(null);
       return;
     }
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
-        .eq("id", targetUserId)
+        .eq("id", userId)
         .maybeSingle();
 
       if (error) {
@@ -121,10 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await supabase.auth.refreshSession();
         } catch {}
-        const { data } = await supabase.auth.getSession();
-        if (data?.session?.user) {
-          await refreshProfile(data.session.user.id);
-        }
+        if (user) await refreshProfile();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
