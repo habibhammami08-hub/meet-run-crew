@@ -13,7 +13,8 @@ import { logger } from "@/utils/logger";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user, hasActiveSubscription } = useAuth();
+  // ⬇️ MODIF: on récupère aussi refreshSubscription pour forcer la mise à jour du profil depuis le contexte
+  const { user, hasActiveSubscription, refreshSubscription } = useAuth();
   const { toast } = useToast();
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,41 @@ const Home = () => {
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // ⬇️ MODIF: Realtime — écoute des changements sur le profil courant pour rafraîchir l’abonnement immédiatement
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`realtime:profiles:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        (payload: any) => {
+          try {
+            const oldRow = payload?.old ?? {};
+            const newRow = payload?.new ?? {};
+            const subChanged =
+              oldRow.sub_status !== newRow.sub_status ||
+              oldRow.sub_current_period_end !== newRow.sub_current_period_end;
+
+            if (subChanged) {
+              // met à jour le profil dans le contexte (hasActiveSubscription sera recalculé)
+              refreshSubscription?.();
+              // et notifie la page (tu écoutes déjà 'profileRefresh' plus bas)
+              window.dispatchEvent(new Event('profileRefresh'));
+            }
+          } catch (e) {
+            console.warn('[Home] Realtime payload parse error:', e);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, supabase, refreshSubscription]);
+  // ⬆️ FIN MODIF
 
   // CORRECTION: Fonction de fetch avec AbortController strict
   const fetchUserActivity = useCallback(async (userId: string) => {
