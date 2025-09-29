@@ -180,7 +180,7 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  // ⬇️ AJOUT MINIMAL : on récupère refreshSubscription depuis le contexte
+  // ✅ Ajout unique : on récupère refreshSubscription
   const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, refreshSubscription } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
@@ -252,13 +252,12 @@ function MapPageInner() {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
 
-  // ⬇️ AJOUT MINIMAL : synchronise l'abonnement dès que l'utilisateur est connu et que l'auth est prête
+  // ✅ Ajout unique : on synchronise le profil/abonnement dès que l'auth est prête et que l'utilisateur existe
   useEffect(() => {
     if (!authLoading && currentUser) {
       refreshSubscription?.();
     }
   }, [authLoading, currentUser, refreshSubscription]);
-  // ▲ AJOUT MINIMAL
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
@@ -480,7 +479,7 @@ function MapPageInner() {
               </div>
             </div>
 
-            <div className="flex items_center gap-3">
+            <div className="flex items-center gap-3">
               {!userLocation && hasTriedGeolocation && (
                 <Button
                   variant="outline"
@@ -743,7 +742,7 @@ function MapPageInner() {
                       const when = new Date(s.scheduled_at);
                       return (
                         <div key={s.id} className="p-4 rounded-lg border bg-white/70">
-                          <div className="flex items-start justify_between gap-3">
+                          <div className="flex items-start justify-between gap-3">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
@@ -833,7 +832,7 @@ function MapPageInner() {
                           }}
                         >
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-semibold text-gray-900 text_sm line-clamp-1">
+                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
                               {session.title}
                             </h3>
                             <div className="flex items-center gap-2">
