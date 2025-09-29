@@ -96,13 +96,13 @@ const Subscription = () => {
 
       if (error) throw error;
       const url = (data as any)?.url || (data as any)?.checkout_url || (data as any)?.checkoutUrl;
-      if (!url) throw new Error("L’Edge Function n’a pas renvoyé d’URL d’abonnement.");
+      if (!url) throw new Error("L'Edge Function n'a pas renvoyé d'URL d'abonnement.");
 
       window.location.assign(url);
     } catch (e: any) {
       toast({
         title: "Abonnement indisponible",
-        description: e?.message || "Impossible d’ouvrir la page d’abonnement.",
+        description: e?.message || "Impossible d'ouvrir la page d'abonnement.",
         variant: "destructive",
       });
     } finally {
@@ -124,14 +124,14 @@ const Subscription = () => {
         <div className="p-4 space-y-6 main-content">
           <Card className="shadow-card border-primary/20">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary justify-center">
+              <CardTitle className="flex items-center gap-2 text-blue-600 justify-center">
                 <Crown size={24} />
                 MeetRun Unlimited
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary mb-2">9,99 €</div>
+                <div className="text-3xl font-bold text-blue-600 mb-2">9,99 €</div>
                 <div className="text-sport-gray">par mois</div>
               </div>
 
