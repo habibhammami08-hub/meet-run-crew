@@ -20,6 +20,7 @@ export default function CreateRun() {
   const supabase = getSupabase();
   const [userReady, setUserReady] = useState<"loading"|"ok"|"none">("loading");
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const redirectedRef = useRef(false);
   
   const [center, setCenter] = useState<Pt>({ lat: 48.8566, lng: 2.3522 });
   const [start, setStart] = useState<Pt | null>(null);
@@ -104,26 +105,42 @@ export default function CreateRun() {
     }
   };
 
-  // Vérification d'authentification
+  // Vérification d'authentification (redirection immédiate si non connecté)
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!supabase) { 
-        if (alive) setUserReady("none"); 
-        return; 
+        if (!redirectedRef.current) {
+          redirectedRef.current = true;
+          navigate(`/auth?returnTo=${encodeURIComponent('/create')}`, { replace: true });
+        }
+        return;
       }
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!alive) return;
         setCurrentUser(user);
-        setUserReady(user ? "ok" : "none");
+        if (user) {
+          setUserReady("ok");
+        } else {
+          if (!redirectedRef.current) {
+            redirectedRef.current = true;
+            // Pas d'écran intermédiaire : on redirige directement vers l'auth
+            navigate(`/auth?returnTo=${encodeURIComponent('/create')}`, { replace: true });
+          }
+          setUserReady("none");
+        }
       } catch (error) {
         console.error("[CreateRun] Auth error:", error);
+        if (!redirectedRef.current) {
+          redirectedRef.current = true;
+          navigate(`/auth?returnTo=${encodeURIComponent('/create')}`, { replace: true });
+        }
         if (alive) setUserReady("none");
       }
     })();
     return () => { alive = false; };
-  }, [supabase]);
+  }, [supabase, navigate]);
 
   const mapContainerStyle = useMemo(() => ({ width: "100%", height: "70vh" }), []);
 
@@ -483,28 +500,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
     );
   }
   
-  if (userReady === "none") {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle>Connexion requise</CardTitle>
-            <CardDescription>
-              Vous devez être connecté pour créer une session de running.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              onClick={() => navigate(`/auth?returnTo=${encodeURIComponent('/create')}`)}
-              className="w-full"
-            >
-              Se connecter
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Plus d'écran "Connexion requise" : si non connecté, on a déjà redirigé vers /auth
 
   // Composant avec bouton "Ma position"
   const LocationInputWithMyPosition = ({ 
