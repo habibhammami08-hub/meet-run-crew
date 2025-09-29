@@ -58,7 +58,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const c = 2 * Math.atan2(Math.sqrt(1-a), Math.sqrt(a));
   return R * c;
 }
 
@@ -180,7 +180,8 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
+  // ⬇️ Ajout: on récupère refreshSubscription (le reste inchangé)
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, refreshSubscription } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -250,6 +251,24 @@ function MapPageInner() {
   useEffect(() => {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
+
+  // ✅ Forcer la réconciliation abonnement dès que l’utilisateur est connu
+  useEffect(() => {
+    if (currentUser?.id) {
+      refreshSubscription?.();
+    }
+  }, [currentUser?.id, refreshSubscription]);
+
+  // ✅ Et à chaque retour d’onglet (utile si Stripe/webhooks ont mis à jour le profil)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && currentUser?.id) {
+        refreshSubscription?.();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [currentUser?.id, refreshSubscription]);
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
