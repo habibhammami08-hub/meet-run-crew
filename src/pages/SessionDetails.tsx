@@ -421,6 +421,51 @@ const SessionDetails = () => {
                 Supprimer
               </Button>
             )}
+            {/* ▼▼▼ AJOUT : bouton Se désinscrire (même logique que sur la page carte) */}
+            {isEnrolled && (
+              <div className="flex flex-col gap-2">
+                {(() => {
+                  const now = Date.now();
+                  const sessionTime = new Date(session.scheduled_at).getTime();
+                  const minutesUntil = (sessionTime - now) / 60000;
+                  const canUnenroll = minutesUntil >= 30;
+
+                  return canUnenroll ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                        try {
+                          const { error } = await supabase
+                            .from("enrollments")
+                            .delete()
+                            .eq("session_id", session.id)
+                            .eq("user_id", user!.id);
+
+                          if (error) throw error;
+                          await fetchSessionDetails();
+                        } catch (e: any) {
+                          alert("Erreur lors de la désinscription: " + e.message);
+                        }
+                      }}
+                    >
+                      Se désinscrire
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      title="Désinscription impossible moins de 30 minutes avant le début"
+                    >
+                      Se désinscrire
+                    </Button>
+                  );
+                })()}
+              </div>
+            )}
+            {/* ▲▲▲ */}
           </div>
         </div>
 
