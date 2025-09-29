@@ -298,11 +298,11 @@ const Home = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-              {/* Étape 1 */}
+              {/* Étape 1 - MAINTENANT EN VERT */}
               <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 to-emerald-500"></div>
                 <CardContent className="p-8 text-center">
-                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
                     <MapPin size={32} className="text-white" />
                   </div>
                   <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
@@ -331,11 +331,11 @@ const Home = () => {
                 </CardContent>
               </Card>
 
-              {/* Étape 2 */}
+              {/* Étape 2 - MAINTENANT EN BLEU */}
               <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 to-emerald-500"></div>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
                 <CardContent className="p-8 text-center">
-                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
                     <CreditCard size={32} className="text-white" />
                   </div>
                   <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
