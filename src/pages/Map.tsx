@@ -140,6 +140,34 @@ function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selecte
     : { url };
 }
 
+// ▼▼▼ AJOUT : icône d'arrivée rouge, identique au marqueur ci-dessus mais couleur fixe rouge
+function createArrivalMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
+  const { own, enrolled, selected, hasSub } = opts;
+  const size = own ? 20 : (selected ? 18 : 16);
+  const color = "#ef4444"; // rouge pour l'arrivée
+  const cx = size / 2;
+  const cy = size / 2;
+
+  const star = `<path d=" M ${cx} ${cy - 3.2} L ${cx + 1.3} ${cy + 1.1} L ${cx - 3.1} ${cy - 0.7} L ${cx + 3.1} ${cy - 0.7} L ${cx - 1.3} ${cy + 1.1} Z " fill="white" />`;
+  const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
+  const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
+
+  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
+    <path d="${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
+    <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
+    ${innerOwn}
+    ${enrolled ? star : ""}
+    ${selected && !enrolled ? dot : ""}
+  </svg>`;
+
+  const url = "data:image/svg+xml," + encodeURIComponent(svg);
+  const g = typeof window !== "undefined" ? (window as any).google : undefined;
+  return g?.maps?.Size && g?.maps?.Point
+    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
+    : { url };
+}
+// ▲▲▲
+
 // ————————————————————————————————————————————
 // Pictogrammes de type 
 // ————————————————————————————————————————————
@@ -619,10 +647,26 @@ function MapPageInner() {
                             }}
                           />
                           {allowPolyline && path.length > 1 && (
-                            <Polyline
-                              path={path}
-                              options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#3b82f6' }}
-                            />
+                            <>
+                              <Polyline
+                                path={path}
+                                options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#3b82f6' }}
+                              />
+                              {/* ▼▼▼ AJOUT : point d'arrivée rouge, identique en style */}
+                              {s.end_lat !== null && s.end_lng !== null && (
+                                <MarkerF
+                                  position={{ lat: s.end_lat, lng: s.end_lng }}
+                                  title="Arrivée"
+                                  icon={createArrivalMarkerIcon({ own, enrolled, selected, hasSub })}
+                                  onClick={(e) => {
+                                    // @ts-ignore — google maps DOM event
+                                    e.domEvent?.stopPropagation?.();
+                                    setSelectedSession(selected ? null : s.id);
+                                  }}
+                                />
+                              )}
+                              {/* ▲▲▲ */}
+                            </>
                           )}
                         </div>
                       );
