@@ -49,6 +49,9 @@ type Session = {
   max_participants: number;
   current_participants: number;
   status: string;
+  // ▼▼▼ Ajouts pour distinguer hôte vs participant
+  is_host?: boolean;
+  is_joined?: boolean;
 };
 
 export default function ProfilePage() {
@@ -96,7 +99,8 @@ export default function ProfilePage() {
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
-      const { data: sessions, error } = await supabase
+      // Sessions hébergées (identique à avant)
+      const { data: hosted, error: hostedError } = await supabase
         .from('sessions')
         .select(`
           id,
@@ -114,10 +118,10 @@ export default function ProfilePage() {
         .order('scheduled_at', { ascending: false });
 
       if (!mountedRef.current) return;
-      if (error || !sessions) return;
+      if (hostedError) return;
 
-      const sessionsWithCounts = await Promise.all(
-        sessions.map(async (session) => {
+      const hostedWithCounts = await Promise.all(
+        (hosted ?? []).map(async (session) => {
           if (!mountedRef.current) return null;
           try {
             const { count } = await supabase
@@ -125,14 +129,75 @@ export default function ProfilePage() {
               .select('*', { count: 'exact' })
               .eq('session_id', session.id)
               .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-            return { ...session, current_participants: (count || 0) + 1 };
+            return { ...session, current_participants: (count || 0) + 1, is_host: true };
           } catch {
-            return { ...session, current_participants: 1 };
+            return { ...session, current_participants: 1, is_host: true };
           }
         })
       );
-      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
-      if (mountedRef.current) setMySessions(validSessions);
+
+      // Sessions où l'utilisateur est inscrit comme participant (paid / included_by_subscription / confirmed)
+      const { data: joined, error: joinedError } = await supabase
+        .from('enrollments')
+        .select(`
+          session_id,
+          sessions:session_id (
+            id,
+            title,
+            scheduled_at,
+            start_place,
+            distance_km,
+            intensity,
+            max_participants,
+            status
+          )
+        `)
+        .eq('user_id', userId)
+        .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+
+      if (joinedError) {
+        // On continue quand même avec les sessions hébergées
+      }
+
+      const joinedSessionsRaw = (joined ?? [])
+        .map((row: any) => row.sessions)
+        .filter(Boolean) as Session[];
+
+      const joinedWithCounts = await Promise.all(
+        joinedSessionsRaw.map(async (session) => {
+          if (!mountedRef.current) return null;
+          try {
+            const { count } = await supabase
+              .from('enrollments')
+              .select('*', { count: 'exact' })
+              .eq('session_id', session.id)
+              .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+            return { ...session, current_participants: (count || 0) + 1, is_joined: true };
+          } catch {
+            return { ...session, current_participants: 1, is_joined: true };
+          }
+        })
+      );
+
+      // Fusion + dédoublonnage par id (priorité aux objets marqués is_host)
+      const mapById = new Map<string, Session>();
+      for (const s of (hostedWithCounts.filter(Boolean) as Session[])) {
+        mapById.set(s.id, s);
+      }
+      for (const s of (joinedWithCounts.filter(Boolean) as Session[])) {
+        if (!mapById.has(s.id)) {
+          mapById.set(s.id, s);
+        } else {
+          // Si la même session est aussi host, on conserve la version host (déjà présente)
+        }
+      }
+
+      // Tri par date desc
+      const finalList = Array.from(mapById.values()).sort(
+        (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+      );
+
+      if (mountedRef.current) setMySessions(finalList);
     } catch (error) {
       if (mountedRef.current) console.error('[Profile] Error fetching sessions:', error);
     }
@@ -250,6 +315,26 @@ export default function ProfilePage() {
       if (mountedRef.current) setDeletingSession(null);
     }
   };
+
+  // ▼▼▼ Ajout : désinscription d'une session où je suis participant
+  const handleUnenroll = async (sessionId: string) => {
+    if (!supabase || !user?.id || !mountedRef.current) return;
+    try {
+      const { error } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+
+      toast({ title: "Désinscription effectuée", description: "Vous avez été désinscrit de la session." });
+      await fetchMySessions(user.id);
+      updateProfileStats(user.id);
+    } catch (e: any) {
+      toast({ title: "Erreur", description: "Erreur lors de la désinscription: " + e.message, variant: "destructive" });
+    }
+  };
+  // ▲▲▲
 
   async function handleSave() {
     if (!supabase || !profile || !user?.id || !mountedRef.current) return;
@@ -642,34 +727,69 @@ export default function ProfilePage() {
                       >
                         Voir
                       </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={deletingSession === session.id}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteSession(session.id)}
-                              className="bg-destructive hover:bg-destructive/90"
+
+                      {/* ▼▼▼ Ajout : si je suis hôte -> bouton supprimer (inchangé), sinon -> bouton se désinscrire */}
+                      {session.is_host ? (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={deletingSession === session.id}
                             >
-                              Supprimer
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annuler</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteSession(session.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                              >
+                                Supprimer
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      ) : (
+                        // Bouton "Se désinscrire" identique à celui demandé (logique 30 min)
+                        (() => {
+                          const now = Date.now();
+                          const sessionTime = new Date(session.scheduled_at).getTime();
+                          const minutesUntil = (sessionTime - now) / 60000;
+                          const canUnenroll = minutesUntil >= 30;
+
+                          return canUnenroll ? (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={async () => {
+                                if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                                await handleUnenroll(session.id);
+                              }}
+                            >
+                              Se désinscrire
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              title="Désinscription impossible moins de 30 minutes avant le début"
+                            >
+                              Se désinscrire
+                            </Button>
+                          );
+                        })()
+                      )}
+                      {/* ▲▲▲ */}
                     </div>
                   </div>
                 </div>
