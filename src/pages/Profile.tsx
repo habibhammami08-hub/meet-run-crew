@@ -22,7 +22,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 
-// ⭐ Nouveaux imports pour l'écran plein écran (même pattern que Auth)
+// ⭐ Imports pour l'écran plein écran (même pattern que Auth)
 import { CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 
 type Profile = {
@@ -233,7 +233,9 @@ export default function ProfilePage() {
         .delete()
         .eq('id', sessionId)
         .eq('host_id', user.id);
-      if (sessionError) throw sessionError;
+      if (sessionError) {
+        throw sessionError;
+      }
 
       if (mountedRef.current) {
         toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
@@ -313,12 +315,11 @@ export default function ProfilePage() {
       });
       if (error) throw error;
 
-      // On affiche l'écran de succès en PLEIN ÉCRAN
+      // Affiche l'écran de succès en PLEIN ÉCRAN
       setDeleteSuccess(true);
       setDeleteDialogOpen(false);
 
-      // On invalide la session localement pour que l'app ne "pense" plus que l'user est connecté
-      // mais on NE redirige pas ici : on laisse l'utilisateur lire le message.
+      // Invalide la session locale (sans redirection auto)
       await supabase.auth.signOut();
     } catch (e: any) {
       toast({
@@ -370,19 +371,13 @@ export default function ProfilePage() {
             </div>
           </CardContent>
 
+          {/* 👇 Seul bouton conservé comme demandé */}
           <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button
               className="w-full sm:w-auto"
               onClick={() => navigate("/", { replace: true })}
             >
               Retour à l’accueil
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => navigate("/auth?mode=signin", { replace: true })}
-            >
-              Se reconnecter
             </Button>
           </CardFooter>
         </Card>
@@ -745,7 +740,6 @@ export default function ProfilePage() {
                       </AlertDialogFooter>
                     </>
                   ) : (
-                    // On ne montre normalement jamais ce bloc car on ferme la modale au succès
                     <></>
                   )}
                 </AlertDialogContent>
