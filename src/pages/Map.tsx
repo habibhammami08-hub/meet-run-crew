@@ -180,8 +180,7 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  // ⬇️ AJOUT MINIMAL : on récupère refreshSubscription depuis le contexte
-  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, refreshSubscription } = useAuth();
+  const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -203,9 +202,6 @@ function MapPageInner() {
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { handleGeolocationError } = useGeolocationNotifications();
-
-  // ——— AJOUT : état de désinscription
-  const [unenrollingId, setUnenrollingId] = useState<string | null>(null);
 
   const mapOptions = useMemo(() => ({
     mapTypeControl: false,
@@ -254,14 +250,6 @@ function MapPageInner() {
   useEffect(() => {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
-
-  // ⬇️ AJOUT MINIMAL : synchronise l'abonnement dès que l'utilisateur est connu et que l'auth est prête
-  useEffect(() => {
-    if (!authLoading && currentUser) {
-      refreshSubscription?.();
-    }
-  }, [authLoading, currentUser, refreshSubscription]);
-  // ▲ AJOUT MINIMAL
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
@@ -335,43 +323,6 @@ function MapPageInner() {
       if (mountedRef.current) fetchSessions();
     }, 2000);
   }, [fetchSessions]);
-
-  // ——— AJOUT : handler de désinscription
-  const unenrollFromSession = useCallback(async (sessionId: string) => {
-    if (!supabase || !currentUser) {
-      navigate(AUTH_ROUTE);
-      return;
-    }
-
-    const ok = window.confirm("Confirmer votre désinscription de cette session ?");
-    if (!ok) return;
-
-    try {
-      setUnenrollingId(sessionId);
-
-      const { error } = await supabase
-        .from("enrollments")
-        .delete()
-        .eq("user_id", currentUser.id)
-        .eq("session_id", sessionId);
-
-      if (error) {
-        alert("Impossible de vous désinscrire : " + error.message);
-        return;
-      }
-
-      setMySessionIds(prev => {
-        const next = new Set(prev);
-        next.delete(sessionId);
-        return next;
-      });
-
-      await fetchMyEnrollments();
-      debouncedRefresh();
-    } finally {
-      setUnenrollingId(null);
-    }
-  }, [supabase, currentUser, navigate, fetchMyEnrollments, debouncedRefresh]);
 
   const sessionsWithDistance = useMemo(() => {
     if (!userLocation) return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
@@ -520,7 +471,7 @@ function MapPageInner() {
               </div>
             </div>
 
-            <div className="flex items_center gap-3">
+            <div className="flex items-center gap-3">
               {!userLocation && hasTriedGeolocation && (
                 <Button
                   variant="outline"
@@ -783,7 +734,7 @@ function MapPageInner() {
                       const when = new Date(s.scheduled_at);
                       return (
                         <div key={s.id} className="p-4 rounded-lg border bg-white/70">
-                          <div className="flex items-start justify_between gap-3">
+                          <div className="flex items-start justify-between gap-3">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
@@ -799,15 +750,15 @@ function MapPageInner() {
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                              {/* ——— remplacé: Zoomer -> Se désinscrire */}
                               <Button
                                 size="sm"
-                                variant="destructive"
-                                disabled={unenrollingId === s.id}
-                                onClick={() => unenrollFromSession(s.id)}
-                                aria-busy={unenrollingId === s.id}
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedSession(s.id);
+                                  setCenter({ lat: s.start_lat, lng: s.start_lng });
+                                }}
                               >
-                                {unenrollingId === s.id ? "Désinscription..." : "Se désinscrire"}
+                                Zoomer
                               </Button>
                               <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Voir</Button>
                             </div>
@@ -873,7 +824,7 @@ function MapPageInner() {
                           }}
                         >
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-semibold text-gray-900 text_sm line-clamp-1">
+                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
                               {session.title}
                             </h3>
                             <div className="flex items-center gap-2">
