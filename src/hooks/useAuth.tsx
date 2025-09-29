@@ -14,7 +14,7 @@ type Profile = {
 };
 
 type AuthCtx = {
-  ready: boolean;           // <-- très important : vrai quand la session est restaurée ET (si connecté) le profil est chargé
+  ready: boolean;           // <-- vrai quand la session est restaurée ET (si connecté) le profil est chargé
   loading: boolean;         // loader ponctuel
   user: User | null;
   profile: Profile | null;
@@ -62,7 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.warn("[useAuth] profiles fetch error:", error.message);
-        setProfile((p) => p ?? null);
+        // IMPORTANT : on n’entretient pas un profil potentiellement obsolète
+        setProfile(null);
       } else {
         setProfile((data as Profile) ?? null);
       }
@@ -112,6 +113,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
     });
 
+    // 🔔 Realtime : se mettre à jour dès qu’une UPDATE touche la ligne du user
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        const uid = u?.user?.id;
+        if (uid) {
+          channel = supabase
+            .channel("profile-sub")
+            .on(
+              "postgres_changes",
+              { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${uid}` },
+              (payload: any) => {
+                setProfile((prev) => ({ ...(prev ?? {} as any), ...(payload.new as any) }));
+              }
+            )
+            .subscribe();
+        }
+      } catch (e) {
+        console.warn("[useAuth] realtime subscribe error:", e);
+      }
+    })();
+
     // 5) Rafraîchit quand l'onglet redevient visible (utile après long sommeil)
     const onVisible = async () => {
       if (document.visibilityState === "visible") {
@@ -127,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mountedRef.current = false;
       sub?.subscription?.unsubscribe();
       document.removeEventListener("visibilitychange", onVisible);
+      if (channel) supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
