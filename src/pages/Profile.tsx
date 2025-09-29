@@ -445,12 +445,32 @@ export default function ProfilePage() {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const { data, error } = await supabase.functions.invoke("delete-account2", {
         headers: { Authorization: `Bearer ${token}` },
+        body: {}, // explicite pour certains proxys
       });
 
       if (error) throw error;
 
-      // Afficher l'écran de succès centré (pas d'auto-redirect)
+      // ✅ Succès : on met l'UI en état "succès" (modale) ET on force la sortie + redirection
       setDeleteSuccess(true);
+
+      // Laisse React peindre la vue de succès (petit délai microtask)
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Invalider la session locale pour éviter l'état "connecté fantôme"
+      await supabase.auth.signOut();
+
+      // Ferme la modale (évite blocages d'historique sur mobile)
+      setDeleteDialogOpen(false);
+
+      // Redirection douce
+      navigate("/", { replace: true });
+
+      // Fallback dur (certains webviews/Android bloquent parfois navigate)
+      setTimeout(() => {
+        if (typeof window !== "undefined" && window.location.pathname !== "/") {
+          window.location.replace("/");
+        }
+      }, 250);
     } catch (e: any) {
       toast({
         title: "Suppression impossible",
@@ -870,8 +890,7 @@ export default function ProfilePage() {
 
                           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
                             <Button
-                              onClick={async () => {
-                                await supabase.auth.signOut();
+                              onClick={() => {
                                 setDeleteDialogOpen(false);
                                 navigate("/", { replace: true });
                               }}
@@ -882,8 +901,7 @@ export default function ProfilePage() {
 
                             <Button
                               variant="outline"
-                              onClick={async () => {
-                                await supabase.auth.signOut();
+                              onClick={() => {
                                 setDeleteDialogOpen(false);
                               }}
                               className="w-full sm:w-auto"
