@@ -822,15 +822,29 @@ function MapPageInner() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="space-y-3">{[1,2,3].map(i => (<div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>))}</div>
-                ) : filteredNearestSessions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Aucune session proche trouvée</p>
-                    <p className="text-xs mt-1">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres" : "Activez la géolocalisation"}</p>
-                  </div>
-                ) : (
+                {(() => {
+                  console.log('[Map] Rendering "près de vous" section', { 
+                    loading, 
+                    sessionsCount: filteredNearestSessions.length,
+                    currentUser: currentUser?.id || 'none',
+                    userLocation: userLocation ? 'available' : 'null'
+                  });
+                  
+                  if (loading) {
+                    return <div className="space-y-3">{[1,2,3].map(i => (<div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>))}</div>;
+                  }
+                  
+                  if (filteredNearestSessions.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm">Aucune session proche trouvée</p>
+                        <p className="text-xs mt-1">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres" : "Activez la géolocalisation"}</p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredNearestSessions.map(session => {
                       const blur = shouldBlur(session);
@@ -901,7 +915,8 @@ function MapPageInner() {
                       );
                     })}
                   </div>
-                )}
+                  );
+                })()}
               </CardContent>
             </Card>
 
