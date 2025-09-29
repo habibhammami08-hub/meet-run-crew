@@ -14,8 +14,8 @@ type Profile = {
 };
 
 type AuthCtx = {
-  ready: boolean;           // vrai quand session restaurée ET (si connecté) profil chargé
-  loading: boolean;
+  ready: boolean;           // <-- très important : vrai quand la session est restaurée ET (si connecté) le profil est chargé
+  loading: boolean;         // loader ponctuel
   user: User | null;
   profile: Profile | null;
   hasActiveSubscription: boolean;
@@ -28,21 +28,11 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
+// ✅ Modifié: considère 'active' comme vrai même si la date de fin n'est pas encore peuplée
 function isSubActive(status?: string | null, end?: string | null) {
   if (status !== "active") return false;
-  if (!end) return false;
+  if (!end) return true; // <-- fallback: statut actif sans date ➜ on affiche abonné
   return new Date(end) > new Date();
-}
-
-function shallowChanged(a?: Profile | null, b?: Profile | null) {
-  if (!a && !b) return false;
-  if (!a || !b) return true;
-  return (
-    a.sub_status !== b.sub_status ||
-    a.sub_current_period_end !== b.sub_current_period_end ||
-    a.updated_at !== b.updated_at ||
-    a.stripe_customer_id !== b.stripe_customer_id
-  );
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -53,124 +43,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  const isMounted = useRef(false);
-  const fetchingRef = useRef<Promise<void> | null>(null);
-  const realtimeSubRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const lastFetchAtRef = useRef<number>(0);
+  const mountedRef = useRef(false);
+  const loadingRef = useRef(false);
 
-  const fetchProfile = async (uid: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
-      .eq("id", uid)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("[useAuth] profiles fetch error:", error.message);
-      return;
-    }
-    setProfile((prev) => (shallowChanged(prev, data as Profile) ? ((data as Profile) ?? null) : prev));
-  };
-
+  // Charge/rafraîchit le profil (séparé pour être réutilisé)
   const refreshProfile = async () => {
     if (!user) {
       setProfile(null);
       return;
     }
-    // anti-spam (1500ms)
-    const now = Date.now();
-    if (now - lastFetchAtRef.current < 1500 && fetchingRef.current) {
-      await fetchingRef.current.catch(() => {});
-      return;
-    }
-    lastFetchAtRef.current = now;
-
-    const p = (async () => {
+    try {
+      loadingRef.current = true;
       setLoading(true);
-      try {
-        await fetchProfile(user.id);
-      } finally {
-        setLoading(false);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("[useAuth] profiles fetch error:", error.message);
+        setProfile((p) => p ?? null);
+      } else {
+        setProfile((data as Profile) ?? null);
       }
-    })();
-
-    fetchingRef.current = p;
-    await p.catch(() => {});
-    fetchingRef.current = null;
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
   };
 
-  // Abonnement realtime au profil connecté (sans boucle)
-  const subscribeToProfile = (uid: string) => {
-    // cleanup ancien channel
-    realtimeSubRef.current?.unsubscribe();
-    realtimeSubRef.current = null;
-
-    const channel = supabase
-      .channel(`public:profiles:id=eq.${uid}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles", filter: `id=eq.${uid}` },
-        (payload) => {
-          // on met à jour localement uniquement si changement
-          const newRow = payload.new as Profile | undefined;
-          if (newRow) {
-            setProfile((prev) => (shallowChanged(prev, newRow) ? newRow : prev));
-          } else {
-            // si delete (peu probable), on refetch propre
-            refreshProfile().catch(() => {});
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          // optionnel : refetch pour aligner asap au premier abonnement
-          refreshProfile().catch(() => {});
-        }
-      });
-
-    realtimeSubRef.current = channel;
-  };
-
-  // Réconciliation initiale session + profil
+  // Réconciliation initiale de la session + profil
   useEffect(() => {
-    isMounted.current = true;
+    mountedRef.current = true;
 
     (async () => {
       try {
+        // 1) Récupère la session persistée
         const { data } = await supabase.auth.getSession();
         const sessUser = data?.session?.user ?? null;
         setUser(sessUser);
 
+        // 2) Si connecté → charge le profil
         if (sessUser) {
           await refreshProfile();
-          subscribeToProfile(sessUser.id);
         } else {
           setProfile(null);
         }
       } catch (e) {
         console.warn("[useAuth] getSession error:", e);
       } finally {
+        // 3) Marque le contexte comme prêt (pages peuvent démarrer)
         setReady(true);
         setLoading(false);
       }
     })();
 
+    // 4) Abonnement aux changements d'auth
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
 
-      // (ré)abonne le canal realtime proprement
+      // En cas de SIGNED_IN / TOKEN_REFRESHED / etc. → recharge le profil
       if (nextUser) {
-        subscribeToProfile(nextUser.id);
         await refreshProfile();
       } else {
-        realtimeSubRef.current?.unsubscribe();
-        realtimeSubRef.current = null;
         setProfile(null);
       }
       setReady(true);
     });
 
+    // 5) Rafraîchit quand l'onglet redevient visible (utile après long sommeil)
     const onVisible = async () => {
       if (document.visibilityState === "visible") {
         try {
@@ -182,16 +125,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      isMounted.current = false;
+      mountedRef.current = false;
       sub?.subscription?.unsubscribe();
-      realtimeSubRef.current?.unsubscribe();
-      realtimeSubRef.current = null;
       document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refreshSubscription = async () => {
+    // force un refetch du profil (utilisé après un retour Stripe ou un webhook)
     await refreshProfile();
   };
 
