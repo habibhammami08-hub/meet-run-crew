@@ -1,5 +1,5 @@
 // src/pages/Subscription.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,42 +10,13 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Subscription = () => {
-  const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription, ready, loading } = useAuth();
+  const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
   const [isPortalLoading, setIsPortalLoading] = useState(false);
   const [isSubLoading, setIsSubLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const supabase = getSupabase();
   const [searchParams] = useSearchParams();
-
-  // ⬇️ Refs & mounted guard (même logique que Home/Profile)
-  const mountedRef = useRef(true);
-
-  // ✅ Refresh au montage et à chaque changement d’utilisateur (comme Home)
-  useEffect(() => {
-    if (user?.id) {
-      refreshSubscription?.();
-    }
-  }, [user?.id, refreshSubscription]);
-
-  // ✅ Refresh quand l’onglet redevient visible (comme Home)
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && user?.id) {
-        refreshSubscription?.();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [user?.id, refreshSubscription]);
-
-  // ✅ Cleanup général (pattern Profile/Home)
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   // ————— Gestion du retour Stripe : /subscription?checkout=success|cancel
   useEffect(() => {
@@ -155,22 +126,6 @@ const Subscription = () => {
       month: "long",
       day: "numeric",
     });
-
-  // ✅ Gating de l’UI pendant l’hydratation auth/subscription (pattern Profile/Home)
-  if (user === undefined || !ready || loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="p-4 main-content">
-          <div className="flex items-center justify-center min-h-[300px]">
-            <div className="text-center">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p>Vérification de votre abonnement...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // ————— Vue publique si non connecté
   if (!user) {
