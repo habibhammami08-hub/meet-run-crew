@@ -8,8 +8,8 @@ type Profile = {
   full_name?: string | null;
   email?: string | null;
   stripe_customer_id?: string | null;
-  sub_status?: string | null; // 'active' | 'trialing' | 'canceled' | null ...
-  sub_current_period_end?: string | null; // ISO string
+  sub_status?: string | null;
+  sub_current_period_end?: string | null;
   updated_at?: string | null;
 };
 
@@ -28,11 +28,9 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
-// Option : si Stripe met "active" une fraction de seconde avant de poser la date,
-// on considère actif quand sub_status === "active" même si la date n'est pas encore là.
 function isSubActive(status?: string | null, end?: string | null) {
   if (status !== "active") return false;
-  if (!end) return true; // assouplissement utile juste après le paiement
+  if (!end) return true;
   return new Date(end) > new Date();
 }
 
@@ -47,19 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(false);
   const loadingRef = useRef(false);
 
-  // Charge / rafraîchit le profil
-  const refreshProfile = async () => {
-    if (!user) {
-      setProfile(null);
-      return;
-    }
+  // 🔧 FIX: Accepte un userId en paramètre pour éviter les problèmes de closure
+  const fetchProfile = async (userId: string) => {
     try {
       loadingRef.current = true;
       setLoading(true);
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
-        .eq("id", user.id)
+        .eq("id", userId)
         .maybeSingle();
 
       if (error) {
@@ -74,6 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Wrapper pour l'API publique (utilise user actuel)
+  const refreshProfile = async () => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    await fetchProfile(user.id);
+  };
+
   // Réconciliation initiale de la session + profil
   useEffect(() => {
     mountedRef.current = true;
@@ -85,16 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sessUser = data?.session?.user ?? null;
         setUser(sessUser);
 
-        // 2) Si connecté → charge le profil
+        // 2) Si connecté → charge le profil AVEC l'ID récupéré
         if (sessUser) {
-          await refreshProfile();
+          await fetchProfile(sessUser.id);
         } else {
           setProfile(null);
         }
       } catch (e) {
         console.warn("[useAuth] getSession error:", e);
       } finally {
-        // 3) Marque le contexte comme prêt (pages peuvent démarrer)
         setReady(true);
         setLoading(false);
       }
@@ -105,35 +107,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
 
-      // En cas de SIGNED_IN / TOKEN_REFRESHED / etc. → recharge le profil
+      // 🔧 FIX: Utilise directement nextUser au lieu de user
       if (nextUser) {
-        await refreshProfile();
+        await fetchProfile(nextUser.id);
       } else {
         setProfile(null);
       }
       setReady(true);
     });
 
-    // 5) Rafraîchit quand l'onglet redevient visible
+    return () => {
+      mountedRef.current = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, [supabase]); // ✅ Dépendances correctes
+
+  // 5) Rafraîchit quand l'onglet redevient visible
+  useEffect(() => {
     const onVisible = async () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && user) {
         try {
           await supabase.auth.refreshSession();
         } catch {}
-        if (user) await refreshProfile();
+        await fetchProfile(user.id);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      mountedRef.current = false;
-      sub?.subscription?.unsubscribe();
       document.removeEventListener("visibilitychange", onVisible);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, supabase]); // ✅ Dépendances correctes
 
-  // 🔴 Realtime : écoute les changements de *ton* profil (id = user.id)
+  // 🔴 Realtime : écoute les changements de *ton* profil
   useEffect(() => {
     if (!user) return;
 
@@ -150,7 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (payload) => {
           const row = payload.new as Profile | undefined;
           if (row) {
-            // met à jour localement dès que le webhook Stripe a modifié la ligne
             setProfile((prev) => ({ ...(prev ?? {} as Profile), ...row }));
           }
         }
@@ -163,7 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, supabase]);
 
   const refreshSubscription = async () => {
-    // force un refetch du profil (utilisé après un retour Stripe ou un webhook)
     await refreshProfile();
   };
 
