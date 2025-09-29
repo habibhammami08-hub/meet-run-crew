@@ -65,7 +65,6 @@ const Subscription = () => {
       });
       if (error) throw error;
 
-      // ✅ l’Edge Function renvoie { portal_url, id, expires_at }
       const portalUrl =
         (data as any)?.portal_url ||
         (data as any)?.url ||
@@ -75,7 +74,6 @@ const Subscription = () => {
         throw new Error("Aucune URL de portail reçue depuis le serveur.");
       }
 
-      // Redirection dans le même onglet pour fiabilité
       window.location.assign(portalUrl);
     } catch (error: any) {
       toast({
@@ -98,7 +96,6 @@ const Subscription = () => {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
 
-      // On force des URLs de retour stables vers la page courante
       const success_url = `${window.location.origin}/subscription?checkout=success&sid={CHECKOUT_SESSION_ID}`;
       const cancel_url = `${window.location.origin}/subscription?checkout=cancel`;
 
@@ -232,7 +229,7 @@ const Subscription = () => {
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary justify-center">
+              <CardTitle className="flex items-center gap-2 text-blue-600 justify-center">
                 <Crown size={20} />
                 Abonnement MeetRun Unlimited
               </CardTitle>
@@ -243,7 +240,6 @@ const Subscription = () => {
                   <Check size={14} className="mr-1" />
                   Actif
                 </Badge>
-                <span className="text-sm text-sport-gray">Statut: {subscriptionStatus}</span>
               </div>
 
               {subscriptionEnd && (
