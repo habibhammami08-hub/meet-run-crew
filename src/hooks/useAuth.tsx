@@ -14,8 +14,8 @@ type Profile = {
 };
 
 type AuthCtx = {
-  ready: boolean;           // <-- très important : vrai quand la session est restaurée ET (si connecté) le profil est chargé
-  loading: boolean;         // loader ponctuel
+  ready: boolean;
+  loading: boolean;
   user: User | null;
   profile: Profile | null;
   hasActiveSubscription: boolean;
@@ -28,11 +28,13 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
-// ✅ Modifié: considère 'active' comme vrai même si la date de fin n'est pas encore peuplée
+// ✅ Considère 'active' OU 'trialing' comme abonné.
+//    Et n’exige PAS la date de fin (certains webhooks ne la posent pas tout de suite).
 function isSubActive(status?: string | null, end?: string | null) {
-  if (status !== "active") return false;
-  if (!end) return true; // <-- fallback: statut actif sans date ➜ on affiche abonné
-  return new Date(end) > new Date();
+  if (!status) return false;
+  const s = status.trim().toLowerCase();
+  if (s === "active" || s === "trialing") return true;
+  return false;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,7 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(false);
   const loadingRef = useRef(false);
 
-  // Charge/rafraîchit le profil (séparé pour être réutilisé)
+  // --- Helpers de log (désactive si tu veux)
+  const log = (...args: any[]) => {
+    // console.log("[useAuth]", ...args);
+  };
+
+  // Charge/rafraîchit le profil
   const refreshProfile = async () => {
     if (!user) {
       setProfile(null);
@@ -55,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       loadingRef.current = true;
       setLoading(true);
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, stripe_customer_id, sub_status, sub_current_period_end, updated_at, email")
@@ -63,9 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.warn("[useAuth] profiles fetch error:", error.message);
-        setProfile((p) => p ?? null);
+        // ne touche pas au profile si erreur réseau passagère
+        return;
+      }
+
+      if (data) {
+        log("Fetched profile:", data);
+        setProfile(data as Profile);
       } else {
-        setProfile((data as Profile) ?? null);
+        setProfile(null);
       }
     } finally {
       loadingRef.current = false;
@@ -79,12 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        // 1) Récupère la session persistée
         const { data } = await supabase.auth.getSession();
         const sessUser = data?.session?.user ?? null;
         setUser(sessUser);
 
-        // 2) Si connecté → charge le profil
         if (sessUser) {
           await refreshProfile();
         } else {
@@ -93,18 +105,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.warn("[useAuth] getSession error:", e);
       } finally {
-        // 3) Marque le contexte comme prêt (pages peuvent démarrer)
         setReady(true);
         setLoading(false);
       }
     })();
 
-    // 4) Abonnement aux changements d'auth
+    // Abonnement aux changements d'auth
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
 
-      // En cas de SIGNED_IN / TOKEN_REFRESHED / etc. → recharge le profil
       if (nextUser) {
         await refreshProfile();
       } else {
@@ -113,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
     });
 
-    // 5) Rafraîchit quand l'onglet redevient visible (utile après long sommeil)
+    // Rafraîchir quand l’onglet redevient visible
     const onVisible = async () => {
       if (document.visibilityState === "visible") {
         try {
@@ -132,8 +142,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 🔴 Ajoute un listener Realtime Postgres sur la ligne de profil
+  //     pour répercuter instantanément les updates du webhook Stripe.
+  useEffect(() => {
+    if (!user) return;
+    // IMPORTANT : il faut que 'profiles' soit bien dans la publication supabase_realtime (tu l’as déjà ajouté)
+    const channel = supabase
+      .channel(`realtime-profiles-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          // payload.new contient la ligne après update
+          const next = payload?.new;
+          if (next) {
+            log("Realtime profiles change:", next);
+            setProfile((prev) => {
+              // Évite de reset si rien ne change
+              if (!prev) return next as Profile;
+              // Merge simple pour garder les autres champs
+              return { ...prev, ...(next as Profile) };
+            });
+          }
+        }
+      )
+      .subscribe((status) => {
+        log("Realtime subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const refreshSubscription = async () => {
-    // force un refetch du profil (utilisé après un retour Stripe ou un webhook)
     await refreshProfile();
   };
 
