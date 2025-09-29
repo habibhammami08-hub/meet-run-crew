@@ -60,8 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      loadingRef.current = true;
-      setLoading(true);
+      // ✅ Ne pas remettre loading à true ici si on est déjà en train de charger au mount
+      if (!loadingRef.current) {
+        loadingRef.current = true;
+        setLoading(true);
+      }
 
       const { data, error } = await supabase
         .from("profiles")
@@ -93,11 +96,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
+        // ✅ On met loading à true AVANT de charger pour éviter les race conditions
+        setLoading(true);
+        loadingRef.current = true;
+        
         const { data } = await supabase.auth.getSession();
         const sessUser = data?.session?.user ?? null;
         setUser(sessUser);
 
         if (sessUser) {
+          // ✅ ATTENDRE que refreshProfile soit terminé avant de passer ready=true
           await refreshProfile();
         } else {
           setProfile(null);
@@ -107,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } finally {
         setReady(true);
         setLoading(false);
+        loadingRef.current = false;
       }
     })();
 
