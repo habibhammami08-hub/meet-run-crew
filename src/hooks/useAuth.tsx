@@ -14,8 +14,8 @@ type Profile = {
 };
 
 type AuthCtx = {
-  ready: boolean;           // <-- vrai quand la session est restaurée ET (si connecté) le profil est chargé
-  loading: boolean;         // loader ponctuel
+  ready: boolean;
+  loading: boolean;
   user: User | null;
   profile: Profile | null;
   hasActiveSubscription: boolean;
@@ -28,9 +28,11 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
+// Option : si Stripe met "active" une fraction de seconde avant de poser la date,
+// on considère actif quand sub_status === "active" même si la date n'est pas encore là.
 function isSubActive(status?: string | null, end?: string | null) {
   if (status !== "active") return false;
-  if (!end) return false;
+  if (!end) return true; // assouplissement utile juste après le paiement
   return new Date(end) > new Date();
 }
 
@@ -45,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(false);
   const loadingRef = useRef(false);
 
-  // Charge/rafraîchit le profil (séparé pour être réutilisé)
+  // Charge / rafraîchit le profil
   const refreshProfile = async () => {
     if (!user) {
       setProfile(null);
@@ -62,8 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.warn("[useAuth] profiles fetch error:", error.message);
-        // IMPORTANT : on n’entretient pas un profil potentiellement obsolète
-        setProfile(null);
+        setProfile((p) => p ?? null);
       } else {
         setProfile((data as Profile) ?? null);
       }
@@ -113,30 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
     });
 
-    // 🔔 Realtime : se mettre à jour dès qu’une UPDATE touche la ligne du user
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    (async () => {
-      try {
-        const { data: u } = await supabase.auth.getUser();
-        const uid = u?.user?.id;
-        if (uid) {
-          channel = supabase
-            .channel("profile-sub")
-            .on(
-              "postgres_changes",
-              { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${uid}` },
-              (payload: any) => {
-                setProfile((prev) => ({ ...(prev ?? {} as any), ...(payload.new as any) }));
-              }
-            )
-            .subscribe();
-        }
-      } catch (e) {
-        console.warn("[useAuth] realtime subscribe error:", e);
-      }
-    })();
-
-    // 5) Rafraîchit quand l'onglet redevient visible (utile après long sommeil)
+    // 5) Rafraîchit quand l'onglet redevient visible
     const onVisible = async () => {
       if (document.visibilityState === "visible") {
         try {
@@ -151,10 +129,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mountedRef.current = false;
       sub?.subscription?.unsubscribe();
       document.removeEventListener("visibilitychange", onVisible);
-      if (channel) supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 🔴 Realtime : écoute les changements de *ton* profil (id = user.id)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`realtime-profile-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          const row = payload.new as Profile | undefined;
+          if (row) {
+            // met à jour localement dès que le webhook Stripe a modifié la ligne
+            setProfile((prev) => ({ ...(prev ?? {} as Profile), ...row }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, supabase]);
 
   const refreshSubscription = async () => {
     // force un refetch du profil (utilisé après un retour Stripe ou un webhook)
