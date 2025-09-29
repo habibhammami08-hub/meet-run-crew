@@ -218,12 +218,17 @@ function MapPageInner() {
   }), []);
 
   const requestGeolocation = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      console.warn('[Map] Navigator.geolocation not available');
+      return;
+    }
+    console.log('[Map] Requesting geolocation', { currentUser: currentUser?.id || 'none', hasTriedGeolocation });
     setHasTriedGeolocation(true);
 
     const successCallback = (position: GeolocationPosition) => {
       if (!mountedRef.current) return;
       const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
+      console.log('[Map] Geolocation success', userPos);
       setCenter(userPos);
       setUserLocation(userPos);
     };
@@ -331,7 +336,11 @@ function MapPageInner() {
   }, [fetchSessions]);
 
   const sessionsWithDistance = useMemo(() => {
-    if (!userLocation) return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
+    if (!userLocation) {
+      console.log('[Map] userLocation is null, distanceFromUser will be null for all sessions');
+      return sessions.map(s => ({ ...s, distanceFromUser: null as number | null }));
+    }
+    console.log('[Map] userLocation available, calculating distances', { userLocation, sessionsCount: sessions.length });
     return sessions.map(s => ({
       ...s,
       distanceFromUser: calculateDistance(userLocation.lat, userLocation.lng, s.start_lat, s.start_lng),
@@ -386,12 +395,19 @@ function MapPageInner() {
     return filtered;
   }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, __tick]);
 
-  const filteredNearestSessions = useMemo(() => (
-    filteredSessions
+  const filteredNearestSessions = useMemo(() => {
+    const nearest = filteredSessions
       .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= 25)
       .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-      .slice(0, 6)
-  ), [filteredSessions]);
+      .slice(0, 6);
+    console.log('[Map] filteredNearestSessions calculated', { 
+      filteredCount: filteredSessions.length, 
+      nearestCount: nearest.length,
+      userLocation: userLocation ? 'available' : 'null',
+      hasDistance: filteredSessions.filter(s => s.distanceFromUser !== null).length
+    });
+    return nearest;
+  }, [filteredSessions, userLocation]);
 
   // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
   const myEnrolledSessions = useMemo(() => {
