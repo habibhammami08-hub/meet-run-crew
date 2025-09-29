@@ -556,7 +556,7 @@ const Auth = () => {
             En vous connectant, vous acceptez nos conditions d'utilisation
           </p>
           <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span>🏃‍♂️ +200 runners actifs</span>
+            <span>🏃‍♂️ +1000 runners actifs</span>
             <span>•</span>
             <span>📍 Toute la France</span>
             <span>•</span>
