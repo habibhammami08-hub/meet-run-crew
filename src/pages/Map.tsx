@@ -58,7 +58,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(1-a), Math.sqrt(a));
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
 
@@ -180,7 +180,7 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
 function MapPageInner() {
   const navigate = useNavigate();
   const supabase = getSupabase();
-  // ⬇️ Ajout: on récupère refreshSubscription (le reste inchangé)
+  // ⬇️ AJOUT MINIMAL : on récupère refreshSubscription depuis le contexte
   const { user: currentUser, hasActiveSubscription: hasSub, loading: authLoading, refreshSubscription } = useAuth();
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
@@ -252,23 +252,13 @@ function MapPageInner() {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
 
-  // ✅ Forcer la réconciliation abonnement dès que l’utilisateur est connu
+  // ⬇️ AJOUT MINIMAL : synchronise l'abonnement dès que l'utilisateur est connu et que l'auth est prête
   useEffect(() => {
-    if (currentUser?.id) {
+    if (!authLoading && currentUser) {
       refreshSubscription?.();
     }
-  }, [currentUser?.id, refreshSubscription]);
-
-  // ✅ Et à chaque retour d’onglet (utile si Stripe/webhooks ont mis à jour le profil)
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && currentUser?.id) {
-        refreshSubscription?.();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [currentUser?.id, refreshSubscription]);
+  }, [authLoading, currentUser, refreshSubscription]);
+  // ▲ AJOUT MINIMAL
 
   const fetchSessions = useCallback(async () => {
     if (!supabase || !mountedRef.current) return;
@@ -490,7 +480,7 @@ function MapPageInner() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items_center gap-3">
               {!userLocation && hasTriedGeolocation && (
                 <Button
                   variant="outline"
@@ -753,7 +743,7 @@ function MapPageInner() {
                       const when = new Date(s.scheduled_at);
                       return (
                         <div key={s.id} className="p-4 rounded-lg border bg-white/70">
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start justify_between gap-3">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
@@ -843,7 +833,7 @@ function MapPageInner() {
                           }}
                         >
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
+                            <h3 className="font-semibold text-gray-900 text_sm line-clamp-1">
                               {session.title}
                             </h3>
                             <div className="flex items-center gap-2">
