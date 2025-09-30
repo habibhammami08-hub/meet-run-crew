@@ -282,23 +282,15 @@ const SessionDetails = () => {
     if (!session || !user || session.host_id !== user.id) return;
     setIsDeleting(true);
     try {
-      // Utilise la RPC centralisée (supprime si hôte seul, sinon réassigne + quitte)
-      const { data, error } = await supabase.rpc("leave_or_delete_session", { p_session_id: session.id });
-      if (error) throw error;
-
-      if (data?.action === "deleted_session") {
-        toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-        navigate("/profile");
-      } else if (data?.action === "left_and_reassigned_host") {
-        toast({ title: "Hôte réassigné", description: "Vous avez quitté. La session continue avec un nouvel hôte." });
-        fetchSessionDetails();
-      } else {
-        // Cas improbable ici (hôte != uid)
-        fetchSessionDetails();
-      }
+      const { error: enrollmentsError } = await supabase.from("enrollments").delete().eq("session_id", session.id);
+      if (enrollmentsError) throw enrollmentsError;
+      const { error: sessionError } = await supabase.from("sessions").delete().eq("id", session.id).eq("host_id", user.id);
+      if (sessionError) throw sessionError;
+      toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
+      navigate("/profile");
     } catch (err: any) {
       console.error("[SessionDetails] Delete error:", err);
-      toast({ title: "Erreur", description: "Impossible d'effectuer l'action: " + err.message, variant: "destructive" });
+      toast({ title: "Erreur", description: "Impossible de supprimer la session: " + err.message, variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -396,6 +388,35 @@ const SessionDetails = () => {
 
   const isSessionFull = participants.length >= session.max_participants;
 
+  // ------- Helpers (RPC unifiée) -------
+  const callRpcLeaveOrDelete = async () => {
+    if (!session) return;
+    try {
+      const { data, error } = await supabase.rpc("leave_or_delete_session", { p_session_id: session.id });
+      if (error) throw error;
+      const action = (data as any)?.action;
+
+      if (action === "deleted") {
+        toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
+        navigate("/profile");
+        return;
+      }
+
+      if (action === "host_reassigned") {
+        toast({ title: "Vous avez quitté l’hôte", description: "L’hôte a été réassigné au participant le plus ancien." });
+      } else if (action === "unenrolled") {
+        toast({ title: "Désinscription réussie", description: "Vous n’êtes plus inscrit à cette session." });
+      } else {
+        // noop ou autre
+        toast({ title: "Action effectuée", description: "Mise à jour de la session." });
+      }
+
+      await fetchSessionDetails();
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e?.message || "Action impossible pour le moment.", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -433,14 +454,49 @@ const SessionDetails = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour aux sessions
             </Button>
-            {isHost && session?.participants_count === 0 && (
-              <Button variant="outline" size="sm" disabled={isDeleting} onClick={handleDeleteSession}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Supprimer
-              </Button>
+
+            {isHost && (
+              <div className="flex flex-col gap-2">
+                {(() => {
+                  const now = Date.now();
+                  const sessionTime = new Date(session.scheduled_at).getTime();
+                  const minutesUntil = (sessionTime - now) / 60000;
+                  const canAct = minutesUntil >= 30;
+                  const hasOtherParticipants = participants.length > 0; // inscrits éligibles hors hôte
+                  const label = hasOtherParticipants ? "Se désinscrire" : "Supprimer";
+
+                  return canAct ? (
+                    <Button
+                      variant={hasOtherParticipants ? "destructive" : "outline"}
+                      size="sm"
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        const question = hasOtherParticipants
+                          ? "Vous êtes l’hôte et au moins un autre participant est inscrit. Voulez-vous vous désinscrire ? (l’hôte sera réassigné)"
+                          : "Vous êtes l’hôte et le seul participant. Supprimer cette session ?";
+                        if (!confirm(question)) return;
+                        await callRpcLeaveOrDelete();
+                      }}
+                    >
+                      {hasOtherParticipants ? <></> : <Trash2 className="w-4 h-4 mr-2" />}
+                      {label}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
+                    >
+                      {hasOtherParticipants ? "Se désinscrire" : "Supprimer"}
+                    </Button>
+                  );
+                })()}
+              </div>
             )}
-            {/* ▼▼▼ AJOUT : bouton Se désinscrire (même logique que sur la page carte) */}
-            {isEnrolled && (
+
+            {/* ▼▼▼ AJOUT : bouton Se désinscrire (participant non-hôte) via RPC */}
+            {isEnrolled && !isHost && (
               <div className="flex flex-col gap-2">
                 {(() => {
                   const now = Date.now();
@@ -454,14 +510,7 @@ const SessionDetails = () => {
                       variant="destructive"
                       onClick={async () => {
                         if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
-                        try {
-                          // Appel unique via RPC (gère tout: désinscription, réassignation, suppression)
-                          const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: session.id });
-                          if (error) throw error;
-                          await fetchSessionDetails();
-                        } catch (e: any) {
-                          alert("Erreur lors de la désinscription: " + e.message);
-                        }
+                        await callRpcLeaveOrDelete();
                       }}
                     >
                       Se désinscrire
