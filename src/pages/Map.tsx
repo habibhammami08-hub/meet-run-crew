@@ -107,38 +107,26 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
   }
 };
 
-// Icône personnalisée :
-// - rouge = sa propre session (host)
-// - doré + étoile = sessions où l’utilisateur est inscrit (one-off/sub)
-// - bleu = sélectionnée
-// - vert = autre (vert foncé si abonné pour un peu plus de contraste)
-function createCustomMarkerIcon(opts: { own: boolean; enrolled: boolean; selected: boolean; hasSub: boolean }) {
-  const { own, enrolled, selected, hasSub } = opts;
-  const size = own ? 20 : (selected ? 18 : 16);
-  const color = own ? "#dc2626" : enrolled ? "#f59e0b" : selected ? "#3b82f6" : (hasSub ? "#065f46" : "#047857");
-  const cx = size / 2;
-  const cy = size / 2;
+// ————————————————————————————————————————————
+// Icônes uniformisées (petits points) : vert = départ, rouge = arrivée, bleu = position utilisateur
+// ————————————————————————————————————————————
 
-  // petite étoile au centre si "enrolled"
-  const star = `<path d=" M ${cx} ${cy - 3.2} L ${cx + 1.3} ${cy + 1.1} L ${cx - 3.1} ${cy - 0.7} L ${cx + 3.1} ${cy - 0.7} L ${cx - 1.3} ${cy + 1.1} Z " fill="white" />`;
-  // petit point si "selected"
-  const dot = `<circle cx="${cx}" cy="${cy}" r="2" fill="white" />`;
-  const innerOwn = own ? `<circle cx="${cx}" cy="${cy}" r="${size/4}" fill="white"/>` : "";
+const DOT_SIZE = 12; // taille uniforme pour tous les points
 
-  const svg = `<svg width="${size}" height="${size + 6}" xmlns="http://www.w3.org/2000/svg">
-    <path d="${cx} ${size + 6} L${cx - 4} ${size - 2} Q${cx} ${size - 6} ${cx + 4} ${size - 2} Z" fill="${color}"/>
-    <circle cx="${cx}" cy="${cy}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
-    ${innerOwn}
-    ${enrolled ? star : ""}
-    ${selected && !enrolled ? dot : ""}
+function createDotIcon(color: string, size = DOT_SIZE) {
+  const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="${size/2}" cy="${size/2}" r="${size/2}" fill="${color}" stroke="white" stroke-width="2"/>
   </svg>`;
-
   const url = "data:image/svg+xml," + encodeURIComponent(svg);
   const g = typeof window !== "undefined" ? (window as any).google : undefined;
   return g?.maps?.Size && g?.maps?.Point
-    ? { url, scaledSize: new g.maps.Size(size, size + 6), anchor: new g.maps.Point(size / 2, size + 6) }
+    ? { url, scaledSize: new g.maps.Size(size, size), anchor: new g.maps.Point(size/2, size/2) }
     : { url };
 }
+
+const START_DOT_COLOR = "#10b981";  // vert
+const END_DOT_COLOR   = "#ef4444";  // rouge
+const USER_DOT_COLOR  = "#3b82f6";  // bleu
 
 // ————————————————————————————————————————————
 // Pictogrammes de type 
@@ -387,18 +375,11 @@ function MapPageInner() {
       .slice(0, 6)
   ), [filteredSessions]);
 
-  // Mes sessions (inscrit OU hôte) à partir de TOUTES les sessions chargées (non filtrées) + n’afficher que les jours non passés
-  const myUpcomingSessions = useMemo(() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const arr = sessionsWithDistance.filter(s => {
-      const isMine = isOwnSession(s, currentUser?.id);
-      const isEnrolled = mySessionIds.has(s.id);
-      const dayNotPassed = new Date(s.scheduled_at) >= todayStart;
-      return dayNotPassed && (isMine || isEnrolled);
-    });
+  // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
+  const myEnrolledSessions = useMemo(() => {
+    const arr = sessionsWithDistance.filter(s => mySessionIds.has(s.id));
     return arr.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-  }, [sessionsWithDistance, mySessionIds, currentUser?.id]);
+  }, [sessionsWithDistance, mySessionIds]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -447,18 +428,8 @@ function MapPageInner() {
     };
   }, [supabase, debouncedRefresh, fetchMyEnrollments, currentUser]);
 
-  const userMarkerIcon = useMemo(() => {
-    const url = 'data:image/svg+xml,' + encodeURIComponent(
-      `<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="8" cy="8" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
-        <circle cx="8" cy="8" r="3" fill="white"/>
-      </svg>`
-    );
-    const g = typeof window !== 'undefined' ? (window as any).google : undefined;
-    return g?.maps?.Size && g?.maps?.Point
-      ? { url, scaledSize: new g.maps.Size(16, 16), anchor: new g.maps.Point(8, 8) }
-      : { url };
-  }, []);
+  // Icône position utilisateur (bleu) — même taille que les autres
+  const userMarkerIcon = useMemo(() => createDotIcon(USER_DOT_COLOR, DOT_SIZE), []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -608,28 +579,44 @@ function MapPageInner() {
                       const selected = selectedSession === s.id;
                       const enrolled = isEnrolledIn(s.id);
 
-                      // Le tracé n'apparaît que pour la session sélectionnée, et pour hôte/abonné OU si inscrit à cette session
+                      // Le tracé + arrivée n'apparaît que pour la session sélectionnée, et pour hôte/abonné OU si inscrit à cette session
                       const allowPolyline = (hasSub || own || enrolled) && selected && !!s.route_polyline;
                       const path = allowPolyline ? pathFromPolyline(s.route_polyline) : [];
-                      const markerIcon = createCustomMarkerIcon({ own, enrolled, selected, hasSub });
 
                       return (
                         <div key={s.id}>
+                          {/* Départ — petit point vert */}
                           <MarkerF
                             position={startShown}
                             title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
-                            icon={markerIcon}
+                            icon={createDotIcon(START_DOT_COLOR)}
                             onClick={(e) => {
                               // @ts-ignore — google maps DOM event
                               e.domEvent?.stopPropagation?.();
                               setSelectedSession(selected ? null : s.id);
                             }}
                           />
+
+                          {/* Itinéraire + Arrivée — petit point rouge */}
                           {allowPolyline && path.length > 1 && (
-                            <Polyline
-                              path={path}
-                              options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#3b82f6' }}
-                            />
+                            <>
+                              <Polyline
+                                path={path}
+                                options={{ clickable: false, strokeOpacity: 0.9, strokeWeight: 4, strokeColor: '#3b82f6' }}
+                              />
+                              {s.end_lat !== null && s.end_lng !== null && (
+                                <MarkerF
+                                  position={{ lat: s.end_lat, lng: s.end_lng }}
+                                  title="Arrivée"
+                                  icon={createDotIcon(END_DOT_COLOR)}
+                                  onClick={(e) => {
+                                    // @ts-ignore — google maps DOM event
+                                    e.domEvent?.stopPropagation?.();
+                                    setSelectedSession(selected ? null : s.id);
+                                  }}
+                                />
+                              )}
+                            </>
                           )}
                         </div>
                       );
@@ -650,6 +637,7 @@ function MapPageInner() {
                     const blur = shouldBlur(session);
                     const { label: typeLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
                     const enrolled = isEnrolledIn(session.id);
+                    const own = isOwnSession(session, currentUser?.id);
 
                     return (
                       <div className="flex justify-between items-start">
@@ -687,9 +675,10 @@ function MapPageInner() {
                             )}
                           </div>
 
-                          {/* Badges: intensité, distance, type, capacité + Inscrit */}
+                          {/* Badges: Inscrit, Hôte, intensité, distance, type, capacité */}
                           <div className="flex items-center gap-2 mb-4 flex-wrap">
                             {enrolled && <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>}
+                            {own && <Badge variant="secondary">Hôte</Badge>}
                             {session.intensity && (
                               <Badge variant="secondary">
                                 <Zap className="w-3 h-3 mr-1" />
@@ -725,8 +714,8 @@ function MapPageInner() {
               </Card>
             )}
 
-            {/* —— VOS PROCHAINES SESSIONS (inscriptions + hôte) —— */}
-            {currentUser && myUpcomingSessions.length > 0 && (
+            {/* —— VOS PROCHAINES SESSIONS (inscriptions) —— */}
+            {currentUser && myEnrolledSessions.length > 0 && (
               <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -736,8 +725,8 @@ function MapPageInner() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid md:grid-cols-2 gap-3">
-                    {myUpcomingSessions.map((s) => {
-                      const blur = shouldBlur(s); // devrait être false ici si inscrit/abonné/hôte
+                    {myEnrolledSessions.map((s) => {
+                      const blur = shouldBlur(s); // devrait être false ici
                       const when = new Date(s.scheduled_at);
                       const own = isOwnSession(s, currentUser?.id);
                       return (
@@ -747,11 +736,8 @@ function MapPageInner() {
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
                                 <h4 className="font-semibold text-sm text-gray-900">{s.title}</h4>
-                                {own ? (
-                                  <Badge className="bg-red-100 text-red-800">Hôte</Badge>
-                                ) : (
-                                  <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>
-                                )}
+                                <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>
+                                {own && <Badge variant="secondary">Hôte</Badge>}
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 {when.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · {when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
@@ -762,7 +748,7 @@ function MapPageInner() {
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                              {!own && (() => {
+                              {(() => {
                                 const now = Date.now();
                                 const sessionTime = new Date(s.scheduled_at).getTime();
                                 const minutesUntil = (sessionTime - now) / 60000;
@@ -809,23 +795,7 @@ function MapPageInner() {
                     })}
                   </div>
 
-                  {/* Légende icônes */}
-                  <div className="text-[11px] text-gray-500 mt-2">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#f59e0b" }} />
-                        <span>Inscrit (icône dorée)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#dc2626" }} />
-                        <span>Votre session (hôte)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
-                        <span>Sélectionnée</span>
-                      </div>
-                    </div>
-                  </div>
+                  {/* (SUPPRIMÉ) Légende icônes obsolète */}
                 </CardContent>
               </Card>
             )}
@@ -855,6 +825,7 @@ function MapPageInner() {
                       const blur = shouldBlur(session);
                       const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
+                      const own = isOwnSession(session, currentUser?.id);
                       return (
                         <div
                           key={session.id}
@@ -870,6 +841,7 @@ function MapPageInner() {
                             </h3>
                             <div className="flex items-center gap-2">
                               {enrolled && <Badge className="bg-amber-100 text-amber-800 h-5">Inscrit</Badge>}
+                              {own && <Badge variant="secondary" className="h-5">Hôte</Badge>}
                               {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
                             </div>
                           </div>
