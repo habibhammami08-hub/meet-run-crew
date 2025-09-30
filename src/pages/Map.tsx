@@ -351,16 +351,15 @@ function MapPageInner() {
 
     if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
 
-    // ▼▼▼ AJOUT : règle d’affichage des sessions sur la carte (31/15 min)
-    // - Si participants_count <= 1  -> retirer 31 minutes avant le début
-    // - Si participants_count >= 2  -> retirer 15 minutes avant le début
-    // La colonne est NOT NULL (par défaut 1 si tu as suivi l’option A) ; sinon on applique le fallback strict 31 min.
+    // ▼▼▼ Mise à jour : règle d’affichage (31/15 min) selon nb d'inscrits HORS hôte
+    // - Si participants_count === 0  -> retirer 31 minutes avant le début (hôte seul)
+    // - Si participants_count >= 1   -> retirer 15 minutes avant le début
     const now = Date.now();
     filtered = filtered.filter(s => {
       const minutesUntil = (new Date(s.scheduled_at).getTime() - now) / 60000;
-      const count = (s.participants_count ?? 1); // fallback prudent à 1
+      const count = (s.participants_count ?? 0); // fallback = 0 (hôte seul)
 
-      if (count <= 1) return minutesUntil >= 31;
+      if (count === 0) return minutesUntil >= 31;
       return minutesUntil >= 15;
     });
     // ▲▲▲
@@ -759,7 +758,7 @@ function MapPageInner() {
                                 const sessionTime = new Date(s.scheduled_at).getTime();
                                 const minutesUntil = (sessionTime - now) / 60000;
                                 const canUnenroll = minutesUntil >= 30;
-                                const showTrash = own && (s.participants_count ?? 1) === 1;
+                                const showTrash = own && (s.participants_count ?? 0) === 0; // ← corrigé
 
                                 return canUnenroll ? (
                                   <Button
@@ -785,9 +784,7 @@ function MapPageInner() {
                                     }}
                                   >
                                     {showTrash ? (
-                                      // Icône corbeille + libellé
                                       <>
-                                        {/* Pas d'import d'icône supplémentaire pour ne pas modifier la ligne d'import existante */}
                                         🗑️ Supprimer
                                       </>
                                     ) : (
@@ -801,7 +798,7 @@ function MapPageInner() {
                                     disabled
                                     title="Désinscription impossible moins de 30 minutes avant le début"
                                   >
-                                    {own && (s.participants_count ?? 1) === 1 ? "Supprimer" : "Se désinscrire"}
+                                    {own && (s.participants_count ?? 0) === 0 ? "Supprimer" : "Se désinscrire"}
                                   </Button>
                                 );
                               })()}
