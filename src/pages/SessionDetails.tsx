@@ -282,15 +282,23 @@ const SessionDetails = () => {
     if (!session || !user || session.host_id !== user.id) return;
     setIsDeleting(true);
     try {
-      const { error: enrollmentsError } = await supabase.from("enrollments").delete().eq("session_id", session.id);
-      if (enrollmentsError) throw enrollmentsError;
-      const { error: sessionError } = await supabase.from("sessions").delete().eq("id", session.id).eq("host_id", user.id);
-      if (sessionError) throw sessionError;
-      toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-      navigate("/profile");
+      // Utilise la RPC centralisée (supprime si hôte seul, sinon réassigne + quitte)
+      const { data, error } = await supabase.rpc("leave_or_delete_session", { p_session_id: session.id });
+      if (error) throw error;
+
+      if (data?.action === "deleted_session") {
+        toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
+        navigate("/profile");
+      } else if (data?.action === "left_and_reassigned_host") {
+        toast({ title: "Hôte réassigné", description: "Vous avez quitté. La session continue avec un nouvel hôte." });
+        fetchSessionDetails();
+      } else {
+        // Cas improbable ici (hôte != uid)
+        fetchSessionDetails();
+      }
     } catch (err: any) {
       console.error("[SessionDetails] Delete error:", err);
-      toast({ title: "Erreur", description: "Impossible de supprimer la session: " + err.message, variant: "destructive" });
+      toast({ title: "Erreur", description: "Impossible d'effectuer l'action: " + err.message, variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -425,7 +433,7 @@ const SessionDetails = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour aux sessions
             </Button>
-            {isHost && (
+            {isHost && session?.participants_count === 0 && (
               <Button variant="outline" size="sm" disabled={isDeleting} onClick={handleDeleteSession}>
                 <Trash2 className="w-4 h-4 mr-2" />
                 Supprimer
@@ -447,12 +455,8 @@ const SessionDetails = () => {
                       onClick={async () => {
                         if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
                         try {
-                          const { error } = await supabase
-                            .from("enrollments")
-                            .delete()
-                            .eq("session_id", session.id)
-                            .eq("user_id", user!.id);
-
+                          // Appel unique via RPC (gère tout: désinscription, réassignation, suppression)
+                          const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: session.id });
                           if (error) throw error;
                           await fetchSessionDetails();
                         } catch (e: any) {
