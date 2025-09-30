@@ -759,28 +759,40 @@ function MapPageInner() {
                                 const sessionTime = new Date(s.scheduled_at).getTime();
                                 const minutesUntil = (sessionTime - now) / 60000;
                                 const canUnenroll = minutesUntil >= 30;
+                                const showTrash = own && (s.participants_count ?? 1) === 1;
 
                                 return canUnenroll ? (
                                   <Button
                                     size="sm"
-                                    variant="destructive"
+                                    variant={showTrash ? "destructive" : "destructive"}
                                     onClick={async () => {
-                                      if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                                      const question = showTrash
+                                        ? "Vous êtes l’hôte et le seul participant. Supprimer cette session ?"
+                                        : "Voulez-vous vraiment vous désinscrire de cette session ?";
+                                      if (!confirm(question)) return;
+
                                       try {
-                                        const { error } = await supabase
-                                          .from("enrollments")
-                                          .delete()
-                                          .eq("session_id", s.id)
-                                          .eq("user_id", currentUser!.id);
-                                        
+                                        const { data, error } = await supabase
+                                          .rpc('leave_or_delete_session', { p_session_id: s.id });
+
                                         if (error) throw error;
-                                        await fetchMyEnrollments();
+
+                                        // Rafraîchir les données locales
+                                        await Promise.all([fetchMyEnrollments(), fetchSessions()]);
                                       } catch (e: any) {
-                                        alert("Erreur lors de la désinscription: " + e.message);
+                                        alert("Erreur lors de l’action: " + e.message);
                                       }
                                     }}
                                   >
-                                    Se désinscrire
+                                    {showTrash ? (
+                                      // Icône corbeille + libellé
+                                      <>
+                                        {/* Pas d'import d'icône supplémentaire pour ne pas modifier la ligne d'import existante */}
+                                        🗑️ Supprimer
+                                      </>
+                                    ) : (
+                                      "Se désinscrire"
+                                    )}
                                   </Button>
                                 ) : (
                                   <Button
@@ -789,7 +801,7 @@ function MapPageInner() {
                                     disabled
                                     title="Désinscription impossible moins de 30 minutes avant le début"
                                   >
-                                    Se désinscrire
+                                    {own && (s.participants_count ?? 1) === 1 ? "Supprimer" : "Se désinscrire"}
                                   </Button>
                                 );
                               })()}
