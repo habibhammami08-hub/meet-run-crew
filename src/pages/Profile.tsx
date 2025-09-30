@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Trash2, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown } from "lucide-react";
+import { Calendar, MapPin, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -21,8 +21,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
-
-// ⭐ Imports pour l'écran plein écran (même pattern que Auth)
 import { CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 
 type Profile = {
@@ -47,7 +45,7 @@ type Session = {
   distance_km?: number;
   intensity?: string;
   max_participants: number;
-  current_participants: number; // ← on le garde tel quel
+  current_participants: number;
   status: string;
 };
 
@@ -60,7 +58,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   // --- État suppression compte
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -93,10 +90,12 @@ export default function ProfilePage() {
     }
   }, [user, navigate, deleteSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ⚙️ Récupère les sessions où tu es hôte OU inscrit
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
-      const { data: sessions, error } = await supabase
+      // 1) sessions où je suis hôte
+      const { data: hosted, error: hostedErr } = await supabase
         .from('sessions')
         .select(`
           id,
@@ -110,16 +109,52 @@ export default function ProfilePage() {
         `)
         .eq('host_id', userId)
         .in('status', ['published', 'active'])
-        .not('scheduled_at', 'is', null)
-        .order('scheduled_at', { ascending: false });
+        .not('scheduled_at', 'is', null);
 
-      if (!mountedRef.current) return;
-      if (error || !sessions) return;
+      if (hostedErr) throw hostedErr;
 
-      // On garde la logique existante (compte des inscrits + 1 pour l’hôte)
+      // 2) mes enrollments
+      const { data: enrollments, error: enrErr } = await supabase
+        .from('enrollments')
+        .select('session_id')
+        .eq('user_id', userId)
+        .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+
+      if (enrErr) throw enrErr;
+
+      const sessionIds = Array.from(new Set((enrollments ?? []).map(e => e.session_id)));
+      // 3) sessions où je suis inscrit (si nécessaire)
+      let joined: Session[] = [];
+      if (sessionIds.length > 0) {
+        const { data: joinedData, error: joinedErr } = await supabase
+          .from('sessions')
+          .select(`
+            id,
+            title,
+            scheduled_at,
+            start_place,
+            distance_km,
+            intensity,
+            max_participants,
+            status
+          `)
+          .in('id', sessionIds)
+          .in('status', ['published', 'active'])
+          .not('scheduled_at', 'is', null);
+        if (joinedErr) throw joinedErr;
+        joined = (joinedData ?? []) as Session[];
+      }
+
+      // 4) merge (sans doublons)
+      const mergedMap = new Map<string, Session>();
+      (hosted ?? []).forEach(s => mergedMap.set(s.id, s as Session));
+      joined.forEach(s => mergedMap.set(s.id, s));
+
+      const merged = Array.from(mergedMap.values());
+
+      // 5) complète le compteur participants = (inscrits éligibles) + 1 (hôte)
       const sessionsWithCounts = await Promise.all(
-        sessions.map(async (session) => {
-          if (!mountedRef.current) return null;
+        merged.map(async (session) => {
           try {
             const { count } = await supabase
               .from('enrollments')
@@ -132,8 +167,11 @@ export default function ProfilePage() {
           }
         })
       );
-      const validSessions = sessionsWithCounts.filter(Boolean) as Session[];
-      if (mountedRef.current) setMySessions(validSessions);
+
+      // 6) tri (mêmes critères que l’existant)
+      sessionsWithCounts.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+
+      if (mountedRef.current) setMySessions(sessionsWithCounts);
     } catch (error) {
       if (mountedRef.current) console.error('[Profile] Error fetching sessions:', error);
     }
@@ -255,85 +293,7 @@ export default function ProfilePage() {
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
-  // ⬇️ ICI : on remplace l’ancienne suppression directe par l’appel unique à la RPC
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!supabase || !user?.id || !mountedRef.current) return;
-    setDeletingSession(sessionId);
-    try {
-      // Appel unique — la fonction gère suppression OU désinscription + transfert d’hôte
-      const { error } = await supabase.rpc('leave_or_delete_session', { p_session_id: sessionId });
-      if (error) throw error;
-
-      if (mountedRef.current) {
-        toast({
-          title: "Action effectuée",
-          description: "La session a été mise à jour.",
-        });
-        await fetchMySessions(user.id);
-        updateProfileStats(user.id);
-      }
-    } catch (error: any) {
-      if (mountedRef.current) {
-        toast({ title: "Erreur", description: "Impossible d’exécuter l’action: " + error.message, variant: "destructive" });
-      }
-    } finally {
-      if (mountedRef.current) setDeletingSession(null);
-    }
-  };
-
-  async function handleSave() {
-    if (!supabase || !profile || !user?.id || !mountedRef.current) return;
-    setSaving(true);
-    try {
-      let avatarUrl = profile.avatar_url || null;
-
-      if (avatarFile) {
-        const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `avatars/${user.id}/avatar.${ext}`;
-        const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
-        if (uploadError) {
-          if (mountedRef.current) toast({ title: "Erreur", description: "Erreur upload image : " + uploadError.message, variant: "destructive" });
-          return;
-        }
-        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
-        avatarUrl = pub.publicUrl;
-      }
-
-      if (!mountedRef.current) return;
-
-      const ageValue = age === "" ? null : Number(age);
-      const genderValue = gender === "" ? null : gender;
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          age: ageValue,
-          city: city,
-          gender: genderValue,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
-
-      if (!mountedRef.current) return;
-
-      if (error) {
-        toast({ title: "Erreur", description: "Erreur de sauvegarde: " + error.message, variant: "destructive" });
-        return;
-      }
-
-      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city, gender: genderValue as Profile["gender"], avatar_url: avatarUrl } : null);
-      setEditing(false);
-      setAvatarFile(null);
-      toast({ title: "Profil mis à jour", description: "Vos modifications ont été sauvegardées." });
-    } catch (error: any) {
-      if (mountedRef.current) toast({ title: "Erreur", description: "Une erreur est survenue: " + error.message, variant: "destructive" });
-    } finally {
-      if (mountedRef.current) setSaving(false);
-    }
-  }
-
-  // Suppression de compte — appelle l’Edge Function puis montre l'écran plein écran façon Auth
+  // Suppression de compte — inchangé
   const handleConfirmDeleteAccount = async () => {
     if (!supabase) return;
     setDeletingAccount(true);
@@ -341,7 +301,7 @@ export default function ProfilePage() {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const { error } = await supabase.functions.invoke("delete-account2", {
         headers: { Authorization: `Bearer ${token}` },
-        body: {}, // explicite
+        body: {},
       });
       if (error) throw error;
 
@@ -372,7 +332,7 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // ✅ ÉCRAN PLEIN ÉCRAN DE SUCCÈS (inspiré de Auth) — mobile-first
+  // Écran succès suppression compte — inchangé
   if (deleteSuccess) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
@@ -411,10 +371,7 @@ export default function ProfilePage() {
     );
   }
 
-  // Si l'utilisateur n'est pas connecté ET on n'est pas en succès (cas normal)
-  if (user === null) {
-    return null;
-  }
+  if (user === null) return null;
 
   if (user === undefined) {
     return (
@@ -616,7 +573,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* My Sessions */}
+      {/* Mes Sessions (hôte OU inscrit) */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -626,7 +583,7 @@ export default function ProfilePage() {
           
           {mySessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>Vous n'avez pas encore organisé de sessions.</p>
+              <p>Vous n'avez pas encore de sessions.</p>
               <Button 
                 onClick={() => navigate('/create')} 
                 className="mt-4"
@@ -636,101 +593,58 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {mySessions.map((session) => {
-                const minutesUntil = (new Date(session.scheduled_at).getTime() - Date.now()) / 60000;
-                const canAct = minutesUntil >= 30; // même règle que Map/SessionDetails
-                const hostIsAlone = (session.current_participants || 1) <= 1;
-
-                return (
-                  <div key={session.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg">{session.title}</h3>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+              {mySessions.map((session) => (
+                <div key={session.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg">{session.title}</h3>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                        {session.start_place && (
                           <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            <MapPin className="w-4 h-4" />
+                            {session.start_place}
                           </div>
-                          {session.start_place && (
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-4 h-4" />
-                              {session.start_place}
-                            </div>
-                          )}
-                          {session.distance_km && (
-                            <span>{session.distance_km} km</span>
-                          )}
-                          {session.intensity && (
-                            <Badge variant="secondary">{session.intensity}</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex items-center gap-1 text-sm">
-                            <Users className="w-4 h-4" />
-                            {session.current_participants}/{session.max_participants} participants
-                          </div>
-                          <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
-                            {session.status === 'published' ? 'Publiée' : session.status}
-                          </Badge>
-                        </div>
+                        )}
+                        {session.distance_km && (
+                          <span>{session.distance_km} km</span>
+                        )}
+                        {session.intensity && (
+                          <Badge variant="secondary">{session.intensity}</Badge>
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/session/${session.id}`)}
-                        >
-                          Voir
-                        </Button>
-
-                        {/* On garde le même trigger (icône corbeille) pour ouvrir un dialogue :
-                            - si hôte seul -> suppression
-                            - sinon -> désinscription + transfert d’hôte */}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={deletingSession === session.id || !canAct}
-                              title={canAct ? (hostIsAlone ? "Supprimer la session" : "Se désinscrire (transfert d'hôte)") : "Action impossible moins de 30 minutes avant le début"}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                {hostIsAlone ? "Supprimer la session" : "Quitter la session en tant qu'hôte"}
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {hostIsAlone
-                                  ? "Vous êtes l’hôte et le seul participant. La session sera définitivement supprimée."
-                                  : "Il existe au moins un autre participant. Vous allez vous désinscrire et l’hôte sera transféré automatiquement à un participant éligible."}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteSession(session.id)}
-                                className="bg-destructive hover:bg-destructive/90"
-                                disabled={!canAct}
-                              >
-                                {hostIsAlone ? "Supprimer" : "Se désinscrire"}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-sm">
+                          <Users className="w-4 h-4" />
+                          {session.current_participants}/{session.max_participants} participants
+                        </div>
+                        <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
+                          {session.status === 'published' ? 'Publiée' : session.status}
+                        </Badge>
                       </div>
                     </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/session/${session.id}`)}
+                      >
+                        Voir
+                      </Button>
+                      {/* 🔕 Bouton corbeille/désinscription retiré, simplification demandée */}
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
