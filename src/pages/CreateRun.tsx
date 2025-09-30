@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle } from "lucide-react";
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -696,15 +696,30 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   )}
                 </div>
 
-                {/* Bouton "Validé" — apparaît exactement quand le texte d'aide apparaît (mobileStep === "done") */}
+                {/* Bouton "Validé" modernisé — placé plus haut pour rester visible */}
                 {mobileStep === "done" && (
-                  <div className="absolute inset-x-2 bottom-2 lg:hidden flex justify-center pointer-events-none">
+                  <div className="absolute inset-x-8 bottom-24 lg:hidden flex justify-center pointer-events-none">
                     <Button
                       type="button"
                       onClick={scrollToInfo}
-                      className="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg h-11 px-6 text-sm font-semibold"
+                      aria-label="Valider le parcours et passer aux informations générales"
+                      className={[
+                        "pointer-events-auto",
+                        // style moderne
+                        "rounded-full h-12 px-6 text-sm font-semibold",
+                        "bg-gradient-to-r from-blue-600 to-indigo-600",
+                        "text-white shadow-lg shadow-black/20",
+                        "backdrop-blur-sm",
+                        "ring-1 ring-white/40",
+                        "transition-transform duration-200 active:scale-95",
+                        "hover:from-blue-600 hover:to-indigo-700",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500",
+                      ].join(" ")}
                     >
-                      Validé
+                      <div className="flex items-center gap-2">
+                        <ArrowDownCircle className="h-5 w-5" />
+                        <span>Validé</span>
+                      </div>
                     </Button>
                   </div>
                 )}
