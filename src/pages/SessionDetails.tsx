@@ -394,7 +394,17 @@ const SessionDetails = () => {
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{session.title}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {session.title}
+              {isHost && (
+                <span
+                  aria-label="Vous êtes l'hôte de cette session"
+                  className="ml-2 align-baseline text-sm md:text-base font-normal text-gray-500"
+                >
+                  (Vous êtes l’hôte)
+                </span>
+              )}
+            </h1>
 
             {/* ✅ Badge date/heure (desktop & mobile) */}
             <div className="flex items-center">
