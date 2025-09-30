@@ -1,3 +1,4 @@
+// src/pages/Profile.tsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
+
+// ⭐ Imports pour l'écran plein écran (même pattern que Auth)
 import { CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 
 type Profile = {
@@ -41,12 +44,16 @@ type Session = {
   id: string;
   title: string;
   scheduled_at: string;
-  start_place?: string;
-  distance_km?: number;
-  intensity?: string;
+  start_place?: string | null;
+  distance_km?: number | null;
+  intensity?: string | null;
   max_participants: number;
-  current_participants: number;
   status: string;
+  // ▼ ajouts pour fusionner hôte/participant
+  host_id?: string | null;
+  participants_count?: number | null;
+  // ▼ champ utilisé par l’UI
+  current_participants: number;
 };
 
 export default function ProfilePage() {
@@ -90,12 +97,11 @@ export default function ProfilePage() {
     }
   }, [user, navigate, deleteSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ⚙️ Récupère les sessions où tu es hôte OU inscrit
   const fetchMySessions = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
-      // 1) sessions où je suis hôte
-      const { data: hosted, error: hostedErr } = await supabase
+      // 1) Sessions où je suis hôte
+      const { data: hostSessions, error: hostErr } = await supabase
         .from('sessions')
         .select(`
           id,
@@ -105,28 +111,30 @@ export default function ProfilePage() {
           distance_km,
           intensity,
           max_participants,
-          status
+          status,
+          host_id,
+          participants_count
         `)
         .eq('host_id', userId)
         .in('status', ['published', 'active'])
-        .not('scheduled_at', 'is', null);
+        .not('scheduled_at', 'is', null)
+        .order('scheduled_at', { ascending: false });
 
-      if (hostedErr) throw hostedErr;
+      if (hostErr) {
+        console.warn('[Profile] host sessions error:', hostErr.message);
+      }
 
-      // 2) mes enrollments
+      // 2) Sessions où je suis participant (paid / included_by_subscription / confirmed)
       const { data: enrollments, error: enrErr } = await supabase
         .from('enrollments')
         .select('session_id')
         .eq('user_id', userId)
         .in('status', ['paid', 'included_by_subscription', 'confirmed']);
 
-      if (enrErr) throw enrErr;
-
-      const sessionIds = Array.from(new Set((enrollments ?? []).map(e => e.session_id)));
-      // 3) sessions où je suis inscrit (si nécessaire)
-      let joined: Session[] = [];
-      if (sessionIds.length > 0) {
-        const { data: joinedData, error: joinedErr } = await supabase
+      let joinedSessions: any[] = [];
+      if (!enrErr && enrollments && enrollments.length > 0) {
+        const sessionIds = enrollments.map(e => e.session_id);
+        const { data: sessionsData, error: joinedErr } = await supabase
           .from('sessions')
           .select(`
             id,
@@ -136,42 +144,45 @@ export default function ProfilePage() {
             distance_km,
             intensity,
             max_participants,
-            status
+            status,
+            host_id,
+            participants_count
           `)
           .in('id', sessionIds)
           .in('status', ['published', 'active'])
           .not('scheduled_at', 'is', null);
-        if (joinedErr) throw joinedErr;
-        joined = (joinedData ?? []) as Session[];
+
+        if (!joinedErr && sessionsData) {
+          joinedSessions = sessionsData;
+        } else if (joinedErr) {
+          console.warn('[Profile] joined sessions error:', joinedErr.message);
+        }
       }
 
-      // 4) merge (sans doublons)
-      const mergedMap = new Map<string, Session>();
-      (hosted ?? []).forEach(s => mergedMap.set(s.id, s as Session));
-      joined.forEach(s => mergedMap.set(s.id, s));
+      // 3) Fusion + dédoublonnage par id
+      const mapById = new Map<string, any>();
+      for (const s of hostSessions ?? []) mapById.set(s.id, s);
+      for (const s of joinedSessions ?? []) mapById.set(s.id, s);
 
-      const merged = Array.from(mergedMap.values());
+      // 4) Projection + current_participants via participants_count (fallback 1)
+      const merged: Session[] = Array.from(mapById.values()).map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        scheduled_at: s.scheduled_at,
+        start_place: s.start_place ?? null,
+        distance_km: s.distance_km ?? null,
+        intensity: s.intensity ?? null,
+        max_participants: s.max_participants,
+        status: s.status,
+        host_id: s.host_id ?? null,
+        participants_count: s.participants_count ?? null,
+        current_participants: (s.participants_count ?? 1),
+      }));
 
-      // 5) complète le compteur participants = (inscrits éligibles) + 1 (hôte)
-      const sessionsWithCounts = await Promise.all(
-        merged.map(async (session) => {
-          try {
-            const { count } = await supabase
-              .from('enrollments')
-              .select('*', { count: 'exact' })
-              .eq('session_id', session.id)
-              .in('status', ['paid', 'included_by_subscription', 'confirmed']);
-            return { ...session, current_participants: (count || 0) + 1 };
-          } catch {
-            return { ...session, current_participants: 1 };
-          }
-        })
-      );
+      // 5) Tri descendant (prochaines en haut si tu préfères, passe à ascending:true)
+      merged.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
 
-      // 6) tri (mêmes critères que l’existant)
-      sessionsWithCounts.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
-
-      if (mountedRef.current) setMySessions(sessionsWithCounts);
+      if (mountedRef.current) setMySessions(merged);
     } catch (error) {
       if (mountedRef.current) console.error('[Profile] Error fetching sessions:', error);
     }
@@ -180,11 +191,13 @@ export default function ProfilePage() {
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
+      // Compte des sessions
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
         supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
 
+      // Calcul des km hébergés
       const { data: hostedSessions } = await supabase
         .from('sessions')
         .select('distance_km')
@@ -193,6 +206,7 @@ export default function ProfilePage() {
       
       const totalKmHosted = hostedSessions?.reduce((sum, s) => sum + (s.distance_km || 0), 0) || 0;
 
+      // Calcul des km en tant que participant
       const { data: enrollments } = await supabase
         .from('enrollments')
         .select('session_id')
@@ -293,7 +307,60 @@ export default function ProfilePage() {
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
-  // Suppression de compte — inchangé
+  // ✅ Sauvegarde (corrige l’erreur TS2304 si manquante)
+  async function handleSave() {
+    if (!supabase || !profile || !user?.id || !mountedRef.current) return;
+    setSaving(true);
+    try {
+      let avatarUrl = profile.avatar_url || null;
+
+      if (avatarFile) {
+        const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
+        const path = `avatars/${user.id}/avatar.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
+        if (uploadError) {
+          if (mountedRef.current) toast({ title: "Erreur", description: "Erreur upload image : " + uploadError.message, variant: "destructive" });
+          return;
+        }
+        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+        avatarUrl = pub.publicUrl;
+      }
+
+      if (!mountedRef.current) return;
+
+      const ageValue = age === "" ? null : Number(age);
+      const genderValue = gender === "" ? null : gender;
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName,
+          age: ageValue,
+          city: city,
+          gender: genderValue,
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
+
+      if (!mountedRef.current) return;
+
+      if (error) {
+        toast({ title: "Erreur", description: "Erreur de sauvegarde: " + error.message, variant: "destructive" });
+        return;
+      }
+
+      setProfile(prev => prev ? { ...prev, full_name: fullName, age: ageValue, city, gender: genderValue as Profile["gender"], avatar_url: avatarUrl } : null);
+      setEditing(false);
+      setAvatarFile(null);
+      toast({ title: "Profil mis à jour", description: "Vos modifications ont été sauvegardées." });
+    } catch (error: any) {
+      if (mountedRef.current) toast({ title: "Erreur", description: "Une erreur est survenue: " + error.message, variant: "destructive" });
+    } finally {
+      if (mountedRef.current) setSaving(false);
+    }
+  }
+
+  // Suppression de compte — appelle l’Edge Function puis montre l'écran plein écran façon Auth
   const handleConfirmDeleteAccount = async () => {
     if (!supabase) return;
     setDeletingAccount(true);
@@ -301,12 +368,15 @@ export default function ProfilePage() {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const { error } = await supabase.functions.invoke("delete-account2", {
         headers: { Authorization: `Bearer ${token}` },
-        body: {},
+        body: {}, // explicite
       });
       if (error) throw error;
 
+      // Affiche l'écran de succès en PLEIN ÉCRAN
       setDeleteSuccess(true);
       setDeleteDialogOpen(false);
+
+      // Invalide la session locale (sans redirection auto)
       await supabase.auth.signOut();
     } catch (e: any) {
       toast({
@@ -332,7 +402,7 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Écran succès suppression compte — inchangé
+  // ✅ ÉCRAN PLEIN ÉCRAN DE SUCCÈS (inspiré de Auth) — mobile-first
   if (deleteSuccess) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
@@ -358,6 +428,7 @@ export default function ProfilePage() {
             </div>
           </CardContent>
 
+          {/* 👇 Seul bouton conservé comme demandé */}
           <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button
               className="w-full sm:w-auto"
@@ -371,7 +442,10 @@ export default function ProfilePage() {
     );
   }
 
-  if (user === null) return null;
+  // Si l'utilisateur n'est pas connecté ET on n'est pas en succès (cas normal)
+  if (user === null) {
+    return null;
+  }
 
   if (user === undefined) {
     return (
@@ -573,7 +647,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Mes Sessions (hôte OU inscrit) */}
+      {/* My Sessions */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -583,7 +657,7 @@ export default function ProfilePage() {
           
           {mySessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>Vous n'avez pas encore de sessions.</p>
+              <p>Vous n'avez pas encore de sessions à venir.</p>
               <Button 
                 onClick={() => navigate('/create')} 
                 className="mt-4"
@@ -597,7 +671,14 @@ export default function ProfilePage() {
                 <div key={session.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{session.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg">{session.title}</h3>
+                        {/* Petit badge discret si je suis l'hôte */}
+                        {session.host_id === user?.id && (
+                          <Badge variant="outline" className="h-5 text-xs">Hôte</Badge>
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
@@ -615,13 +696,14 @@ export default function ProfilePage() {
                             {session.start_place}
                           </div>
                         )}
-                        {session.distance_km && (
+                        {session.distance_km ? (
                           <span>{session.distance_km} km</span>
-                        )}
-                        {session.intensity && (
+                        ) : null}
+                        {session.intensity ? (
                           <Badge variant="secondary">{session.intensity}</Badge>
-                        )}
+                        ) : null}
                       </div>
+
                       <div className="flex items-center gap-2 mt-2">
                         <div className="flex items-center gap-1 text-sm">
                           <Users className="w-4 h-4" />
@@ -632,6 +714,8 @@ export default function ProfilePage() {
                         </Badge>
                       </div>
                     </div>
+
+                    {/* 👉 Simplification demandée : uniquement le bouton Voir */}
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -640,7 +724,6 @@ export default function ProfilePage() {
                       >
                         Voir
                       </Button>
-                      {/* 🔕 Bouton corbeille/désinscription retiré, simplification demandée */}
                     </div>
                   </div>
                 </div>
