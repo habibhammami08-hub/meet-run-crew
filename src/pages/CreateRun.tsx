@@ -44,8 +44,13 @@ export default function CreateRun() {
   // Position actuelle de l'utilisateur
   const [userPosition, setUserPosition] = useState<Pt | null>(null);
 
-  // Ref racine pour le masquage défensif
+  // Refs
   const rootRef = useRef<HTMLDivElement>(null);
+  const infoRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToInfo = () => {
+    infoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -641,7 +646,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   )}
                 </GoogleMap>
 
-                {/* ↓↓↓ Bloc plus transparent et légèrement plus compact sur mobile */}
+                {/* Panneau flottant haut */}
                 <div className="absolute inset-x-2 top-2 bg-background/50 backdrop-blur-sm rounded-lg shadow-lg p-2">
                   <div className="flex items-center gap-2 mb-2">
                     <Route className="h-5 w-5 text-primary" />
@@ -690,6 +695,19 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     </div>
                   )}
                 </div>
+
+                {/* Bouton "Validé" — apparaît exactement quand le texte d'aide apparaît (mobileStep === "done") */}
+                {mobileStep === "done" && (
+                  <div className="absolute inset-x-2 bottom-2 lg:hidden flex justify-center pointer-events-none">
+                    <Button
+                      type="button"
+                      onClick={scrollToInfo}
+                      className="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg h-11 px-6 text-sm font-semibold"
+                    >
+                      Validé
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -785,58 +803,61 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
               </Button>
             )}
 
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  Informations générales
-                </CardTitle>
-                <CardDescription>
-                  Définissez les détails de votre session
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Titre de la session *
-                  </label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="ex: Course matinale au parc"
-                    className="h-12 text-base"
-                    maxLength={100}
-                  />
-                </div>
+            {/* Ancre de scroll + Carte Informations générales */}
+            <div ref={infoRef}>
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Informations générales
+                  </CardTitle>
+                  <CardDescription>
+                    Définissez les détails de votre session
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Titre de la session *
+                    </label>
+                    <Input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="ex: Course matinale au parc"
+                      className="h-12 text-base"
+                      maxLength={100}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Description (optionnel)
-                  </label>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
-                    className="min-h-[100px] text-base"
-                    maxLength={500}
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Description (optionnel)
+                    </label>
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Décrivez votre session: niveau requis, équipements, conseils..."
+                      className="min-h-[100px] text-base"
+                      maxLength={500}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Date et heure *
-                  </label>
-                  <DateTimePicker
-                    value={dateTime}
-                    onChange={setDateTime}
-                    placeholder="Choisir la date et l'heure"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    ⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Date et heure *
+                    </label>
+                    <DateTimePicker
+                      value={dateTime}
+                      onChange={setDateTime}
+                      placeholder="Choisir la date et l'heure"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      ⚠️ La date et l’heure doivent être fixées au moins 45 minutes à l’avance.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             <Card className="shadow-card">
               <CardHeader>
