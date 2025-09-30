@@ -375,11 +375,17 @@ function MapPageInner() {
       .slice(0, 6)
   ), [filteredSessions]);
 
-  // Mes sessions (inscrit) à partir de TOUTES les sessions chargées (non filtrées)
+  // Mes sessions (inscrit OU hôte) à partir de TOUTES les sessions chargées (non filtrées), uniquement futures
   const myEnrolledSessions = useMemo(() => {
-    const arr = sessionsWithDistance.filter(s => mySessionIds.has(s.id));
+    const now = new Date();
+    const arr = sessionsWithDistance.filter(s => {
+      const isFuture = new Date(s.scheduled_at) > now;
+      const isEnrolled = mySessionIds.has(s.id);
+      const isHost = s.host_id === currentUser?.id;
+      return isFuture && (isEnrolled || isHost);
+    });
     return arr.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-  }, [sessionsWithDistance, mySessionIds]);
+  }, [sessionsWithDistance, mySessionIds, currentUser?.id]);
 
   useEffect(() => {
     mountedRef.current = true;
