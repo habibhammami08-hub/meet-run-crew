@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import heroVideo from "@/assets/hero-video.mp4";
+import heroImage from "@/assets/hero-tropical-running.png";
 import logoImage from "@/assets/meetrun-logo.png";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
@@ -269,12 +269,9 @@ const Home = () => {
       <div className="main-content">
         {/* Hero Section */}
         <div className="relative h-[50vh] overflow-hidden">
-          <video
-            src={heroVideo}
-            autoPlay
-            muted
-            loop
-            playsInline
+          <img
+            src={heroImage}
+            alt="Jogging au coucher du soleil tropical"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
