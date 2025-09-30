@@ -141,16 +141,49 @@ export default function ProfilePage() {
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
+      // Compte des sessions
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
         supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
+
+      // Calcul des km hébergés
+      const { data: hostedSessions } = await supabase
+        .from('sessions')
+        .select('distance_km')
+        .eq('host_id', userId)
+        .eq('status', 'published');
+      
+      const totalKmHosted = hostedSessions?.reduce((sum, s) => sum + (s.distance_km || 0), 0) || 0;
+
+      // Calcul des km en tant que participant
+      const { data: enrollments } = await supabase
+        .from('enrollments')
+        .select('session_id')
+        .eq('user_id', userId)
+        .in('status', ['paid', 'included_by_subscription', 'confirmed']);
+
+      let totalKmJoined = 0;
+      if (enrollments && enrollments.length > 0) {
+        const sessionIds = enrollments.map(e => e.session_id);
+        const { data: joinedSessions } = await supabase
+          .from('sessions')
+          .select('distance_km')
+          .in('id', sessionIds)
+          .eq('status', 'published');
+        
+        totalKmJoined = joinedSessions?.reduce((sum, s) => sum + (s.distance_km || 0), 0) || 0;
+      }
+
+      const totalKm = totalKmHosted + totalKmJoined;
+
       if (!mountedRef.current) return;
       await supabase
         .from('profiles')
         .update({ 
           sessions_hosted: sessionsHosted || 0,
           sessions_joined: sessionsJoined || 0,
+          total_km: totalKm,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
