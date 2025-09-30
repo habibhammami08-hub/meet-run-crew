@@ -47,7 +47,7 @@ type Session = {
   distance_km?: number;
   intensity?: string;
   max_participants: number;
-  current_participants: number;
+  current_participants: number; // ← on le garde tel quel
   status: string;
 };
 
@@ -116,6 +116,7 @@ export default function ProfilePage() {
       if (!mountedRef.current) return;
       if (error || !sessions) return;
 
+      // On garde la logique existante (compte des inscrits + 1 pour l’hôte)
       const sessionsWithCounts = await Promise.all(
         sessions.map(async (session) => {
           if (!mountedRef.current) return null;
@@ -141,13 +142,11 @@ export default function ProfilePage() {
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
-      // Compte des sessions
       const [{ count: sessionsHosted }, { count: sessionsJoined }] = await Promise.all([
         supabase.from('sessions').select('*', { count: 'exact' }).eq('host_id', userId).eq('status', 'published'),
         supabase.from('enrollments').select('*', { count: 'exact' }).eq('user_id', userId).in('status', ['paid', 'included_by_subscription', 'confirmed'])
       ]);
 
-      // Calcul des km hébergés
       const { data: hostedSessions } = await supabase
         .from('sessions')
         .select('distance_km')
@@ -156,7 +155,6 @@ export default function ProfilePage() {
       
       const totalKmHosted = hostedSessions?.reduce((sum, s) => sum + (s.distance_km || 0), 0) || 0;
 
-      // Calcul des km en tant que participant
       const { data: enrollments } = await supabase
         .from('enrollments')
         .select('session_id')
@@ -257,27 +255,26 @@ export default function ProfilePage() {
     }
   }, [supabase, user, toast, fetchMySessions, updateProfileStats]);
 
+  // ⬇️ ICI : on remplace l’ancienne suppression directe par l’appel unique à la RPC
   const handleDeleteSession = async (sessionId: string) => {
     if (!supabase || !user?.id || !mountedRef.current) return;
     setDeletingSession(sessionId);
     try {
-      const { error: sessionError } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId)
-        .eq('host_id', user.id);
-      if (sessionError) {
-        throw sessionError;
-      }
+      // Appel unique — la fonction gère suppression OU désinscription + transfert d’hôte
+      const { error } = await supabase.rpc('leave_or_delete_session', { p_session_id: sessionId });
+      if (error) throw error;
 
       if (mountedRef.current) {
-        toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
+        toast({
+          title: "Action effectuée",
+          description: "La session a été mise à jour.",
+        });
         await fetchMySessions(user.id);
         updateProfileStats(user.id);
       }
     } catch (error: any) {
       if (mountedRef.current) {
-        toast({ title: "Erreur", description: "Impossible de supprimer la session: " + error.message, variant: "destructive" });
+        toast({ title: "Erreur", description: "Impossible d’exécuter l’action: " + error.message, variant: "destructive" });
       }
     } finally {
       if (mountedRef.current) setDeletingSession(null);
@@ -348,11 +345,8 @@ export default function ProfilePage() {
       });
       if (error) throw error;
 
-      // Affiche l'écran de succès en PLEIN ÉCRAN
       setDeleteSuccess(true);
       setDeleteDialogOpen(false);
-
-      // Invalide la session locale (sans redirection auto)
       await supabase.auth.signOut();
     } catch (e: any) {
       toast({
@@ -404,7 +398,6 @@ export default function ProfilePage() {
             </div>
           </CardContent>
 
-          {/* 👇 Seul bouton conservé comme demandé */}
           <CardFooter className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button
               className="w-full sm:w-auto"
@@ -643,85 +636,101 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {mySessions.map((session) => (
-                <div key={session.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{session.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                        {session.start_place && (
+              {mySessions.map((session) => {
+                const minutesUntil = (new Date(session.scheduled_at).getTime() - Date.now()) / 60000;
+                const canAct = minutesUntil >= 30; // même règle que Map/SessionDetails
+                const hostIsAlone = (session.current_participants || 1) <= 1;
+
+                return (
+                  <div key={session.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{session.title}</h3>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                           <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            {session.start_place}
+                            <Calendar className="w-4 h-4" />
+                            {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </div>
-                        )}
-                        {session.distance_km && (
-                          <span>{session.distance_km} km</span>
-                        )}
-                        {session.intensity && (
-                          <Badge variant="secondary">{session.intensity}</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Users className="w-4 h-4" />
-                          {session.current_participants}/{session.max_participants} participants
+                          {session.start_place && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {session.start_place}
+                            </div>
+                          )}
+                          {session.distance_km && (
+                            <span>{session.distance_km} km</span>
+                          )}
+                          {session.intensity && (
+                            <Badge variant="secondary">{session.intensity}</Badge>
+                          )}
                         </div>
-                        <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
-                          {session.status === 'published' ? 'Publiée' : session.status}
-                        </Badge>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-1 text-sm">
+                            <Users className="w-4 h-4" />
+                            {session.current_participants}/{session.max_participants} participants
+                          </div>
+                          <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
+                            {session.status === 'published' ? 'Publiée' : session.status}
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/session/${session.id}`)}
-                      >
-                        Voir
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={deletingSession === session.id}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Supprimer la session</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Êtes-vous sûr de vouloir supprimer cette session ? Cette action ne peut pas être annulée.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annuler</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteSession(session.id)}
-                              className="bg-destructive hover:bg-destructive/90"
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/session/${session.id}`)}
+                        >
+                          Voir
+                        </Button>
+
+                        {/* On garde le même trigger (icône corbeille) pour ouvrir un dialogue :
+                            - si hôte seul -> suppression
+                            - sinon -> désinscription + transfert d’hôte */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={deletingSession === session.id || !canAct}
+                              title={canAct ? (hostIsAlone ? "Supprimer la session" : "Se désinscrire (transfert d'hôte)") : "Action impossible moins de 30 minutes avant le début"}
                             >
-                              Supprimer
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                {hostIsAlone ? "Supprimer la session" : "Quitter la session en tant qu'hôte"}
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {hostIsAlone
+                                  ? "Vous êtes l’hôte et le seul participant. La session sera définitivement supprimée."
+                                  : "Il existe au moins un autre participant. Vous allez vous désinscrire et l’hôte sera transféré automatiquement à un participant éligible."}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annuler</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteSession(session.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                                disabled={!canAct}
+                              >
+                                {hostIsAlone ? "Supprimer" : "Se désinscrire"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
