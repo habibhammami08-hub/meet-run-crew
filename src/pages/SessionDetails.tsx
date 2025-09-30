@@ -689,22 +689,7 @@ const SessionDetails = () => {
                         </Button>
                       </div>
 
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-1">Paiement unique</h4>
-                        <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">4,50€</span>
-                          <span className="text-xs text-gray-500">une fois</span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={startOneOffCheckout}
-                          disabled={isOneOffLoading}
-                          className="w-full"
-                        >
-                          {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
-                        </Button>
-                      </div>
+                      {/* Bloc Paiement unique supprimé */}
                     </div>
                   )}
                 </CardContent>
@@ -901,22 +886,7 @@ const SessionDetails = () => {
                     </Button>
                   </div>
 
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-semibold mb-1">Paiement unique</h4>
-                    <p className="text-sm text-gray-600 mb-3">Accès à cette session uniquement</p>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-lg font-bold">4,50€</span>
-                      <span className="text-xs text-gray-500">une fois</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={startOneOffCheckout}
-                      disabled={isOneOffLoading}
-                      className="w-full"
-                    >
-                      {isOneOffLoading ? "Ouverture..." : (<><CreditCard className="w-4 h-4 mr-2" />Payer maintenant</>)}
-                    </Button>
-                  </div>
+                  {/* Bloc Paiement unique supprimé (mobile) */}
                 </div>
               )}
             </CardContent>
