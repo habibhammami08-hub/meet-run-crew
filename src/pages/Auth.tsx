@@ -291,11 +291,11 @@ const Auth = () => {
       <div className="relative z-10 w-full max-w-md">
         {/* Hero Section */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
+          <div className="flex items-center justify-center mb-4 mt-6">
             <img 
               src={logoImage} 
               alt="MeetRun" 
-              className="h-16 w-auto"
+              className="h-16 w-auto mx-auto"
             />
           </div>
           
