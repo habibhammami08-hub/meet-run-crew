@@ -398,7 +398,7 @@ const SessionDetails = () => {
 
       if (action === "deleted") {
         toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-        navigate("/profile");
+        navigate("/map");
         return;
       }
 
