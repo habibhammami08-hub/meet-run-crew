@@ -266,7 +266,7 @@ const Home = () => {
       </header>
 
       {/* Main content avec padding pour la navigation fixe */}
-      <div className="main-content pt-20">
+      <div className="main-content pt-16">
         {/* Hero Section */}
         <div className="relative h-[50vh] overflow-hidden">
           <img
