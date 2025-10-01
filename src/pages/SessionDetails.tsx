@@ -287,7 +287,7 @@ const SessionDetails = () => {
       const { error: sessionError } = await supabase.from("sessions").delete().eq("id", session.id).eq("host_id", user.id);
       if (sessionError) throw sessionError;
       toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-      navigate("/map"); // ⬅️ redirection vers la carte
+      navigate("/map");
     } catch (err: any) {
       console.error("[SessionDetails] Delete error:", err);
       toast({ title: "Erreur", description: "Impossible de supprimer la session: " + err.message, variant: "destructive" });
@@ -398,7 +398,7 @@ const SessionDetails = () => {
 
       if (action === "deleted") {
         toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-        navigate("/map"); // ⬅️ redirection vers la carte
+        navigate("/profile");
         return;
       }
 
@@ -407,6 +407,7 @@ const SessionDetails = () => {
       } else if (action === "unenrolled") {
         toast({ title: "Désinscription réussie", description: "Vous n’êtes plus inscrit à cette session." });
       } else {
+        // noop ou autre
         toast({ title: "Action effectuée", description: "Mise à jour de la session." });
       }
 
@@ -453,7 +454,8 @@ const SessionDetails = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour aux sessions
             </Button>
-            {/* actions déplacées sous les participants */}
+
+            {/* ⛔️ Boutons hôte/participant retirés du header : ils sont désormais sous les participants */}
           </div>
         </div>
 
@@ -662,7 +664,7 @@ const SessionDetails = () => {
                   return canAct ? (
                     <Button
                       className="w-full h-12"
-                      variant="destructive"
+                      variant="destructive"   // ⬅️ rouge
                       disabled={isDeleting}
                       onClick={async () => {
                         const question = hasOtherParticipants
@@ -678,7 +680,7 @@ const SessionDetails = () => {
                   ) : (
                     <Button
                       className="w-full h-12"
-                      variant="destructive"
+                      variant="destructive"   // ⬅️ rouge même désactivé
                       disabled
                       title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
                     >
@@ -829,6 +831,7 @@ const SessionDetails = () => {
         {/* Actions — Mobile only (EN DERNIER, sous toute la page) */}
         <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden mt-6">
           <CardContent className="p-6">
+            {/* Même emplacement mobile que 'Rejoindre' */}
             {!isHost && !isEnrolled ? (
               <>
                 <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
@@ -924,7 +927,7 @@ const SessionDetails = () => {
               return canAct ? (
                 <Button
                   className="w-full h-12"
-                  variant="destructive"
+                  variant="destructive"   // ⬅️ rouge
                   disabled={isDeleting}
                   onClick={async () => {
                     const question = hasOtherParticipants
@@ -940,7 +943,7 @@ const SessionDetails = () => {
               ) : (
                 <Button
                   className="w-full h-12"
-                  variant="destructive"
+                  variant="destructive"   // ⬅️ rouge même désactivé
                   disabled
                   title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
                 >
