@@ -681,7 +681,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     <div className="flex items-start gap-2 p-2 bg-muted/60 rounded-lg">
                       <span aria-hidden className="text-2xl leading-none">💡</span>
                       <p className="text-xs text-slate-700">
-                        Après avoir renseigné votre point de départ et votre point d’arrivée, vous pouvez ajouter d’autres étapes en appuyant sur la carte, ou passer directement aux informations générales si le parcours vous convient.
+                        Si l'itinéraire ne vous convient pas, vous pouvez ajouter des étapes intermédiaires afin de personanaliser votre parcours.
                       </p>
                     </div>
                   )}
