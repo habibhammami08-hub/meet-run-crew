@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import heroImage from "@/assets/hero-tropical-running.png";
-import logoImage from "@/assets/meetrun-logo.png";
+import logoImage from "@/assets/meetrun-logo-white.png";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 
@@ -238,7 +238,7 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white border-b border-border px-4 py-3">
+      <header className="border-b border-border px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <img
             src={logoImage}
@@ -247,13 +247,13 @@ const Home = () => {
           />
           <div className="flex items-center gap-2">
             {user ? (
-              <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
                 <User size={16} />
                 Profil
               </Button>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-primary font-semibold">
+                <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-white font-semibold hover:bg-white/10">
                   Se connecter
                 </Button>
                 <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/")}>
