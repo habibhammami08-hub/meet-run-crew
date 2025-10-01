@@ -681,7 +681,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     <div className="flex items-start gap-2 p-2 bg-muted/60 rounded-lg">
                       <span aria-hidden className="text-2xl leading-none">💡</span>
                       <p className="text-xs text-slate-700">
-                        Si l'itinéraire ne vous convient pas, vous pouvez ajouter des étapes intermédiaires afin de personanaliser votre parcours.
+                        Si l'itinéraire ne vous convient pas, vous pouvez ajouter des étapes intermédiaires afin de personnaliser votre parcours.
                       </p>
                     </div>
                   )}
@@ -696,9 +696,9 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   )}
                 </div>
 
-                {/* Bouton "Validé" modernisé — placé plus haut pour rester visible */}
+                {/* Boutons flottants bas : Valider + Supprimer sous Valider */}
                 {mobileStep === "done" && (
-                  <div className="absolute inset-x-8 bottom-24 lg:hidden flex justify-center pointer-events-none">
+                  <div className="absolute inset-x-8 bottom-24 lg:hidden flex flex-col items-center gap-3 pointer-events-none">
                     <Button
                       type="button"
                       onClick={scrollToInfo}
@@ -714,32 +714,33 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                         "transition-transform duration-200 active:scale-95",
                         "hover:from-blue-600 hover:to-indigo-700",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500",
+                        "w-full"
                       ].join(" ")}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 justify-center">
                         <ArrowDownCircle className="h-5 w-5" />
                         <span>Validé</span>
                       </div>
                     </Button>
+
+                    {waypoints.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setWaypoints([]);
+                          if (start && end) calcRoute(start, end, []);
+                        }}
+                        className="pointer-events-auto w-full"
+                      >
+                        Supprimer les points étapes intermédiaires
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
-
-          {waypoints.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setWaypoints([]);
-                if (start && end) calcRoute(start, end, []);
-              }}
-              className="w-full"
-            >
-              Supprimer les points intermédiaires ({waypoints.length})
-            </Button>
-          )}
         </div>
 
         {/* DESKTOP & TABLET */}
@@ -798,7 +799,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                 <div className="flex items-start gap-3 p-3 bg-muted/40 rounded-lg">
                   <span aria-hidden className="text-2xl leading-none">💡</span>
                   <p className="text-xs text-slate-600">
-                    Après avoir renseigné votre point de départ et votre point d’arrivée, appuyez n’importe où sur la carte pour ajouter des étapes et personnaliser votre parcours.
+                    Si l'itinéraire ne vous convient pas, vous pouvez ajouter des étapes intermédiaires afin de personnaliser votre parcours.
                   </p>
                 </div>
               </CardContent>
