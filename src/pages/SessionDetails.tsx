@@ -455,52 +455,12 @@ const SessionDetails = () => {
               Retour aux sessions
             </Button>
 
-            {isHost && (
-              <div className="flex flex-col gap-2">
-                {(() => {
-                  const now = Date.now();
-                  const sessionTime = new Date(session.scheduled_at).getTime();
-                  const minutesUntil = (sessionTime - now) / 60000;
-                  const canAct = minutesUntil >= 30;
-                  const hasOtherParticipants = participants.length > 0; // inscrits éligibles hors hôte
-                  const label = hasOtherParticipants ? "Se désinscrire" : "Supprimer";
-
-                  return canAct ? (
-                    <Button
-                      variant={hasOtherParticipants ? "destructive" : "outline"}
-                      size="sm"
-                      disabled={isDeleting}
-                      onClick={async () => {
-                        const question = hasOtherParticipants
-                          ? "Vous êtes l’hôte et au moins un autre participant est inscrit. Voulez-vous vous désinscrire ? (l’hôte sera réassigné)"
-                          : "Vous êtes l’hôte et le seul participant. Supprimer cette session ?";
-                        if (!confirm(question)) return;
-                        await callRpcLeaveOrDelete();
-                      }}
-                    >
-                      {hasOtherParticipants ? <></> : <Trash2 className="w-4 h-4 mr-2" />}
-                      {label}
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled
-                      title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
-                    >
-                      {hasOtherParticipants ? "Se désinscrire" : "Supprimer"}
-                    </Button>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* ⛔️ Bouton 'Se désinscrire' (participant non-hôte) retiré du header pour qu'il apparaisse à l'emplacement du bouton 'Rejoindre' */}
+            {/* ⛔️ Boutons hôte/participant retirés du header : ils sont désormais sous les participants */}
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Colonne gauche (desktop) - Détails / Participants / Rejoindre (desktop only) */}
+          {/* Colonne gauche (desktop) - Détails / Participants / Actions (desktop only) */}
           <div className="lg:col-span-1 space-y-6 order-2 lg:order-1">
             {/* Détails */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
@@ -603,96 +563,133 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
-            {/* Rejoindre / Se désinscrire — Desktop only */}
-            {!isHost && (
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm hidden lg:block">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+            {/* Actions sous les participants — Desktop only */}
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm hidden lg:block">
+              <CardContent className="p-6">
+                {/* Affichage conditionnel au même emplacement que 'Rejoindre' */}
+                {!isHost && !isEnrolled && (
+                  <>
+                    <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                    {isSessionFull ? (
+                      <div className="text-center py-6">
+                        <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                        <p className="text-gray-600 font-medium">Session complète</p>
+                        <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                      </div>
+                    ) : hasActiveSubscription ? (
+                      <Button
+                        onClick={handleSubscribeOrEnroll}
+                        disabled={isLoading}
+                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Inscription...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Rejoindre
+                          </div>
+                        )}
+                      </Button>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Crown className="w-5 h-5 text-blue-600" />
+                            <span className="font-semibold text-blue-900">Recommandé</span>
+                          </div>
+                          <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                          </p>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                            <Badge variant="secondary">Économique</Badge>
+                          </div>
+                          <Button
+                            onClick={startSubscriptionCheckout}
+                            disabled={isSubLoading}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                          >
+                            {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
 
-                  {isEnrolled ? (
-                    // ✅ Une fois inscrit, bouton "Se désinscrire" à l'emplacement du bouton "Rejoindre"
-                    (() => {
-                      const now = Date.now();
-                      const sessionTime = new Date(session.scheduled_at).getTime();
-                      const minutesUntil = (sessionTime - now) / 60000;
-                      const canUnenroll = minutesUntil >= 30;
+                {/* Participant déjà inscrit → bouton 'Se désinscrire' ici */}
+                {!isHost && isEnrolled && (() => {
+                  const now = Date.now();
+                  const sessionTime = new Date(session.scheduled_at).getTime();
+                  const minutesUntil = (sessionTime - now) / 60000;
+                  const canUnenroll = minutesUntil >= 30;
 
-                      return canUnenroll ? (
-                        <Button
-                          className="w-full h-12"
-                          variant="destructive"
-                          onClick={async () => {
-                            if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
-                            await callRpcLeaveOrDelete();
-                          }}
-                        >
-                          Se désinscrire
-                        </Button>
-                      ) : (
-                        <Button
-                          className="w-full h-12"
-                          variant="outline"
-                          disabled
-                          title="Désinscription impossible moins de 30 minutes avant le début"
-                        >
-                          Se désinscrire
-                        </Button>
-                      );
-                    })()
-                  ) : isSessionFull ? (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p className="text-gray-600 font-medium">Session complète</p>
-                      <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                    </div>
-                  ) : hasActiveSubscription ? (
+                  return canUnenroll ? (
                     <Button
-                      onClick={handleSubscribeOrEnroll}
-                      disabled={isLoading}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                      className="w-full h-12"
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                        await callRpcLeaveOrDelete();
+                      }}
                     >
-                      {isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Inscription...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Rejoindre
-                        </div>
-                      )}
+                      Se désinscrire
                     </Button>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-blue-600" />
-                          <span className="font-semibold text-blue-900">Recommandé</span>
-                        </div>
-                        <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                        </p>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                          <Badge variant="secondary">Économique</Badge>
-                        </div>
-                        <Button
-                          onClick={startSubscriptionCheckout}
-                          disabled={isSubLoading}
-                          className="w-full bg-blue-600 hover:bg-blue-700"
-                        >
-                          {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
-                        </Button>
-                      </div>
+                    <Button
+                      className="w-full h-12"
+                      variant="outline"
+                      disabled
+                      title="Désinscription impossible moins de 30 minutes avant le début"
+                    >
+                      Se désinscrire
+                    </Button>
+                  );
+                })()}
 
-                      {/* Bloc Paiement unique supprimé */}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                {/* Hôte → bouton déplacé ici */}
+                {isHost && (() => {
+                  const now = Date.now();
+                  const sessionTime = new Date(session.scheduled_at).getTime();
+                  const minutesUntil = (sessionTime - now) / 60000;
+                  const canAct = minutesUntil >= 30;
+                  const hasOtherParticipants = participants.length > 0;
+                  const label = hasOtherParticipants ? "Se désinscrire" : "Supprimer";
+
+                  return canAct ? (
+                    <Button
+                      className="w-full h-12"
+                      variant={hasOtherParticipants ? "destructive" : "outline"}
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        const question = hasOtherParticipants
+                          ? "Vous êtes l’hôte et au moins un autre participant est inscrit. Voulez-vous vous désinscrire ? (l’hôte sera réassigné)"
+                          : "Vous êtes l’hôte et le seul participant. Supprimer cette session ?";
+                        if (!confirm(question)) return;
+                        await callRpcLeaveOrDelete();
+                      }}
+                    >
+                      {hasOtherParticipants ? null : <Trash2 className="w-4 h-4 mr-2" />}
+                      {label}
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full h-12"
+                      variant="outline"
+                      disabled
+                      title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
+                    >
+                      {hasOtherParticipants ? "Se désinscrire" : "Supprimer"}
+                    </Button>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Colonne droite — Infos AU-DESSUS de la carte + Carte + Rappels */}
@@ -827,100 +824,135 @@ const SessionDetails = () => {
               </div>
             </div>
 
-            {/* (Mobile) Le bloc "Rejoindre" a été déplacé plus bas pour apparaître tout en bas de la page */}
+            {/* (Mobile) Le bloc d'actions est en bas de page */}
           </div>
         </div>
 
-        {/* Rejoindre / Se désinscrire — Mobile only (EN DERNIER, sous toute la page) */}
-        {!isHost && (
-          <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden mt-6">
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+        {/* Actions — Mobile only (EN DERNIER, sous toute la page) */}
+        <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden mt-6">
+          <CardContent className="p-6">
+            {/* Même emplacement mobile que 'Rejoindre' */}
+            {!isHost && !isEnrolled ? (
+              <>
+                <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
+                {isSessionFull ? (
+                  <div className="text-center py-6">
+                    <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                    <p className="text-gray-600 font-medium">Session complète</p>
+                    <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
+                  </div>
+                ) : hasActiveSubscription ? (
+                  <Button
+                    onClick={handleSubscribeOrEnroll}
+                    disabled={isLoading}
+                    className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Inscription...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Rejoindre
+                      </div>
+                    )}
+                  </Button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Crown className="w-5 h-5 text-blue-600" />
+                        <span className="font-semibold text-blue-900">Recommandé</span>
+                      </div>
+                      <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
+                        <Badge variant="secondary">Économique</Badge>
+                      </div>
+                      <Button
+                        onClick={startSubscriptionCheckout}
+                        disabled={isSubLoading}
+                        className="w-full bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : null}
 
-              {isEnrolled ? (
-                // ✅ Une fois inscrit, bouton "Se désinscrire" à l'emplacement du bouton "Rejoindre"
-                (() => {
-                  const now = Date.now();
-                  const sessionTime = new Date(session.scheduled_at).getTime();
-                  const minutesUntil = (sessionTime - now) / 60000;
-                  const canUnenroll = minutesUntil >= 30;
+            {!isHost && isEnrolled && (() => {
+              const now = Date.now();
+              const sessionTime = new Date(session.scheduled_at).getTime();
+              const minutesUntil = (sessionTime - now) / 60000;
+              const canUnenroll = minutesUntil >= 30;
 
-                  return canUnenroll ? (
-                    <Button
-                      className="w-full h-12"
-                      variant="destructive"
-                      onClick={async () => {
-                        if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
-                        await callRpcLeaveOrDelete();
-                      }}
-                    >
-                      Se désinscrire
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full h-12"
-                      variant="outline"
-                      disabled
-                      title="Désinscription impossible moins de 30 minutes avant le début"
-                    >
-                      Se désinscrire
-                    </Button>
-                  );
-                })()
-              ) : isSessionFull ? (
-                <div className="text-center py-6">
-                  <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                  <p className="text-gray-600 font-medium">Session complète</p>
-                  <p className="text-sm text-gray-500">Cette session a atteint sa capacité maximale</p>
-                </div>
-              ) : hasActiveSubscription ? (
+              return canUnenroll ? (
                 <Button
-                  onClick={handleSubscribeOrEnroll}
-                  disabled={isLoading}
-                  className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                  className="w-full h-12"
+                  variant="destructive"
+                  onClick={async () => {
+                    if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                    await callRpcLeaveOrDelete();
+                  }}
                 >
-                  {isLoading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Inscription...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Rejoindre
-                    </div>
-                  )}
+                  Se désinscrire
                 </Button>
               ) : (
-                <div className="space-y-4">
-                  <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Crown className="w-5 h-5 text-blue-600" />
-                      <span className="font-semibold text-blue-900">Recommandé</span>
-                    </div>
-                    <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
-                    </p>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                      <Badge variant="secondary">Économique</Badge>
-                    </div>
-                    <Button
-                      onClick={startSubscriptionCheckout}
-                      disabled={isSubLoading}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
-                    </Button>
-                  </div>
+                <Button
+                  className="w-full h-12"
+                  variant="outline"
+                  disabled
+                  title="Désinscription impossible moins de 30 minutes avant le début"
+                >
+                  Se désinscrire
+                </Button>
+              );
+            })()}
 
-                  {/* Bloc Paiement unique supprimé (mobile) */}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+            {isHost && (() => {
+              const now = Date.now();
+              const sessionTime = new Date(session.scheduled_at).getTime();
+              const minutesUntil = (sessionTime - now) / 60000;
+              const canAct = minutesUntil >= 30;
+              const hasOtherParticipants = participants.length > 0;
+              const label = hasOtherParticipants ? "Se désinscrire" : "Supprimer";
+
+              return canAct ? (
+                <Button
+                  className="w-full h-12"
+                  variant={hasOtherParticipants ? "destructive" : "outline"}
+                  disabled={isDeleting}
+                  onClick={async () => {
+                    const question = hasOtherParticipants
+                      ? "Vous êtes l’hôte et au moins un autre participant est inscrit. Voulez-vous vous désinscrire ? (l’hôte sera réassigné)"
+                      : "Vous êtes l’hôte et le seul participant. Supprimer cette session ?";
+                    if (!confirm(question)) return;
+                    await callRpcLeaveOrDelete();
+                  }}
+                >
+                  {hasOtherParticipants ? null : <Trash2 className="w-4 h-4 mr-2" />}
+                  {label}
+                </Button>
+              ) : (
+                <Button
+                  className="w-full h-12"
+                  variant="outline"
+                  disabled
+                  title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
+                >
+                  {hasOtherParticipants ? "Se désinscrire" : "Supprimer"}
+                </Button>
+              );
+            })()}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
