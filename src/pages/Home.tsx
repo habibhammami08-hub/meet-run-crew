@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import heroImage from "@/assets/hero-tropical-running.png";
-import logoImage from "@/assets/meetrun-logo-white.png";
+import logoImage from "@/assets/meetrun-logo-new.png";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 
@@ -238,12 +238,12 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-4" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <img
             src={logoImage}
             alt="MeetRun Logo"
-            className="h-8 w-auto"
+            className="h-12 w-auto"
           />
           <div className="flex items-center gap-2">
             {user ? (
@@ -266,7 +266,7 @@ const Home = () => {
       </header>
 
       {/* Main content avec padding pour la navigation fixe */}
-      <div className="main-content">
+      <div className="main-content pt-20">
         {/* Hero Section */}
         <div className="relative h-[50vh] overflow-hidden">
           <img
