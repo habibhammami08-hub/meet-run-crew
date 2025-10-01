@@ -8,6 +8,7 @@ import { Crown, Check, X, ExternalLink, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import logoImage from "@/assets/meetrun-logo-final.png";
 
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
@@ -131,7 +132,28 @@ const Subscription = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="p-4 space-y-6 main-content">
+        {/* Header */}
+        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <img
+              src={logoImage}
+              alt="MeetRun Logo"
+              className="h-10 w-auto cursor-pointer"
+              onClick={() => navigate("/")}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => navigate(`/auth?returnTo=${encodeURIComponent("/subscription")}`)}
+                className="text-white hover:text-white/80"
+              >
+                Se connecter
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="p-4 space-y-6 main-content pt-20">
           <Card className="shadow-card border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-600 justify-center">
@@ -225,7 +247,28 @@ const Subscription = () => {
   // ————— Vue utilisateur connecté
   return (
     <div className="min-h-screen bg-background">
-      <div className="p-4 space-y-6 main-content">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <img
+            src={logoImage}
+            alt="MeetRun Logo"
+            className="h-10 w-auto cursor-pointer"
+            onClick={() => navigate("/")}
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/profile")}
+              className="text-white hover:text-white/80"
+            >
+              Profil
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-4 space-y-6 main-content pt-20">
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">
             <CardHeader>

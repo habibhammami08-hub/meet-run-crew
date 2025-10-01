@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import logoImage from "@/assets/meetrun-logo-final.png";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -487,7 +488,29 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <img
+            src={logoImage}
+            alt="MeetRun Logo"
+            className="h-10 w-auto cursor-pointer"
+            onClick={() => navigate("/")}
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/subscription")}
+              className="text-white hover:text-white/80"
+            >
+              Abonnement
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto p-4 space-y-6 pt-20">
       {/* Profile Header */}
       <Card>
         <CardContent className="p-6">
@@ -802,6 +825,7 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }
