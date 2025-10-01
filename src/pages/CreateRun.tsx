@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User } from "lucide-react";
+import logoImage from "@/assets/meetrun-logo-final.png";
 
 type Pt = google.maps.LatLngLiteral;
 
@@ -545,6 +546,23 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
 
   return (
     <div ref={rootRef} className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-primary-dark to-accent shadow-elegant">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <img
+            src={logoImage}
+            alt="MeetRun Logo"
+            className="h-10 w-auto"
+          />
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
+              <User size={16} />
+              Profil
+            </Button>
+          </div>
+        </div>
+      </header>
+
       <style>{`
   .li-no-mapselect [aria-label*="électionner"],
   .li-no-mapselect [title*="électionner"],
@@ -571,7 +589,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
   }
       `}</style>
 
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+      <div className="container mx-auto px-4 py-6 max-w-4xl pt-24">
         <div className="text-center mb-8">
           {/* ↓↓↓ TITRES plus petits sur mobile, identiques sur desktop/tablette */}
           <h1 className="font-bold gradient-primary bg-clip-text text-transparent mb-3 text-2xl lg:text-3xl">
