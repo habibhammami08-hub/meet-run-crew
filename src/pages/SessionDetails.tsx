@@ -392,11 +392,16 @@ const SessionDetails = () => {
   const callRpcLeaveOrDelete = async () => {
     if (!session) return;
     try {
+      console.log("[callRpcLeaveOrDelete] Appel RPC pour session:", session.id);
       const { data, error } = await supabase.rpc("leave_or_delete_session", { p_session_id: session.id });
+      console.log("[callRpcLeaveOrDelete] Résultat RPC:", { data, error });
+      
       if (error) throw error;
       const action = (data as any)?.action;
+      console.log("[callRpcLeaveOrDelete] Action détectée:", action);
 
       if (action === "deleted") {
+        console.log("[callRpcLeaveOrDelete] Session supprimée, redirection vers /map");
         toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
         navigate("/map");
         return;
@@ -413,6 +418,7 @@ const SessionDetails = () => {
 
       await fetchSessionDetails();
     } catch (e: any) {
+      console.error("[callRpcLeaveOrDelete] Erreur:", e);
       toast({ title: "Erreur", description: e?.message || "Action impossible pour le moment.", variant: "destructive" });
     }
   };
