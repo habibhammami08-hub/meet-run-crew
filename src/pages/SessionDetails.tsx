@@ -643,7 +643,7 @@ const SessionDetails = () => {
                   ) : (
                     <Button
                       className="w-full h-12"
-                      variant="outline"
+                      variant="destructive"
                       disabled
                       title="Désinscription impossible moins de 30 minutes avant le début"
                     >
@@ -652,7 +652,7 @@ const SessionDetails = () => {
                   );
                 })()}
 
-                {/* Hôte → bouton déplacé ici */}
+                {/* Hôte → bouton déplacé ici (ROUGE) */}
                 {isHost && (() => {
                   const now = Date.now();
                   const sessionTime = new Date(session.scheduled_at).getTime();
@@ -664,7 +664,7 @@ const SessionDetails = () => {
                   return canAct ? (
                     <Button
                       className="w-full h-12"
-                      variant={hasOtherParticipants ? "destructive" : "outline"}
+                      variant="destructive"   // ⬅️ rouge
                       disabled={isDeleting}
                       onClick={async () => {
                         const question = hasOtherParticipants
@@ -680,7 +680,7 @@ const SessionDetails = () => {
                   ) : (
                     <Button
                       className="w-full h-12"
-                      variant="outline"
+                      variant="destructive"   // ⬅️ rouge même désactivé
                       disabled
                       title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
                     >
@@ -907,7 +907,7 @@ const SessionDetails = () => {
               ) : (
                 <Button
                   className="w-full h-12"
-                  variant="outline"
+                  variant="destructive"
                   disabled
                   title="Désinscription impossible moins de 30 minutes avant le début"
                 >
@@ -927,7 +927,7 @@ const SessionDetails = () => {
               return canAct ? (
                 <Button
                   className="w-full h-12"
-                  variant={hasOtherParticipants ? "destructive" : "outline"}
+                  variant="destructive"   // ⬅️ rouge
                   disabled={isDeleting}
                   onClick={async () => {
                     const question = hasOtherParticipants
@@ -943,7 +943,7 @@ const SessionDetails = () => {
               ) : (
                 <Button
                   className="w-full h-12"
-                  variant="outline"
+                  variant="destructive"   // ⬅️ rouge même désactivé
                   disabled
                   title={hasOtherParticipants ? "Désinscription impossible moins de 30 minutes avant le début" : "Suppression impossible moins de 30 minutes avant le début"}
                 >
