@@ -713,9 +713,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                         "ring-1 ring-white/40",
                         "transition-transform duration-200 active:scale-95",
                         "hover:from-blue-600 hover:to-indigo-700",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500",
-                        "w-full"
-                      ].join(" ")}
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"].join(" ")}
                     >
                       <div className="flex items-center gap-2 justify-center">
                         <ArrowDownCircle className="h-5 w-5" />
@@ -731,9 +729,9 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                           setWaypoints([]);
                           if (start && end) calcRoute(start, end, []);
                         }}
-                        className="pointer-events-auto w-full"
+                        className="pointer-events-auto"
                       >
-                        Supprimer les points étapes intermédiaires
+                        Supprimer les points intermédiaires ({waypoints.length})
                       </Button>
                     )}
                   </div>
