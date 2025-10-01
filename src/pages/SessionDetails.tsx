@@ -287,7 +287,7 @@ const SessionDetails = () => {
       const { error: sessionError } = await supabase.from("sessions").delete().eq("id", session.id).eq("host_id", user.id);
       if (sessionError) throw sessionError;
       toast({ title: "Session supprimée", description: "La session a été supprimée avec succès." });
-      navigate("/profile");
+      navigate("/map");
     } catch (err: any) {
       console.error("[SessionDetails] Delete error:", err);
       toast({ title: "Erreur", description: "Impossible de supprimer la session: " + err.message, variant: "destructive" });
