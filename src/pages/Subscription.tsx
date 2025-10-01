@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Check, X, ExternalLink, Users } from "lucide-react";
+import { Crown, Check, X, ExternalLink, Users, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -138,22 +138,20 @@ const Subscription = () => {
             <img
               src={logoImage}
               alt="MeetRun Logo"
-              className="h-10 w-auto cursor-pointer"
-              onClick={() => navigate("/")}
+              className="h-10 w-auto"
             />
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                onClick={() => navigate(`/auth?returnTo=${encodeURIComponent("/subscription")}`)}
-                className="text-white hover:text-white/80"
-              >
+              <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/subscription")} className="text-white font-semibold hover:bg-white/10">
                 Se connecter
+              </Button>
+              <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/subscription")}>
+                S'inscrire
               </Button>
             </div>
           </div>
         </header>
 
-        <div className="p-4 space-y-6 main-content pt-20">
+        <div className="p-4 space-y-6 main-content pt-16">
           <Card className="shadow-card border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-600 justify-center">
@@ -253,22 +251,18 @@ const Subscription = () => {
           <img
             src={logoImage}
             alt="MeetRun Logo"
-            className="h-10 w-auto cursor-pointer"
-            onClick={() => navigate("/")}
+            className="h-10 w-auto"
           />
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/profile")}
-              className="text-white hover:text-white/80"
-            >
+            <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
+              <User size={16} />
               Profil
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="p-4 space-y-6 main-content pt-20">
+      <div className="p-4 space-y-6 main-content pt-16">
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">
             <CardHeader>

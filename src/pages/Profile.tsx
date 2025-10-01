@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown } from "lucide-react";
+import { Calendar, MapPin, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
 import {
@@ -495,22 +495,18 @@ export default function ProfilePage() {
           <img
             src={logoImage}
             alt="MeetRun Logo"
-            className="h-10 w-auto cursor-pointer"
-            onClick={() => navigate("/")}
+            className="h-10 w-auto"
           />
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/subscription")}
-              className="text-white hover:text-white/80"
-            >
-              Abonnement
+            <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
+              <User size={16} />
+              Profil
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto p-4 space-y-6 pt-20">
+      <div className="container mx-auto p-4 space-y-6 pt-16">
       {/* Profile Header */}
       <Card>
         <CardContent className="p-6">
