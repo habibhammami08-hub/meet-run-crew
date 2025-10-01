@@ -495,40 +495,7 @@ const SessionDetails = () => {
               </div>
             )}
 
-            {/* ▼▼▼ AJOUT : bouton Se désinscrire (participant non-hôte) via RPC */}
-            {isEnrolled && !isHost && (
-              <div className="flex flex-col gap-2">
-                {(() => {
-                  const now = Date.now();
-                  const sessionTime = new Date(session.scheduled_at).getTime();
-                  const minutesUntil = (sessionTime - now) / 60000;
-                  const canUnenroll = minutesUntil >= 30;
-
-                  return canUnenroll ? (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={async () => {
-                        if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
-                        await callRpcLeaveOrDelete();
-                      }}
-                    >
-                      Se désinscrire
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled
-                      title="Désinscription impossible moins de 30 minutes avant le début"
-                    >
-                      Se désinscrire
-                    </Button>
-                  );
-                })()}
-              </div>
-            )}
-            {/* ▲▲▲ */}
+            {/* ⛔️ Bouton 'Se désinscrire' (participant non-hôte) retiré du header pour qu'il apparaisse à l'emplacement du bouton 'Rejoindre' */}
           </div>
         </div>
 
@@ -636,12 +603,43 @@ const SessionDetails = () => {
               </CardContent>
             </Card>
 
-            {/* Rejoindre — Desktop only */}
-            {!isEnrolled && !isHost && (
+            {/* Rejoindre / Se désinscrire — Desktop only */}
+            {!isHost && (
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm hidden lg:block">
                 <CardContent className="p-6">
                   <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-                  {isSessionFull ? (
+
+                  {isEnrolled ? (
+                    // ✅ Une fois inscrit, bouton "Se désinscrire" à l'emplacement du bouton "Rejoindre"
+                    (() => {
+                      const now = Date.now();
+                      const sessionTime = new Date(session.scheduled_at).getTime();
+                      const minutesUntil = (sessionTime - now) / 60000;
+                      const canUnenroll = minutesUntil >= 30;
+
+                      return canUnenroll ? (
+                        <Button
+                          className="w-full h-12"
+                          variant="destructive"
+                          onClick={async () => {
+                            if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                            await callRpcLeaveOrDelete();
+                          }}
+                        >
+                          Se désinscrire
+                        </Button>
+                      ) : (
+                        <Button
+                          className="w-full h-12"
+                          variant="outline"
+                          disabled
+                          title="Désinscription impossible moins de 30 minutes avant le début"
+                        >
+                          Se désinscrire
+                        </Button>
+                      );
+                    })()
+                  ) : isSessionFull ? (
                     <div className="text-center py-6">
                       <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                       <p className="text-gray-600 font-medium">Session complète</p>
@@ -661,7 +659,7 @@ const SessionDetails = () => {
                       ) : (
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-4 h-4" />
-                          Rejoindre gratuitement
+                          Rejoindre
                         </div>
                       )}
                     </Button>
@@ -833,12 +831,43 @@ const SessionDetails = () => {
           </div>
         </div>
 
-        {/* Rejoindre — Mobile only (EN DERNIER, sous toute la page) */}
-        {!isEnrolled && !isHost && (
+        {/* Rejoindre / Se désinscrire — Mobile only (EN DERNIER, sous toute la page) */}
+        {!isHost && (
           <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm lg:hidden mt-6">
             <CardContent className="p-6">
               <h3 className="font-semibold mb-4">Rejoindre cette session</h3>
-              {isSessionFull ? (
+
+              {isEnrolled ? (
+                // ✅ Une fois inscrit, bouton "Se désinscrire" à l'emplacement du bouton "Rejoindre"
+                (() => {
+                  const now = Date.now();
+                  const sessionTime = new Date(session.scheduled_at).getTime();
+                  const minutesUntil = (sessionTime - now) / 60000;
+                  const canUnenroll = minutesUntil >= 30;
+
+                  return canUnenroll ? (
+                    <Button
+                      className="w-full h-12"
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!confirm("Voulez-vous vraiment vous désinscrire de cette session ?")) return;
+                        await callRpcLeaveOrDelete();
+                      }}
+                    >
+                      Se désinscrire
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full h-12"
+                      variant="outline"
+                      disabled
+                      title="Désinscription impossible moins de 30 minutes avant le début"
+                    >
+                      Se désinscrire
+                    </Button>
+                  );
+                })()
+              ) : isSessionFull ? (
                 <div className="text-center py-6">
                   <Users className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                   <p className="text-gray-600 font-medium">Session complète</p>
@@ -858,7 +887,7 @@ const SessionDetails = () => {
                   ) : (
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4" />
-                      Rejoindre gratuitement
+                      Rejoindre
                     </div>
                   )}
                 </Button>
