@@ -677,7 +677,14 @@ const SessionDetails = () => {
                           ? "Vous êtes l’hôte et au moins un autre participant est inscrit. Voulez-vous vous désinscrire ? (l’hôte sera réassigné)"
                           : "Vous êtes l’hôte et le seul participant. Supprimer cette session ?";
                         if (!confirm(question)) return;
-                        await callRpcLeaveOrDelete();
+                        
+                        // Si pas d'autres participants, suppression directe
+                        if (!hasOtherParticipants) {
+                          await handleDeleteSession();
+                        } else {
+                          // Sinon, utiliser la RPC pour gérer la réassignation
+                          await callRpcLeaveOrDelete();
+                        }
                       }}
                     >
                       {hasOtherParticipants ? null : <Trash2 className="w-4 h-4 mr-2" />}
