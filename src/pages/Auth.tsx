@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone, Chrome, Users, MapPin, Heart, CheckCircle } from "lucide-react";
-import logoImage from "@/assets/meetrun-logo-green.png";
+import logoImage from "@/assets/meetrun-logo-auth.png";
 
 const supabase = getSupabase();
 
