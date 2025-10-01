@@ -600,7 +600,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
   }
       `}</style>
 
-      <div className="container mx-auto px-4 py-6 max-w-4xl pt-16">
+      <div className="container mx-auto px-4 py-6 max-w-4xl pt-24">
         <div className="text-center mb-8">
           {/* ↓↓↓ TITRES plus petits sur mobile, identiques sur desktop/tablette */}
           <h1 className="font-bold gradient-primary bg-clip-text text-transparent mb-3 text-2xl lg:text-3xl">

@@ -151,7 +151,7 @@ const Subscription = () => {
           </div>
         </header>
 
-        <div className="p-4 space-y-6 main-content pt-16">
+        <div className="p-4 space-y-6 main-content pt-24">
           <Card className="shadow-card border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-600 justify-center">
@@ -262,7 +262,7 @@ const Subscription = () => {
         </div>
       </header>
 
-      <div className="p-4 space-y-6 main-content pt-16">
+      <div className="p-4 space-y-6 main-content pt-24">
         {hasActiveSubscription ? (
           <Card className="shadow-card border-primary/20">
             <CardHeader>

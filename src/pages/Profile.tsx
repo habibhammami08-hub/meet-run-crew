@@ -506,7 +506,7 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <div className="container mx-auto p-4 space-y-6 pt-16">
+      <div className="container mx-auto p-4 space-y-6 pt-24">
       {/* Profile Header */}
       <Card>
         <CardContent className="p-6">
