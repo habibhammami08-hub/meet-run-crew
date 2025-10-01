@@ -547,18 +547,29 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
   return (
     <div ref={rootRef} className="min-h-screen bg-background">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-primary-dark to-accent shadow-elegant">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
           <img
             src={logoImage}
             alt="MeetRun Logo"
             className="h-10 w-auto"
           />
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
-              <User size={16} />
-              Profil
-            </Button>
+            {currentUser ? (
+              <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
+                <User size={16} />
+                Profil
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/create")} className="text-white font-semibold hover:bg-white/10">
+                  Se connecter
+                </Button>
+                <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/create")}>
+                  S'inscrire
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -589,7 +600,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
   }
       `}</style>
 
-      <div className="container mx-auto px-4 py-6 max-w-4xl pt-24">
+      <div className="container mx-auto px-4 py-6 max-w-4xl pt-16">
         <div className="text-center mb-8">
           {/* ↓↓↓ TITRES plus petits sur mobile, identiques sur desktop/tablette */}
           <h1 className="font-bold gradient-primary bg-clip-text text-transparent mb-3 text-2xl lg:text-3xl">
