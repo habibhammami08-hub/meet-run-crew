@@ -1,11 +1,12 @@
 // src/integrations/supabase/client.ts
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { CONFIG } from "@/config";
 
 // ————————————————————————————————————————————
 // Env + singleton
 // ————————————————————————————————————————————
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const SUPABASE_URL = CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY;
 
 /**
  * Indique si les variables d'env nécessaires sont présentes.
@@ -17,7 +18,7 @@ let _client: SupabaseClient | null = null;
 
 /**
  * Retourne le client Supabase (singleton).
- * - persistSession: true → l’utilisateur reste connecté
+ * - persistSession: true → l'utilisateur reste connecté
  * - autoRefreshToken: true → refresh automatique des JWT
  * - detectSessionInUrl: true → utile si tu utilises des magic links
  */
@@ -50,14 +51,23 @@ export function getSupabase(): SupabaseClient {
 }
 
 /**
- * Export nommé conservé pour compat’ avec du code existant
+ * Export nommé conservé pour compat' avec du code existant
  * qui importe directement { supabase }.
+ * Lazy initialization pour éviter les erreurs au chargement.
  */
-export const supabase: SupabaseClient = getSupabase();
+let _exportedClient: SupabaseClient | null = null;
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    if (!_exportedClient) {
+      _exportedClient = getSupabase();
+    }
+    return (_exportedClient as any)[prop];
+  }
+});
 
 /**
- * Helper de compat’ : renvoie l’utilisateur courant ou null,
- * sans throw si la session n’existe pas.
+ * Helper de compat' : renvoie l'utilisateur courant ou null,
+ * sans throw si la session n'existe pas.
  */
 export async function getCurrentUserSafe(): Promise<User | null> {
   try {
