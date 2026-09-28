@@ -699,11 +699,12 @@ function MapPageInner() {
 
                       return (
                         <div key={s.id}>
-                          {/* Départ — petit point vert */}
+                          {/* Départ — épingle colorée selon le type de session */}
                           <MarkerF
                             position={startShown}
                             title={`${s.title} • ${dbToUiIntensity(s.intensity || undefined)}${own ? ' (Votre session)' : enrolled ? ' (Inscrit)' : ''}`}
-                            icon={createDotIcon(START_DOT_COLOR)}
+                            icon={createStartPinIcon(s.session_type, selected)}
+                            zIndex={selected ? 9999 : undefined}
                             onClick={(e) => {
                               // @ts-ignore — google maps DOM event
                               e.domEvent?.stopPropagation?.();
