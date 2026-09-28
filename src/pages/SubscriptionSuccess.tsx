@@ -116,7 +116,7 @@ const SubscriptionSuccess = () => {
           <CardContent className="p-8 text-center space-y-6">
             <div className="flex justify-center">
               <div className="relative">
-                <CheckCircle size={64} className={phase === "active" ? "text-green-500" : "text-gray-300"} />
+                <CheckCircle size={64} className={phase === "active" ? "text-deep-bright" : "text-gray-300"} />
                 <Crown size={24} className={`absolute -top-2 -right-2 ${phase === "active" ? "text-yellow-500" : "text-gray-300"}`} />
               </div>
             </div>
@@ -155,15 +155,15 @@ const SubscriptionSuccess = () => {
                 <h3 className="font-semibold mb-2">Vous pouvez maintenant :</h3>
                 <ul className="text-sm space-y-1">
                   <li className="flex items-center gap-2">
-                    <CheckCircle size={14} className="text-green-600" />
+                    <CheckCircle size={14} className="text-deep" />
                     Voir les lieux exacts de toutes les sessions
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle size={14} className="text-green-600" />
+                    <CheckCircle size={14} className="text-deep" />
                     Rejoindre n’importe quelle session sans payer
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle size={14} className="text-green-600" />
+                    <CheckCircle size={14} className="text-deep" />
                     Profiter de l’accès illimité
                   </li>
                 </ul>

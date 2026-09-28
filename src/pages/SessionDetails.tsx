@@ -409,7 +409,7 @@ const SessionDetails = () => {
   // ------- Early return après hooks -------
   if (!session || !shownStart || !center) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-deep/5">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center min-h-[40vh]">
             <div className="text-center">
@@ -460,7 +460,7 @@ const SessionDetails = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-deep/5">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-2">
@@ -595,7 +595,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 bg-deep rounded-full flex items-center justify-center text-white text-xs font-semibold">
                           <User className="w-4 h-4" />
                         </div>
                       )}
@@ -632,7 +632,7 @@ const SessionDetails = () => {
                       <Button
                         onClick={handleSubscribeOrEnroll}
                         disabled={isLoading}
-                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                        className="w-full h-12 bg-deep hover:bg-deep/90"
                       >
                         {isLoading ? (
                           <div className="flex items-center gap-2">
@@ -771,7 +771,7 @@ const SessionDetails = () => {
 
               <div className="space-y-1 text-sm">
                 <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <MapPin className="w-4 h-4 text-deep mt-0.5 flex-shrink-0" />
                   <div>
                     <span className="font-medium">Départ : </span>
                     {canSeeExactLocation
@@ -904,7 +904,7 @@ const SessionDetails = () => {
                   <Button
                     onClick={handleSubscribeOrEnroll}
                     disabled={isLoading}
-                    className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    className="w-full h-12 bg-deep hover:bg-deep/90"
                   >
                     {isLoading ? (
                       <div className="flex items-center gap-2">

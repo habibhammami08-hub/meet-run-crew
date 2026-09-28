@@ -411,8 +411,8 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center pb-6">
-            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-deep/10 flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8 text-deep" />
             </div>
             <CardTitle className="text-2xl font-bold text-foreground">
               Vous allez nous manquer 😕

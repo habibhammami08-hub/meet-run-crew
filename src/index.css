@@ -18,7 +18,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 210 40% 8%;
 
-    --primary: 142 76% 36%;
+    --primary: 170 67% 15.5%;
     --primary-foreground: 0 0% 98%;
 
     --secondary: 210 40% 96%;
@@ -27,7 +27,7 @@
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 142 76% 36%;
+    --accent: 170 67% 15.5%;
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 84% 60%;
@@ -35,18 +35,19 @@
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 142 76% 36%;
+    --ring: 170 67% 15.5%;
     --promo: 194 87% 55%;
     --promo-surface: 180 6% 9%;
     --promo-foreground: 0 0% 98%;
     --deep: 170 67% 15.5%;
     --deep-foreground: 0 0% 100%;
+    --deep-bright: 168 55% 42%;
 
     --radius: 0.75rem;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(142 76% 45%));
-    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(142 76% 45%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(170 60% 24%));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(170 60% 24%) 100%);
     --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(210 40% 98%) 100%);
 
     /* Shadows */
@@ -78,8 +79,8 @@
     --popover: 217 33% 17%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 142 76% 45%;
-    --primary-foreground: 210 40% 8%;
+    --primary: 170 67% 15.5%;
+    --primary-foreground: 0 0% 98%;
 
     --secondary: 217 33% 17%;
     --secondary-foreground: 0 0% 98%;
@@ -87,15 +88,15 @@
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 142 76% 45%;
-    --accent-foreground: 210 40% 8%;
+    --accent: 170 67% 15.5%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 142 76% 45%;
+    --ring: 170 67% 15.5%;
     --promo: 194 87% 60%;
     --promo-surface: 180 6% 9%;
     --promo-foreground: 0 0% 98%;

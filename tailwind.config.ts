@@ -27,7 +27,8 @@ export default {
 				'promo-foreground': 'hsl(var(--promo-foreground))',
 				deep: {
 					DEFAULT: 'hsl(var(--deep))',
-					foreground: 'hsl(var(--deep-foreground))'
+					foreground: 'hsl(var(--deep-foreground))',
+					bright: 'hsl(var(--deep-bright))'
 				},
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
