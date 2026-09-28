@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabase } from "@/integrations/supabase/client";
+import { isFreePromoActive } from "@/config/promo";
 
 type Profile = {
   id: string;
@@ -208,8 +209,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const hasActiveSubscription = useMemo(
-    () => isSubActive(profile?.sub_status ?? null, profile?.sub_current_period_end ?? null),
-    [profile?.sub_status, profile?.sub_current_period_end]
+    () =>
+      (!!user && isFreePromoActive()) ||
+      isSubActive(profile?.sub_status ?? null, profile?.sub_current_period_end ?? null),
+    [user, profile?.sub_status, profile?.sub_current_period_end]
   );
 
   const value: AuthCtx = {
