@@ -63,9 +63,9 @@ const Navigation = () => {
         
         <Link to="/create">
           <Button 
-            variant="sport" 
+            variant="default" 
             size="sm" 
-            className="rounded-full w-12 h-12 p-0 shadow-sport hover:shadow-hover transition-sport transform hover:scale-105"
+            className="rounded-full w-12 h-12 p-0 bg-deep text-deep-foreground shadow-deep hover:bg-deep/90 hover:text-deep-foreground transition-sport transform hover:scale-105"
           >
             <Plus size={24} />
           </Button>
