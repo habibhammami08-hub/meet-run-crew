@@ -325,7 +325,7 @@ const Home = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
               {/* Étape 1 */}
-              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-green-500/20 via-emerald-500/25 to-emerald-500/45 hover:scale-105 relative overflow-hidden">
+              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 to-emerald-500"></div>
                 <CardContent className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
@@ -358,7 +358,7 @@ const Home = () => {
               </Card>
 
               {/* Étape 2 */}
-              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-blue-500/20 via-cyan-500/25 to-cyan-500/45 hover:scale-105 relative overflow-hidden">
+              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
                 <CardContent className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
@@ -388,7 +388,7 @@ const Home = () => {
               </Card>
 
               {/* Étape 3 */}
-              <Card className="group shadow-lg hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br from-pink-500/20 via-rose-500/25 to-rose-500/45 hover:scale-105 relative overflow-hidden">
+              <Card className="group shadow-lg hover:shadow-2xl transition-all durée-500 border-0 bg-gradient-to-br from-white to-gray-50/30 hover:scale-105 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-rose-500"></div>
                 <CardContent className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
