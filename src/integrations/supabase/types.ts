@@ -157,6 +157,13 @@ export type Database = {
             foreignKeyName: "enrollments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profiles_public_open"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
           },
@@ -325,6 +332,13 @@ export type Database = {
             foreignKeyName: "sessions_host_id_fkey"
             columns: ["host_id"]
             isOneToOne: false
+            referencedRelation: "profiles_public_open"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
             referencedRelation: "public_profiles"
             referencedColumns: ["id"]
           },
@@ -332,6 +346,27 @@ export type Database = {
       }
     }
     Views: {
+      profiles_public_open: {
+        Row: {
+          age: number | null
+          avatar_url: string | null
+          full_name: string | null
+          id: string | null
+        }
+        Insert: {
+          age?: number | null
+          avatar_url?: string | null
+          full_name?: string | null
+          id?: string | null
+        }
+        Update: {
+          age?: number | null
+          avatar_url?: string | null
+          full_name?: string | null
+          id?: string | null
+        }
+        Relationships: []
+      }
       public_profiles: {
         Row: {
           age: number | null
@@ -399,6 +434,13 @@ export type Database = {
             columns: ["host_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public_open"
             referencedColumns: ["id"]
           },
           {
