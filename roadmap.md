@@ -1,2 +1,3 @@
-- [ ] Update all subscription-facing pages and labels to clearly present the automatic free Unlimited offer through 31 December 2026.
-- [ ] Verify desktop and mobile views, signup navigation, and current build diagnostics.
+- [x] Update subscription-facing pages and labels to present automatic free Unlimited access through 31 December 2026; keep paid copy behind the existing campaign switch.
+- [x] Verify public desktop/mobile views, signup navigation, and current build diagnostics.
+- [ ] Verify Unlimited on a signed-in account and session enrollment — blocked: this project uses external, unmanaged authentication without a test session.

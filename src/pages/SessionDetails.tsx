@@ -123,7 +123,7 @@ const SessionDetails = () => {
   // --------- Edge Functions checkout handlers ----------
   const redirectToAuth = () => {
     const currentPath = `/session/${id}`;
-    window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+    window.location.href = `/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=${encodeURIComponent(currentPath)}`;
   };
 
   const startOneOffCheckout = async () => {
@@ -256,7 +256,7 @@ const SessionDetails = () => {
   const handleSubscribeOrEnroll = async () => {
     if (!user) {
       const currentPath = `/session/${id}`;
-      window.location.href = `/auth?returnTo=${encodeURIComponent(currentPath)}`;
+      window.location.href = `/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=${encodeURIComponent(currentPath)}`;
       return;
     }
     if (!session) return;
