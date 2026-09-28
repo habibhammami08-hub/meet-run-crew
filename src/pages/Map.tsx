@@ -958,12 +958,6 @@ function MapPageInner() {
                                 </div>
                               )}
                             </div>
-                            {session.distanceFromUser !== null && (
-                              <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold tabular-nums text-primary ring-1 ring-primary/15">
-                                <Navigation className="h-3 w-3" />
-                                {Number(session.distanceFromUser).toFixed(1)} km
-                              </span>
-                            )}
                           </div>
 
                           <div className="mt-3 space-y-2">
