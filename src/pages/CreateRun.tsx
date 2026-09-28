@@ -554,7 +554,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
   // Plus d'écran "Connexion requise" : si non connecté, on a déjà redirigé vers /auth
 
   // Composant avec bouton "Ma position"
-  const LocationInputWithMyPosition = ({ 
+  const renderLocationInput = ({ 
     value, 
     onChange, 
     placeholder, 
@@ -732,25 +732,23 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
 
                   {mobileStep === "start" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
-                      <LocationInputWithMyPosition
-                        value={start}
-                        onChange={(val) => setStart(val)}
-                        placeholder="Adresse de départ (ou touchez la carte)"
-                        icon="start"
-                        locationType="start"
-                      />
+                      {renderLocationInput({                        value: start,
+                        onChange: (val) => setStart(val),
+                        placeholder: "Adresse de départ (ou touchez la carte)",
+                        icon: "start",
+                        locationType: "start",
+                      })}
                     </div>
                   )}
 
                   {mobileStep === "end" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
-                      <LocationInputWithMyPosition
-                        value={end}
-                        onChange={(val) => setEnd(val)}
-                        placeholder="Adresse d'arrivée (ou touchez la carte)"
-                        icon="end"
-                        locationType="end"
-                      />
+                      {renderLocationInput({                        value: end,
+                        onChange: (val) => setEnd(val),
+                        placeholder: "Adresse d'arrivée (ou touchez la carte)",
+                        icon: "end",
+                        locationType: "end",
+                      })}
                     </div>
                   )}
 
@@ -838,13 +836,12 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     Point de départ *
                   </label>
                   <div className="li-no-mapselect text-xs">
-                    <LocationInputWithMyPosition
-                      value={start}
-                      onChange={setStart}
-                      placeholder="Saisissez l'adresse de départ ou appuyez directement sur la carte."
-                      icon="start"
-                      locationType="start"
-                    />
+                    {renderLocationInput({                      value: start,
+                      onChange: setStart,
+                      placeholder: "Saisissez l'adresse de départ ou appuyez directement sur la carte.",
+                      icon: "start",
+                      locationType: "start",
+                    })}
                   </div>
                 </div>
 
@@ -853,13 +850,12 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     Point d'arrivée *
                   </label>
                   <div className="li-no-mapselect text-xs">
-                    <LocationInputWithMyPosition
-                      value={end}
-                      onChange={setEnd}
-                      placeholder="Saisissez l'adresse d'arrivée ou appuyez directement sur la carte."
-                      icon="end"
-                      locationType="end"
-                    />
+                    {renderLocationInput({                      value: end,
+                      onChange: setEnd,
+                      placeholder: "Saisissez l'adresse d'arrivée ou appuyez directement sur la carte.",
+                      icon: "end",
+                      locationType: "end",
+                    })}
                   </div>
                 </div>
 
