@@ -348,7 +348,7 @@ function MapPageInner() {
       let label: string | null = localStorage.getItem(cacheKey);
       if (!label) {
         try {
-          const { data, error } = await supabase.functions.invoke("google-maps-services", {
+          const { data, error } = await getSupabase().functions.invoke("google-maps-services", {
             body: { action: "reverse_geocode", lat: s.start_lat, lng: s.start_lng },
           });
           if (error || !data?.results?.length) return;
