@@ -9,7 +9,8 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User } from "lucide-react"; // ← RefreshCw retiré, User ajouté
+import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User, ArrowRight, Route } from "lucide-react"; // ← RefreshCw retiré, User ajouté
+import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
@@ -93,6 +94,17 @@ const uiToDbIntensity = (uiIntensity: string): string | null => {
 };
 
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
+
+// Filet d'accent + pastille couleur selon l'intensité : repère visuel immédiat
+const intensityAccent = (intensity: string | null) => {
+  if (intensity === "low") {
+    return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
+  }
+  if (intensity === "high") {
+    return { rail: "from-rose-300 via-rose-500 to-red-600", dot: "bg-rose-500" };
+  }
+  return { rail: "from-sky-300 via-sky-500 to-blue-600", dot: "bg-sky-500" };
+};
 
 const polyCache = new Map<string, LatLng[]>();
 const pathFromPolyline = (p?: string | null): LatLng[] => {
@@ -819,90 +831,152 @@ function MapPageInner() {
 
           {/* Colonne gauche */}
           <div className="lg:col-span-1 order-2 lg:order-1 space-y-6">
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm order-2 lg:order-1">
+            <Card className="order-2 overflow-hidden border-0 bg-white/80 shadow-lg backdrop-blur-sm lg:order-1">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Navigation className="w-5 h-5 text-green-600" />
-                  Sessions près de vous
-                </CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="flex items-center gap-2.5 text-lg">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
+                      <Navigation className="h-4 w-4 text-primary" />
+                    </span>
+                    Sessions près de vous
+                  </CardTitle>
+                  {!loading && filteredNearestSessions.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold tabular-nums text-primary ring-1 ring-primary/15">
+                      {filteredNearestSessions.length}
+                    </span>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="space-y-3">{[1,2,3].map(i => (<div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>))}</div>
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="animate-pulse rounded-2xl bg-gray-100/80 p-4 ring-1 ring-gray-900/5">
+                        <div className="h-3.5 w-1/2 rounded-full bg-gray-200" />
+                        <div className="mt-3 h-3 w-3/4 rounded-full bg-gray-200/70" />
+                        <div className="mt-2 h-3 w-1/3 rounded-full bg-gray-200/50" />
+                      </div>
+                    ))}
+                  </div>
                 ) : filteredNearestSessions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Aucune session proche trouvée</p>
-                    <p className="text-xs mt-1">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres" : "Activez la géolocalisation"}</p>
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-4 py-8 text-center">
+                    <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-900/5">
+                      <MapPin className="h-6 w-6 text-gray-400" />
+                    </span>
+                    <p className="text-sm font-semibold text-gray-800">Aucune session proche trouvée</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all"
+                        ? "Essayez d'élargir vos filtres"
+                        : "Activez la géolocalisation"}
+                    </p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <div className="thin-scroll max-h-96 space-y-3 overflow-y-auto pr-1">
                     {filteredNearestSessions.map(session => {
                       const blur = shouldBlur(session);
                       const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
                       const own = isOwnSession(session, currentUser?.id);
+                      const accent = intensityAccent(session.intensity);
+                      const isSelected = selectedSession === session.id;
+                      const scheduled = new Date(session.scheduled_at);
                       return (
                         <div
                           key={session.id}
-                          className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${selectedSession === session.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
                           onClick={() => {
-                            setSelectedSession(selectedSession === session.id ? null : session.id);
+                            setSelectedSession(isSelected ? null : session.id);
                             setCenter({ lat: session.start_lat, lng: session.start_lng });
                           }}
+                          className={cn(
+                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-4 pl-6 pr-4 transition-all duration-200",
+                            "shadow-[var(--shadow-card)] ring-1 ring-gray-900/5",
+                            "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-primary/25",
+                            "active:translate-y-0 active:scale-[0.99]",
+                            isSelected && "ring-2 ring-primary/70"
+                          )}
                         >
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
-                              {session.title}
-                            </h3>
-                            <div className="flex items-center gap-2">
-                              {enrolled && <Badge className="bg-amber-100 text-amber-800 h-5">Inscrit</Badge>}
-                              {own && <Badge variant="secondary" className="h-5">Hôte</Badge>}
-                              {session.distanceFromUser !== null && (<Badge variant="secondary" className="text-xs">{Number(session.distanceFromUser).toFixed(1)} km</Badge>)}
+                          {/* Filet d'accent couleur intensité */}
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "absolute left-3 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b opacity-80 transition-all duration-200",
+                              "group-hover:w-1.5 group-hover:opacity-100",
+                              accent.rail,
+                              isSelected && "w-1.5 opacity-100"
+                            )}
+                          />
+
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={cn("h-2 w-2 shrink-0 rounded-full", accent.dot)} />
+                                <h3 className="truncate text-sm font-bold tracking-tight text-gray-900">
+                                  {session.title}
+                                </h3>
+                              </div>
+                              {(enrolled || own) && (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                  {enrolled && <Badge className="h-5 bg-amber-100 text-[10px] text-amber-800">Inscrit</Badge>}
+                                  {own && <Badge variant="secondary" className="h-5 text-[10px]">Hôte</Badge>}
+                                </div>
+                              )}
+                            </div>
+                            {session.distanceFromUser !== null && (
+                              <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold tabular-nums text-primary ring-1 ring-primary/15">
+                                <Navigation className="h-3 w-3" />
+                                {Number(session.distanceFromUser).toFixed(1)} km
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-3 space-y-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100">
+                              <Calendar className="h-3 w-3" />
+                              {scheduled.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                              {" · "}
+                              {scheduled.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                              <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                              <span className="truncate">
+                                {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || "Lieu exact")}
+                              </span>
                             </div>
                           </div>
 
-                          <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-  <Calendar className="w-3 h-3 text-blue-600" />
-  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[11px] font-semibold">
-    {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-  </span>
-</div>
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || 'Lieu exact')}
+                          <div className="mt-3 -ml-6 -mr-4 flex items-center justify-between gap-2 border-t border-gray-100 pl-6 pr-4 pt-3">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {session.intensity && (
+                                <Badge variant="outline" className="h-6 gap-1 border-gray-200 text-[11px] font-medium">
+                                  <Zap className="h-2.5 w-2.5 text-gray-400" />
+                                  {dbToUiIntensity(session.intensity)}
+                                </Badge>
+                              )}
+                              {session.session_type && (
+                                <Badge variant={badgeVariant} className="h-6 text-[11px] font-medium">
+                                  {renderIcon("text-[11px] leading-none")}
+                                  {tLabel}
+                                </Badge>
+                              )}
+                              {session.distance_km && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                                  <Route className="h-3 w-3 text-gray-400" />
+                                  <span className="tabular-nums">{session.distance_km} km</span>
+                                </span>
+                              )}
                             </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {session.intensity && (
-                                  <Badge variant="outline" className="text-xs py-0">
-                                    <Zap className="w-2 h-2 mr-1" />
-                                    {dbToUiIntensity(session.intensity)}
-                                  </Badge>
-                                )}
-                                {session.session_type && (
-                                  <Badge variant={badgeVariant} className="text-xs py-0">
-                                    {renderIcon("text-[11px] leading-none")}
-                                    {tLabel}
-                                  </Badge>
-                                )}
-                                {session.distance_km && (
-                                  <span className="text-gray-500 text-xs">{session.distance_km} km</span>
-                                )}
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs h-6 px-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/session/${session.id}`);
-                                }}
-                              >
-                                Voir
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 shrink-0 gap-1 rounded-full bg-primary/10 px-3 text-xs font-bold text-primary ring-1 ring-primary/15 transition-colors hover:bg-primary hover:text-primary-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/session/${session.id}`);
+                              }}
+                            >
+                              Voir
+                              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                            </Button>
                           </div>
                         </div>
                       );
