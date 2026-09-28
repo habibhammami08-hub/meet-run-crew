@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User, X, RotateCcw } from "lucide-react";
 import logoImage from "@/assets/meetrun-logo-final.png";
 
 type Pt = google.maps.LatLngLiteral;
@@ -178,6 +178,51 @@ export default function CreateRun() {
       setWaypoints(prev => [...prev, { lat, lng }]);
     }
   };
+
+  const resetRouteState = () => {
+    setDirResult(null);
+    setDistanceKm(null);
+    setWaypoints([]);
+  };
+  const clearStart = () => { setStart(null); setIsSelectingLocation(null); resetRouteState(); };
+  const clearEnd = () => { setEnd(null); setIsSelectingLocation(null); resetRouteState(); };
+  const clearAll = () => { setStart(null); setEnd(null); setIsSelectingLocation(null); resetRouteState(); };
+
+  const fmtPt = (p: Pt) => `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`;
+  const renderPointSummary = () => {
+    if (!start && !end) return null;
+    const Row = ({ label, pt, color, onClear }: { label: string; pt: Pt | null; color: string; onClear: () => void }) => (
+      <div className="flex items-center gap-2 rounded-full bg-background/90 border border-border pl-3 pr-1 py-1 shadow-sm">
+        <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${color}`} />
+        <span className="text-xs font-medium">{label}</span>
+        <span className="text-xs text-muted-foreground truncate flex-1">{pt ? fmtPt(pt) : "à définir"}</span>
+        {pt && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label={`Supprimer le point ${label.toLowerCase()}`}
+            className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-full bg-muted hover:bg-destructive hover:text-destructive-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+    return (
+      <div className="space-y-1.5 mb-2">
+        <Row label="Départ" pt={start} color="bg-green-600" onClear={clearStart} />
+        <Row label="Arrivée" pt={end} color="bg-red-600" onClear={clearEnd} />
+        <button
+          type="button"
+          onClick={clearAll}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+        >
+          <RotateCcw className="h-3.5 w-3.5" /> Recommencer le parcours
+        </button>
+      </div>
+    );
+  };
+
 
   async function calcRoute(origin?: Pt | null, dest?: Pt | null, wps?: Pt[]) {
     const o = origin ?? start, d = dest ?? end;
@@ -633,7 +678,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
-                      onClick={() => setStart(null)}
+                      onClick={clearStart}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -649,7 +694,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
-                      onClick={() => setEnd(null)}
+                      onClick={clearEnd}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -683,6 +728,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     <Route className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold">Définir le parcours</h3>
                   </div>
+                  {renderPointSummary()}
 
                   {mobileStep === "start" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
@@ -786,6 +832,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {renderPointSummary()}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
                     Point de départ *
@@ -1035,7 +1082,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
-                      onClick={() => setStart(null)}
+                      onClick={clearStart}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1051,7 +1098,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
-                      onClick={() => setEnd(null)}
+                      onClick={clearEnd}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
