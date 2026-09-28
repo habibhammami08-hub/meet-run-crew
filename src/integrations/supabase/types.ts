@@ -350,20 +350,38 @@ export type Database = {
         Row: {
           age: number | null
           avatar_url: string | null
+          city: string | null
+          created_at: string | null
           full_name: string | null
+          gender: string | null
           id: string | null
+          sessions_hosted: number | null
+          sessions_joined: number | null
+          total_km: number | null
         }
         Insert: {
           age?: number | null
           avatar_url?: string | null
+          city?: string | null
+          created_at?: string | null
           full_name?: string | null
+          gender?: string | null
           id?: string | null
+          sessions_hosted?: number | null
+          sessions_joined?: number | null
+          total_km?: number | null
         }
         Update: {
           age?: number | null
           avatar_url?: string | null
+          city?: string | null
+          created_at?: string | null
           full_name?: string | null
+          gender?: string | null
           id?: string | null
+          sessions_hosted?: number | null
+          sessions_joined?: number | null
+          total_km?: number | null
         }
         Relationships: []
       }

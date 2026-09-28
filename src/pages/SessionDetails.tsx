@@ -555,7 +555,11 @@ const SessionDetails = () => {
 
                   <div>
                     <h3 className="font-semibold mb-3">Organisateur</h3>
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => session.host_id && navigate(`/runner/${session.host_id}`)}
+                      className="w-full flex items-center gap-3 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition text-left group"
+                    >
                       {session.profiles?.avatar_url ? (
                         <img src={session.profiles.avatar_url} alt="Organisateur" className="w-12 h-12 rounded-full object-cover" />
                       ) : (
@@ -563,13 +567,14 @@ const SessionDetails = () => {
                           {session.profiles?.full_name?.charAt(0) || "O"}
                         </div>
                       )}
-                      <div>
-                        <p className="font-medium">{session.profiles?.full_name || "Organisateur"}</p>
+                      <div className="flex-1">
+                        <p className="font-medium group-hover:text-blue-700">{session.profiles?.full_name || "Organisateur"}</p>
                         <p className="text-sm text-gray-600">
                           {session.profiles?.age} ans {session.profiles?.city && `• ${session.profiles.city}`}
                         </p>
                       </div>
-                    </div>
+                      <span className="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition">Voir le profil →</span>
+                    </button>
                   </div>
                 </div>
               </CardContent>
@@ -581,7 +586,12 @@ const SessionDetails = () => {
                 <h3 className="font-semibold mb-4">Participants ({participants.length + 1}/{session.max_participants})</h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {participants.map((participant, index) => (
-                    <div key={participant.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                    <button
+                      type="button"
+                      key={participant.id}
+                      onClick={() => participant.user_id && navigate(`/runner/${participant.user_id}`)}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition text-left"
+                    >
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
@@ -599,7 +609,7 @@ const SessionDetails = () => {
                           <p className="text-xs text-gray-500">{participant.profiles.age} ans</p>
                         )}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </CardContent>
