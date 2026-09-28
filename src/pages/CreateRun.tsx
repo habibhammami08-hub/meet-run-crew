@@ -678,7 +678,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
-                      onClick={() => setStart(null)}
+                      onClick={clearStart}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -694,7 +694,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
-                      onClick={() => setEnd(null)}
+                      onClick={clearEnd}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -728,6 +728,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                     <Route className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold">Définir le parcours</h3>
                   </div>
+                  {renderPointSummary()}
 
                   {mobileStep === "start" && (
                     <div className="space-y-1 li-no-mapselect text-xs">
@@ -831,6 +832,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {renderPointSummary()}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
                     Point de départ *
@@ -1080,7 +1082,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {start && (
                     <MarkerF 
                       position={start}
-                      onClick={() => setStart(null)}
+                      onClick={clearStart}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1096,7 +1098,7 @@ Vous allez être redirigé vers la carte pour voir votre session.`);
                   {end && (
                     <MarkerF 
                       position={end}
-                      onClick={() => setEnd(null)}
+                      onClick={clearEnd}
                       icon={{
                         url: "data:image/svg+xml;base64," + btoa(`
                           <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
