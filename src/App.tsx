@@ -11,6 +11,7 @@ import { EnvironmentFallback } from "@/components/EnvironmentFallback";
 import AppLayout from "./components/AppLayout";
 import PromoWelcome from "./components/PromoWelcome";
 import AppSplash from "./components/AppSplash";
+import LocationGate from "./components/LocationGate";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 
 // Lazy load pages with retry logic for better performance and reliability
@@ -80,6 +81,7 @@ const App = () => {
               <Toaster />
               <Sonner />
               <BrowserRouter>
+                <LocationGate />
                 <AppLayout>
                   <PromoWelcome />
                   <Suspense fallback={<LoadingSpinner />}>
