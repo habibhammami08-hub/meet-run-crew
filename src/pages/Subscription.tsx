@@ -200,19 +200,19 @@ const Subscription = () => {
                 <h3 className="font-semibold mb-3 text-center">Accès illimité à tout MeetRun :</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Rejoindre toutes les sessions sans payer à la course
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Voir les lieux exacts (plus de zones approximatives)
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Créer des sessions illimitées
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Support prioritaire
                   </li>
                 </ul>
@@ -306,7 +306,7 @@ const Subscription = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-center gap-2">
-                <Badge variant="default" className="bg-green-100 text-green-800">
+                <Badge variant="default" className="bg-deep/10 text-deep">
                   <Check size={14} className="mr-1" />
                   Actif
                 </Badge>
@@ -322,19 +322,19 @@ const Subscription = () => {
                 <h3 className="font-semibold mb-2 text-center">Avantages inclus :</h3>
                 <ul className="space-y-1 text-sm">
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Accès illimité à toutes les sessions
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Lieux exacts révélés
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Aucun paiement à la course
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Support prioritaire
                   </li>
                 </ul>
@@ -377,19 +377,19 @@ const Subscription = () => {
                 <h3 className="font-semibold mb-2 text-center">Avec l'abonnement, profitez de :</h3>
                 <ul className="space-y-1 text-sm">
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Accès illimité à toutes les sessions
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Lieux exacts révélés (plus de zones approximatives)
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Aucun paiement à la course
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check size={14} className="text-green-600" />
+                    <Check size={14} className="text-deep" />
                     Support prioritaire
                   </li>
                 </ul>

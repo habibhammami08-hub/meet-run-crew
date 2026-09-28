@@ -28,7 +28,7 @@ const AccountDeleted = () => {
       <Card className="max-w-md w-full text-center shadow-lg">
         <CardContent className="p-8 space-y-6">
           <div className="flex justify-center">
-            <CheckCircle className="w-16 h-16 text-green-500" />
+            <CheckCircle className="w-16 h-16 text-deep" />
           </div>
           
           <div className="space-y-2">

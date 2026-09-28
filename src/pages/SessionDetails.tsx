@@ -595,7 +595,7 @@ const SessionDetails = () => {
                       {participant.profiles?.avatar_url ? (
                         <img src={participant.profiles.avatar_url} alt="Participant" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
-                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="w-8 h-8 bg-deep rounded-full flex items-center justify-center text-white text-xs font-semibold">
                           <User className="w-4 h-4" />
                         </div>
                       )}
@@ -632,7 +632,7 @@ const SessionDetails = () => {
                       <Button
                         onClick={handleSubscribeOrEnroll}
                         disabled={isLoading}
-                        className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                        className="w-full h-12 bg-deep hover:bg-deep/90"
                       >
                         {isLoading ? (
                           <div className="flex items-center gap-2">
@@ -771,7 +771,7 @@ const SessionDetails = () => {
 
               <div className="space-y-1 text-sm">
                 <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <MapPin className="w-4 h-4 text-deep mt-0.5 flex-shrink-0" />
                   <div>
                     <span className="font-medium">Départ : </span>
                     {canSeeExactLocation
@@ -904,7 +904,7 @@ const SessionDetails = () => {
                   <Button
                     onClick={handleSubscribeOrEnroll}
                     disabled={isLoading}
-                    className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                    className="w-full h-12 bg-deep hover:bg-deep/90"
                   >
                     {isLoading ? (
                       <div className="flex items-center gap-2">

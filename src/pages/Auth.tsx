@@ -205,7 +205,7 @@ const Auth = () => {
           <CardContent className="space-y-6 text-center">
             <div className="space-y-4">
               <div className="flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                <CheckCircle className="h-5 w-5 text-deep mr-2" />
                 <span className="text-sm">Email envoyé avec succès</span>
               </div>
               

@@ -111,7 +111,7 @@ const PublicProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#151515] flex items-center justify-center">
-        <div className="w-10 h-10 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+        <div className="w-10 h-10 rounded-full border-2 border-deep-bright border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -121,7 +121,7 @@ const PublicProfile = () => {
       <div className="min-h-screen bg-[#151515] flex flex-col items-center justify-center text-white gap-4 px-6 text-center">
         <p className="text-xl font-semibold">Ce profil est introuvable</p>
         <p className="text-white/60 text-sm">Le membre a peut-être supprimé son compte.</p>
-        <Button onClick={() => navigate("/map")} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+        <Button onClick={() => navigate("/map")} className="bg-deep hover:bg-deep/90 text-white">
           Voir les sessions
         </Button>
       </div>
@@ -146,7 +146,7 @@ const PublicProfile = () => {
   const stats = [
     { icon: Sparkles, label: "Sessions organisées", value: profile.sessions_hosted ?? 0, accent: "text-amber-400" },
     { icon: Users, label: "Sessions rejointes", value: profile.sessions_joined ?? 0, accent: "text-sky-400" },
-    { icon: RouteIcon, label: "Kilomètres parcourus", value: km, accent: "text-emerald-400" },
+    { icon: RouteIcon, label: "Kilomètres parcourus", value: km, accent: "text-deep-bright" },
   ];
 
   return (
@@ -161,7 +161,7 @@ const PublicProfile = () => {
             <ArrowLeft className="w-4 h-4" /> Retour
           </button>
           <Link to="/" className="text-lg font-extrabold tracking-tight">
-            meet<span className="text-emerald-400">run</span>
+            meet<span className="text-deep-bright">run</span>
           </Link>
           <div className="w-14" />
         </div>
@@ -176,7 +176,7 @@ const PublicProfile = () => {
                 type="button"
                 onClick={() => setPhotoOpen(true)}
                 aria-label={`Voir la photo de ${fullName} en grand`}
-                className="group relative block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                className="group relative block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-deep-bright"
               >
                 <span className="block p-1 rounded-full bg-gradient-to-tr from-emerald-400 via-sky-500 to-rose-500 transition-transform duration-300 group-hover:scale-105 group-active:scale-95">
                   <img
@@ -206,7 +206,7 @@ const PublicProfile = () => {
           <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-sm text-white/70">
             {profile.city && (
               <span className="inline-flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400" /> {profile.city}
+                <MapPin className="w-3.5 h-3.5 text-deep-bright" /> {profile.city}
               </span>
             )}
             {profile.gender && genderLabel[profile.gender.toLowerCase()] && (
@@ -241,7 +241,7 @@ const PublicProfile = () => {
         {/* Sessions à venir organisées par ce membre */}
         <section className="mt-10">
           <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-            <Flame className="w-5 h-5 text-emerald-400" />
+            <Flame className="w-5 h-5 text-deep-bright" />
             Sessions organisées par {firstName}
           </h2>
 
@@ -260,7 +260,7 @@ const PublicProfile = () => {
                   <button
                     key={s.id}
                     onClick={() => navigate(`/session/${s.id}`)}
-                    className="w-full text-left rounded-2xl bg-white/5 border border-white/10 p-4 hover:bg-white/[0.08] hover:border-emerald-500/40 transition group"
+                    className="w-full text-left rounded-2xl bg-white/5 border border-white/10 p-4 hover:bg-white/[0.08] hover:border-deep-bright/40 transition group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -281,7 +281,7 @@ const PublicProfile = () => {
                           </p>
                         )}
                       </div>
-                      <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-emerald-400 shrink-0 mt-1 transition" />
+                      <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-deep-bright shrink-0 mt-1 transition" />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Badge className={meta.className}>{meta.label}</Badge>

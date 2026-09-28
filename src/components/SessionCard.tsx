@@ -141,7 +141,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
               {session.current_enrollments || 0}/{session.max_participants} participants
             </span>
             {spotsLeft > 0 && (
-              <span className="text-green-600 text-xs ml-1">
+              <span className="text-deep text-xs ml-1">
                 ({spotsLeft} place{spotsLeft > 1 ? 's' : ''})
               </span>
             )}
