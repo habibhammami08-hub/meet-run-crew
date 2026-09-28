@@ -981,8 +981,7 @@ function MapPageInner() {
                         <div
                           key={session.id}
                           onClick={() => {
-                            setSelectedSession(isSelected ? null : session.id);
-                            setCenter({ lat: session.start_lat, lng: session.start_lng });
+                            navigate(`/session/${session.id}`);
                           }}
                           className={cn(
                             "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-4 pl-6 pr-4 transition-all duration-200",
