@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ENV_READY } from "@/integrations/supabase/client";
 import { EnvironmentFallback } from "@/components/EnvironmentFallback";
 import AppLayout from "./components/AppLayout";
+import PromoWelcome from "./components/PromoWelcome";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 
 // Lazy load pages with retry logic for better performance and reliability
@@ -77,6 +78,7 @@ const App = () => {
               <Sonner />
               <BrowserRouter>
                 <AppLayout>
+                  <PromoWelcome />
                   <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
                       <Route path="/" element={<Home />} />

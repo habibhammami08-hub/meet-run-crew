@@ -7,7 +7,7 @@ interface DebounceConfig {
 }
 
 export const useRealtimeDebounce = () => {
-  const timeoutRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const timeoutRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const lastExecutionRefs = useRef<Map<string, number>>(new Map());
 
   const debounce = useCallback((

@@ -122,7 +122,7 @@ const SessionMap = ({ sessions, onSessionSelect, center, className }: SessionMap
 
   // Debounce function
   const debounce = (func: Function, wait: number) => {
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     return function executedFunction(...args: any[]) {
       const later = () => {
         clearTimeout(timeout);

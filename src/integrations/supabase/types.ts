@@ -90,6 +90,7 @@ export type Database = {
           status: string | null
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -101,6 +102,7 @@ export type Database = {
           status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -112,9 +114,24 @@ export type Database = {
           status?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "enrollments_session_fk"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_session_fk"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions_with_details"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "enrollments_session_id_fkey"
             columns: ["session_id"]
@@ -152,6 +169,7 @@ export type Database = {
           sessions_hosted: number | null
           sessions_joined: number | null
           stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           sub_current_period_end: string | null
           sub_status: string | null
           total_km: number | null
@@ -170,6 +188,7 @@ export type Database = {
           sessions_hosted?: number | null
           sessions_joined?: number | null
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
           total_km?: number | null
@@ -188,6 +207,7 @@ export type Database = {
           sessions_hosted?: number | null
           sessions_joined?: number | null
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           sub_current_period_end?: string | null
           sub_status?: string | null
           total_km?: number | null
@@ -212,6 +232,7 @@ export type Database = {
           location_hint: string | null
           max_participants: number
           min_participants: number | null
+          participants_count: number
           price_cents: number | null
           price_currency: string | null
           route_distance_m: number | null
@@ -241,6 +262,7 @@ export type Database = {
           location_hint?: string | null
           max_participants: number
           min_participants?: number | null
+          participants_count?: number
           price_cents?: number | null
           price_currency?: string | null
           route_distance_m?: number | null
@@ -270,6 +292,7 @@ export type Database = {
           location_hint?: string | null
           max_participants?: number
           min_participants?: number | null
+          participants_count?: number
           price_cents?: number | null
           price_currency?: string | null
           route_distance_m?: number | null
@@ -341,37 +364,24 @@ export type Database = {
       }
     }
     Functions: {
-      app_delete_account: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      app_delete_user_data: {
-        Args: { p_user_id: string }
-        Returns: Json
-      }
-      can_delete_account: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_available_spots: {
-        Args: { session_id: string }
-        Returns: number
-      }
-      get_user_stats: {
-        Args: { target_user_id?: string }
-        Returns: Json
-      }
+      app_delete_account: { Args: never; Returns: Json }
+      app_delete_user_data: { Args: { p_user_id: string }; Returns: Json }
+      can_delete_account: { Args: never; Returns: Json }
+      get_available_spots: { Args: { session_id: string }; Returns: number }
+      get_user_stats: { Args: { target_user_id?: string }; Returns: Json }
       has_active_subscription: {
         Args: { user_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: boolean
       }
-      hash_email_secure: {
-        Args: { email: string }
-        Returns: string
+      hash_email_secure: { Args: { email: string }; Returns: string }
+      is_email_blocked: { Args: { email: string }; Returns: boolean }
+      leave_or_delete_session: {
+        Args: { p_session_id: string }
+        Returns: undefined
       }
-      is_email_blocked: {
-        Args: { email: string }
-        Returns: boolean
+      recalc_participants_count: {
+        Args: { p_session_id: string }
+        Returns: undefined
       }
     }
     Enums: {
@@ -391,12 +401,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -420,11 +430,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -445,11 +455,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -470,11 +480,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -487,11 +497,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

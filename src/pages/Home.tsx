@@ -27,7 +27,7 @@ const Home = () => {
   // CORRECTION: Refs pour gérer les cleanup et éviter les fuites mémoire
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // ✅ Forcer le refresh du profil/abonnement au mount et à chaque changement d’utilisateur
   useEffect(() => {
