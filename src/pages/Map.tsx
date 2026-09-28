@@ -9,7 +9,8 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User } from "lucide-react"; // ← RefreshCw retiré, User ajouté
+import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User, ArrowRight, Route } from "lucide-react"; // ← RefreshCw retiré, User ajouté
+import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
@@ -93,6 +94,17 @@ const uiToDbIntensity = (uiIntensity: string): string | null => {
 };
 
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
+
+// Filet d'accent + pastille couleur selon l'intensité : repère visuel immédiat
+const intensityAccent = (intensity: string | null) => {
+  if (intensity === "low") {
+    return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
+  }
+  if (intensity === "high") {
+    return { rail: "from-rose-300 via-rose-500 to-red-600", dot: "bg-rose-500" };
+  }
+  return { rail: "from-sky-300 via-sky-500 to-blue-600", dot: "bg-sky-500" };
+};
 
 const polyCache = new Map<string, LatLng[]>();
 const pathFromPolyline = (p?: string | null): LatLng[] => {
