@@ -315,11 +315,11 @@ const Home = () => {
             {/* Progress bar */}
             <div className="flex justify-center mb-12">
               <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">1</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 text-white flex items-center justify-center font-bold text-sm">1</div>
                 <div className="w-16 h-1 bg-gradient-to-r from-primary to-primary-variant rounded-full"></div>
-                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">2</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center font-bold text-sm">2</div>
                 <div className="w-16 h-1 bg-gradient-to-r from-primary to-primary-variant rounded-full"></div>
-                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">3</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center font-bold text-sm">3</div>
               </div>
             </div>
 
