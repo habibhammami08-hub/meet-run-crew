@@ -338,6 +338,29 @@ function MapPageInner() {
     }));
   }, [sessions, userLocation]);
 
+  // Arrondissement / quartier de départ (géocodage inversé, mis en cache par session)
+  const [arrondissements, setArrondissements] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const g = (window as any).google;
+    if (!g?.maps?.Geocoder) return;
+    const geocoder = new g.maps.Geocoder();
+    sessions.forEach((s) => {
+      if (arrondissements[s.id]) return;
+      geocoder.geocode({ location: { lat: s.start_lat, lng: s.start_lng } }, (results: any, status: string) => {
+        if (status !== "OK" || !results?.length) return;
+        const comps = results[0].address_components as any[];
+        const sub = comps.find((c) => c.types.includes("sublocality_level_1") || c.types.includes("sublocality"));
+        const locality = comps.find((c) => c.types.includes("locality"));
+        let label: string | null = null;
+        const num = sub?.long_name?.match(/(\d+)/)?.[1];
+        if (sub && num) label = `${locality?.long_name ?? "Paris"} ${num}e`;
+        else if (sub) label = sub.long_name;
+        else if (locality) label = locality.long_name;
+        if (label) setArrondissements((prev) => (prev[s.id] ? prev : { ...prev, [s.id]: label! }));
+      });
+    });
+  }, [sessions]);
+
   // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
   const isEnrolledIn = useCallback((id: string) => mySessionIds.has(id), [mySessionIds]);
 
