@@ -19,12 +19,13 @@ function shouldShow(): boolean {
 }
 
 export default function AppSplash() {
+  const [active] = useState(shouldShow);
   const [phase, setPhase] = useState<"run" | "leaving" | "gone">(() =>
     shouldShow() ? "run" : "gone",
   );
 
   useEffect(() => {
-    if (phase !== "run") return;
+    if (!active) return;
     try {
       window.sessionStorage.setItem(SEEN_KEY, "1");
     } catch {
@@ -40,7 +41,8 @@ export default function AppSplash() {
       window.clearTimeout(leaving);
       window.clearTimeout(gone);
     };
-  }, [phase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (phase === "gone") return null;
 
