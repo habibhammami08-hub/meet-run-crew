@@ -9,7 +9,8 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User, ArrowRight, Route } from "lucide-react"; // ← RefreshCw retiré, User ajouté
+import { MapPin, Users, Filter, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // ← RefreshCw retiré, User ajouté ; Crown retiré (badge Unlimited supprimé de l'en-tête)
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
@@ -256,6 +257,8 @@ function MapPageInner() {
   const [filterRadius, setFilterRadius] = useState<string>("all");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilterCount = [filterRadius, filterIntensity, filterSessionType].filter((v) => v !== "all").length;
   const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
 
   // Nouveaux états : sessions où l’utilisateur est INSCRIT
@@ -577,18 +580,8 @@ function MapPageInner() {
                 </Button>
               )}
 
-              {/* ▼▼▼ Modifs header — Version PC : retirer Actualiser ; afficher Se connecter (non connecté) ou icône Profil (connecté) */}
-              {!currentUser ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(AUTH_ROUTE)}
-                  className="hidden md:inline-flex items-center gap-2"
-                  aria-label="Se connecter"
-                >
-                  Se connecter
-                </Button>
-              ) : (
+              {/* ▼▼▼ Version PC : icône Profil (connecté) — bouton Se connecter supprimé */}
+              {currentUser && (
                 <Button
                   size="icon"
                   variant="ghost"
@@ -602,54 +595,19 @@ function MapPageInner() {
               )}
               {/* ▲▲▲ */}
 
-              {/* ⬇️ Icône MeetRun Unlimited si abonné, sinon bouton S'abonner */}
-              {hasSub ? (
-                <>
-                  {/* Desktop badge bleu */}
-                  <Button
-                    size="sm"
-                    onClick={() => navigate("/subscription")}
-                    variant="secondary"
-                    className="hidden md:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm"
-                    aria-label={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif : gérer"}
-                    title={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif : MeetRun Unlimited"}
-                  >
-                    <Crown className="w-4 h-4" />
-                    Unlimited
-                  </Button>
-                  {/* Mobile badge bleu */}
-                  <Button
-                    size="icon"
-                    onClick={() => navigate("/subscription")}
-                    className="md:hidden bg-blue-600 hover:bg-blue-700 text-white rounded-full"
-                    aria-label={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif"}
-                    title={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif"}
-                  >
-                    <Crown className="w-4 h-4" />
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={() => navigate("/subscription")}
-                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                >
-                  {isFreePromoActive() ? "Unlimited offert" : "S'abonner"}
-                </Button>
-              )}
+              {/* Bouton Créer une session (remplace le bouton Unlimited offert / S'abonner) */}
+              <Button
+                size="sm"
+                onClick={() => navigate("/create")}
+                className="rounded-full shadow-sm"
+                aria-label="Créer une session"
+              >
+                <Plus className="w-4 h-4" />
+                Créer une session
+              </Button>
 
-              {/* ▼ Version Mobile : ajouter Se connecter à côté de S'abonner ; si connecté, icône Profil à côté */}
-              {!currentUser ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(AUTH_ROUTE)}
-                  className="md:hidden"
-                  aria-label="Se connecter"
-                >
-                  Se connecter
-                </Button>
-              ) : (
+              {/* ▼ Version Mobile : icône Profil (connecté) — bouton Se connecter supprimé */}
+              {currentUser && (
                 <Button
                   size="icon"
                   variant="ghost"
@@ -943,6 +901,19 @@ function MapPageInner() {
                     </span>
                   )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(true)}
+                  className="mt-0.5 inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+                >
+                  <Filter className="h-3 w-3" />
+                  Filtre
+                  {activeFilterCount > 0 && (
+                    <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -1076,55 +1047,70 @@ function MapPageInner() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm order-3 lg:order-2">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Filter className="w-5 h-5 text-blue-600" />
-                  Filtres
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Rayon de recherche</label>
-                  <Select value={filterRadius} onValueChange={setFilterRadius}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Toutes les sessions</SelectItem>
-                      <SelectItem value="5">5 km</SelectItem>
-                      <SelectItem value="10">10 km</SelectItem>
-                      <SelectItem value="25">25 km</SelectItem>
-                      <SelectItem value="50">50 km</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <Dialog open={showFilters} onOpenChange={setShowFilters}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-lg">
+                    <Filter className="w-5 h-5 text-blue-600" />
+                    Filtres
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Rayon de recherche</label>
+                    <Select value={filterRadius} onValueChange={setFilterRadius}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toutes les sessions</SelectItem>
+                        <SelectItem value="5">5 km</SelectItem>
+                        <SelectItem value="10">10 km</SelectItem>
+                        <SelectItem value="25">25 km</SelectItem>
+                        <SelectItem value="50">50 km</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Intensité</label>
-                  <Select value={filterIntensity} onValueChange={setFilterIntensity}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Toutes les intensités</SelectItem>
-                      <SelectItem value="marche">Marche</SelectItem>
-                      <SelectItem value="course modérée">Course modérée</SelectItem>
-                      <SelectItem value="course intensive">Course intensive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Intensité</label>
+                    <Select value={filterIntensity} onValueChange={setFilterIntensity}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toutes les intensités</SelectItem>
+                        <SelectItem value="marche">Marche</SelectItem>
+                        <SelectItem value="course modérée">Course modérée</SelectItem>
+                        <SelectItem value="course intensive">Course intensive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Type de session</label>
-                  <Select value={filterSessionType} onValueChange={setFilterSessionType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tous types</SelectItem>
-                      <SelectItem value="mixed">Mixte</SelectItem>
-                      <SelectItem value="women_only">Femmes uniquement</SelectItem>
-                      <SelectItem value="men_only">Hommes uniquement</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Type de session</label>
+                    <Select value={filterSessionType} onValueChange={setFilterSessionType}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous types</SelectItem>
+                        <SelectItem value="mixed">Mixte</SelectItem>
+                        <SelectItem value="women_only">Femmes uniquement</SelectItem>
+                        <SelectItem value="men_only">Hommes uniquement</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setFilterRadius("all");
+                      setFilterIntensity("all");
+                      setFilterSessionType("all");
+                    }}
+                  >
+                    Réinitialiser
+                  </Button>
+                  <Button onClick={() => setShowFilters(false)}>Terminer</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
