@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import polyline from "@mapbox/polyline";
+import { isFreePromoActive } from "@/config/promo";
 
 // -------------------- Utils --------------------
 
@@ -607,20 +608,20 @@ const SessionDetails = () => {
                             <Crown className="w-5 h-5 text-blue-600" />
                             <span className="font-semibold text-blue-900">Recommandé</span>
                           </div>
-                          <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                          <h4 className="font-semibold mb-1">{isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
                           <p className="text-sm text-gray-600 mb-3">
-                            Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                            {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 décembre 2026 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
                           </p>
                           <div className="flex items-center justify-between mb-3">
-                            <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                            <Badge variant="secondary">Économique</Badge>
+                            <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? "0 €" : "9,99€/mois"}</span>
+                            <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/12/2026" : "Économique"}</Badge>
                           </div>
                           <Button
-                            onClick={startSubscriptionCheckout}
+                            onClick={isFreePromoActive() ? redirectToAuth : startSubscriptionCheckout}
                             disabled={isSubLoading}
                             className="w-full bg-blue-600 hover:bg-blue-700"
                           >
-                            {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                            {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte gratuitement" : "S'abonner"}</>)}
                           </Button>
                         </div>
                       </div>
@@ -879,20 +880,20 @@ const SessionDetails = () => {
                         <Crown className="w-5 h-5 text-blue-600" />
                         <span className="font-semibold text-blue-900">Recommandé</span>
                       </div>
-                      <h4 className="font-semibold mb-1">Abonnement MeetRun</h4>
+                      <h4 className="font-semibold mb-1">{isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
                       <p className="text-sm text-gray-600 mb-3">
-                        Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session
+                        {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 décembre 2026 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
                       </p>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg font-bold text-blue-600">9,99€/mois</span>
-                        <Badge variant="secondary">Économique</Badge>
+                        <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? "0 €" : "9,99€/mois"}</span>
+                        <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/12/2026" : "Économique"}</Badge>
                       </div>
                       <Button
-                        onClick={startSubscriptionCheckout}
+                        onClick={isFreePromoActive() ? redirectToAuth : startSubscriptionCheckout}
                         disabled={isSubLoading}
                         className="w-full bg-blue-600 hover:bg-blue-700"
                       >
-                        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />S'abonner</>)}
+                        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte gratuitement" : "S'abonner"}</>)}
                       </Button>
                     </div>
                   </div>
