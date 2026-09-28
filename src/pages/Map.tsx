@@ -943,6 +943,22 @@ function MapPageInner() {
                     </span>
                   )}
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/create")}
+                  className={cn(
+                    "mt-3 h-auto w-full justify-between gap-2 rounded-xl border border-dashed border-primary/30",
+                    "bg-primary/5 px-3 py-2 text-xs font-semibold text-primary ring-0 transition-all duration-200",
+                    "hover:border-solid hover:bg-primary/10 hover:text-primary"
+                  )}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    Créez votre propre session
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-60 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </Button>
               </CardHeader>
               <CardContent>
                 {loading ? (
