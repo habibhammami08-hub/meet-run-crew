@@ -25,6 +25,7 @@ export function LocationInput({
   const [suggestions, setSuggestions] = React.useState<any[]>([])
   const [showSuggestions, setShowSuggestions] = React.useState(false)
   const [isLoadingSuggestions, setIsLoadingSuggestions] = React.useState(false)
+  const skipBlurRef = React.useRef(false)
 
   const iconColor = icon === "start" ? "text-green-600" : "text-red-600"
   const IconComponent = icon === "start" ? Navigation : MapPin
@@ -75,12 +76,24 @@ export function LocationInput({
         }
       })
 
-      if (error) throw error
-
-      if (data?.predictions) {
-        setSuggestions(data.predictions)
-        setShowSuggestions(true)
+      let preds: any[] = (!error && data?.predictions) ? data.predictions : []
+      if (preds.length === 0) {
+        // Repli : l'autocomplétion Places est indisponible → on utilise le géocodage
+        const { data: g } = await supabase.functions.invoke('google-maps-services', {
+          body: { action: 'geocode', address: input }
+        })
+        preds = (g?.results ?? []).slice(0, 5).map((r: any) => {
+          const [main, ...rest] = String(r.formatted_address).split(', ')
+          return {
+            place_id: r.place_id,
+            description: r.formatted_address,
+            location: r.geometry?.location,
+            structured_formatting: { main_text: main, secondary_text: rest.join(', ') },
+          }
+        })
       }
+      setSuggestions(preds)
+      setShowSuggestions(preds.length > 0)
     } catch (error) {
       console.error('Erreur de recherche de suggestions:', error)
       setSuggestions([])
@@ -100,7 +113,7 @@ export function LocationInput({
   // Rechercher des suggestions avec debounce
   React.useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (address.trim()) {
+      if (address.trim() && isTyping) {
         searchSuggestions(address)
       } else {
         setSuggestions([])
@@ -109,14 +122,16 @@ export function LocationInput({
     }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [address])
+  }, [address, isTyping])
 
   // Sélectionner une suggestion
   const selectSuggestion = (suggestion: any) => {
     setAddress(suggestion.description)
     setShowSuggestions(false)
     setIsTyping(false)
-    geocodeAddress(suggestion.description)
+    skipBlurRef.current = true
+    if (suggestion.location) onChange({ lat: suggestion.location.lat, lng: suggestion.location.lng })
+    else geocodeAddress(suggestion.description)
   }
 
   // Gérer la validation au blur (perte de focus)
@@ -125,7 +140,8 @@ export function LocationInput({
     setTimeout(() => {
       setShowSuggestions(false)
       setIsTyping(false)
-      if (address.trim()) {
+      if (skipBlurRef.current) { skipBlurRef.current = false; return }
+      if (address.trim() && !value) {
         geocodeAddress(address)
       }
     }, 150)
@@ -139,6 +155,8 @@ export function LocationInput({
       geocodeAddress(address)
     }
   }
+
+  React.useEffect(() => { if (!value) { setAddress(""); setIsTyping(false) } }, [value])
 
   const displayValue = React.useMemo(() => {
     // Si l'utilisateur est en train de taper, on affiche ce qu'il tape
@@ -166,7 +184,6 @@ export function LocationInput({
           onKeyPress={handleKeyPress}
           placeholder={placeholder}
           className="h-12 text-base"
-          disabled={isGeocoding}
         />
         
         {/* Suggestions dropdown */}
@@ -176,7 +193,8 @@ export function LocationInput({
               <button
                 key={suggestion.place_id || index}
                 className="w-full px-4 py-3 text-left hover:bg-muted/50 border-b border-border last:border-b-0 text-sm"
-                onClick={() => selectSuggestion(suggestion)}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); selectSuggestion(suggestion) }}
               >
                 <div className="font-medium">{suggestion.structured_formatting?.main_text}</div>
                 <div className="text-muted-foreground text-xs">{suggestion.structured_formatting?.secondary_text}</div>
