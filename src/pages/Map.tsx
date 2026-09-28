@@ -341,24 +341,33 @@ function MapPageInner() {
   // Arrondissement / quartier de départ (géocodage inversé, mis en cache par session)
   const [arrondissements, setArrondissements] = useState<Record<string, string>>({});
   useEffect(() => {
-    const g = (window as any).google;
-    if (!g?.maps?.Geocoder) return;
-    const geocoder = new g.maps.Geocoder();
-    sessions.forEach((s) => {
-      if (arrondissements[s.id]) return;
-      geocoder.geocode({ location: { lat: s.start_lat, lng: s.start_lng } }, (results: any, status: string) => {
-        if (status !== "OK" || !results?.length) return;
-        const comps = results[0].address_components as any[];
-        const sub = comps.find((c) => c.types.includes("sublocality_level_1") || c.types.includes("sublocality"));
-        const locality = comps.find((c) => c.types.includes("locality"));
-        let label: string | null = null;
-        const num = sub?.long_name?.match(/(\d+)/)?.[1];
-        if (sub && num) label = `${locality?.long_name ?? "Paris"} ${num}e`;
-        else if (sub) label = sub.long_name;
-        else if (locality) label = locality.long_name;
-        if (label) setArrondissements((prev) => (prev[s.id] ? prev : { ...prev, [s.id]: label! }));
-      });
+    let cancelled = false;
+    const pending = sessions.filter((s) => !arrondissements[s.id] && s.start_lat != null && s.start_lng != null).slice(0, 30);
+    pending.forEach(async (s) => {
+      const cacheKey = `meetrun_arr_${s.start_lat.toFixed(4)}_${s.start_lng.toFixed(4)}`;
+      let label: string | null = localStorage.getItem(cacheKey);
+      if (!label) {
+        try {
+          const { data, error } = await supabase.functions.invoke("google-maps-services", {
+            body: { action: "reverse_geocode", lat: s.start_lat, lng: s.start_lng },
+          });
+          if (error || !data?.results?.length) return;
+          const all = (data.results as any[]).flatMap((r) => r.address_components ?? []);
+          const postal = all.find((c) => c.types.includes("postal_code"))?.long_name as string | undefined;
+          const locality = all.find((c) => c.types.includes("locality"))?.long_name as string | undefined;
+          const sub = all.find((c) => c.types.includes("sublocality_level_1") || c.types.includes("sublocality"))?.long_name as string | undefined;
+          const subNum = sub?.match(/(\d+)/)?.[1];
+          if (postal && /^75\d{3}$/.test(postal)) label = `Paris ${parseInt(postal.slice(3), 10)}e`;
+          else if (postal && /^69\d{3}$/.test(postal) && locality === "Lyon") label = `Lyon ${parseInt(postal.slice(3), 10)}e`;
+          else if (postal && /^13\d{3}$/.test(postal) && locality === "Marseille") label = `Marseille ${parseInt(postal.slice(3), 10)}e`;
+          else if (sub && subNum) label = `${locality ?? ""} ${subNum}e`.trim();
+          else label = sub || locality || null;
+          if (label) localStorage.setItem(cacheKey, label);
+        } catch { return; }
+      }
+      if (label && !cancelled) setArrondissements((prev) => (prev[s.id] ? prev : { ...prev, [s.id]: label! }));
     });
+    return () => { cancelled = true; };
   }, [sessions]);
 
   // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
