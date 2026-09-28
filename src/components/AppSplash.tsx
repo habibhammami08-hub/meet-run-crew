@@ -21,7 +21,7 @@ function shouldShow(): boolean {
 export default function AppSplash() {
   const [active] = useState(shouldShow);
   const [phase, setPhase] = useState<"run" | "leaving" | "gone">(() =>
-    shouldShow() ? "run" : "gone",
+    active ? "run" : "gone",
   );
 
   useEffect(() => {
