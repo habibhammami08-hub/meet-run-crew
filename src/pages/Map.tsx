@@ -878,7 +878,7 @@ function MapPageInner() {
                       const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
                       const own = isOwnSession(session, currentUser?.id);
-                      const accent = intensityAccent(session.intensity);
+                      const accent = typeAccent(session.session_type);
                       const isSelected = selectedSession === session.id;
                       const scheduled = new Date(session.scheduled_at);
                       return (
@@ -896,7 +896,7 @@ function MapPageInner() {
                             isSelected && "ring-2 ring-primary/70"
                           )}
                         >
-                          {/* Filet d'accent couleur intensité */}
+                          {/* Filet d'accent couleur type de session */}
                           <span
                             aria-hidden
                             className={cn(
