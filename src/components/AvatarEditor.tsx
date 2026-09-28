@@ -168,11 +168,11 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
 
       {/* Crop */}
       <Dialog open={!!src} onOpenChange={(o) => !o && !busy && closeCrop()}>
-        <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
-          <DialogHeader className="p-4">
+        <DialogContent className="flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-auto sm:max-w-md sm:rounded-lg">
+          <DialogHeader className="shrink-0 p-4">
             <DialogTitle className="text-center">Recadrer</DialogTitle>
           </DialogHeader>
-          <div className="relative aspect-square w-full bg-foreground">
+          <div className="relative min-h-0 w-full flex-1 bg-foreground sm:aspect-square sm:flex-none">
             {src && (
               <Cropper
                 image={src}
@@ -187,16 +187,16 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
               />
             )}
           </div>
-          <div className="space-y-4 p-4">
+          <div className="shrink-0 space-y-3 border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground">−</span>
               <Slider value={[zoom]} min={1} max={3} step={0.01} onValueChange={(v) => setZoom(v[0])} aria-label="Zoom" />
               <span className="text-xs text-muted-foreground">+</span>
             </div>
-            <p className="text-center text-xs text-muted-foreground">Glissez pour placer, pincez ou utilisez le curseur pour zoomer.</p>
+            <p className="hidden text-center text-xs text-muted-foreground sm:block">Glissez pour placer, pincez ou utilisez le curseur pour zoomer.</p>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={closeCrop} disabled={busy}>Annuler</Button>
-              <Button className="flex-1" onClick={save} disabled={busy || !area}>
+              <Button variant="outline" className="h-12 flex-1 text-base" onClick={closeCrop} disabled={busy}>Annuler</Button>
+              <Button className="h-12 flex-1 text-base" onClick={save} disabled={busy || !area}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
               </Button>
             </div>
