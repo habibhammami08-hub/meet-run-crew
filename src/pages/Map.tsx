@@ -149,6 +149,7 @@ const USER_DOT_COLOR  = "#3b82f6";  // bleu
 type TypeMeta = {
   label: string;
   badgeVariant: "outline" | "secondary";
+  badgeClass: string;
   renderIcon: (className?: string) => JSX.Element;
 };
 
@@ -157,6 +158,7 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
     return {
       label: "Femmes uniquement",
       badgeVariant: "secondary",
+      badgeClass: "border-transparent bg-gradient-to-r from-rose-400 via-rose-500 to-red-600 text-white",
       renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♀</span>,
     };
   }
@@ -164,13 +166,15 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
     return {
       label: "Hommes uniquement",
       badgeVariant: "secondary",
+      badgeClass: "border-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-600 text-white",
       renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♂</span>,
     };
   }
-  // mixed par défaut — même style que « Hommes / Femmes uniquement »
+  // mixed par défaut — même couleur que le filet latéral (vert)
   return {
     label: "Mixte",
     badgeVariant: "secondary",
+    badgeClass: "border-transparent bg-gradient-to-r from-emerald-400 via-emerald-500 to-green-600 text-white",
     renderIcon: (cls = "") => <Users className={`w-3 h-3 mr-1 ${cls}`} />,
   };
 }
@@ -654,7 +658,7 @@ function MapPageInner() {
                     if (!session) return null;
 
                     const blur = shouldBlur(session);
-                    const { label: typeLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
+                    const { label: typeLabel, badgeVariant, badgeClass, renderIcon } = getTypeMeta(session.session_type);
                     const enrolled = isEnrolledIn(session.id);
                     const own = isOwnSession(session, currentUser?.id);
 
@@ -711,7 +715,7 @@ function MapPageInner() {
                               </Badge>
                             )}
                             {session.session_type && (
-                              <Badge variant={badgeVariant}>
+                              <Badge variant={badgeVariant} className={badgeClass}>
                                 {renderIcon("text-[12px] leading-none")}
                                 {typeLabel}
                               </Badge>
@@ -875,7 +879,7 @@ function MapPageInner() {
                   <div className="thin-scroll max-h-96 space-y-3 overflow-y-auto pr-1">
                     {filteredNearestSessions.map(session => {
                       const blur = shouldBlur(session);
-                      const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
+                      const { label: tLabel, badgeVariant, badgeClass, renderIcon } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
                       const own = isOwnSession(session, currentUser?.id);
                       const accent = typeAccent(session.session_type);
@@ -954,7 +958,7 @@ function MapPageInner() {
                                 </Badge>
                               )}
                               {session.session_type && (
-                                <Badge variant={badgeVariant} className="h-6 text-[11px] font-medium">
+                                <Badge variant={badgeVariant} className={cn("h-6 text-[11px] font-medium", badgeClass)}>
                                   {renderIcon("text-[11px] leading-none")}
                                   {tLabel}
                                 </Badge>
