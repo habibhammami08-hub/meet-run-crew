@@ -95,16 +95,16 @@ const uiToDbIntensity = (uiIntensity: string): string | null => {
 
 const isOwnSession = (s: SessionRow, userId?: string) => !!(userId && s.host_id === userId);
 
-// Filet d'accent + pastille couleur selon l'intensité : repère visuel immédiat
-// Même code couleur que les étiquettes de course : vert = marche, jaune = modérée, rouge = intensive
-const intensityAccent = (intensity: string | null) => {
-  if (intensity === "low") {
-    return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
-  }
-  if (intensity === "high") {
+// Filet d'accent + pastille couleur selon le type de session : repère visuel immédiat
+// vert = mixte, rouge = femmes uniquement, bleu = hommes uniquement
+const typeAccent = (type: SessionRow["session_type"]) => {
+  if (type === "women_only") {
     return { rail: "from-rose-300 via-rose-500 to-red-600", dot: "bg-rose-500" };
   }
-  return { rail: "from-yellow-300 via-yellow-500 to-amber-600", dot: "bg-yellow-500" };
+  if (type === "men_only") {
+    return { rail: "from-sky-300 via-blue-500 to-indigo-600", dot: "bg-blue-500" };
+  }
+  return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
 };
 
 const polyCache = new Map<string, LatLng[]>();
@@ -878,7 +878,7 @@ function MapPageInner() {
                       const { label: tLabel, badgeVariant, renderIcon } = getTypeMeta(session.session_type);
                       const enrolled = isEnrolledIn(session.id);
                       const own = isOwnSession(session, currentUser?.id);
-                      const accent = intensityAccent(session.intensity);
+                      const accent = typeAccent(session.session_type);
                       const isSelected = selectedSession === session.id;
                       const scheduled = new Date(session.scheduled_at);
                       return (
@@ -896,7 +896,7 @@ function MapPageInner() {
                             isSelected && "ring-2 ring-primary/70"
                           )}
                         >
-                          {/* Filet d'accent couleur intensité */}
+                          {/* Filet d'accent couleur type de session */}
                           <span
                             aria-hidden
                             className={cn(
