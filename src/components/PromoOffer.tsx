@@ -27,8 +27,8 @@ export default function PromoOffer({ compact = false, signedIn = false }: PromoO
         <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
           {benefits.map((benefit) => <li key={benefit} className="flex items-center gap-2"><Check size={16} className="text-promo" />{benefit}</li>)}
         </ul>
-        <Button className="mt-7" variant="sport" size="lg" onClick={() => navigate(signedIn ? "/map" : "/auth?mode=signup&returnTo=/subscription")}>
-          {signedIn ? "Explorer les sessions" : "Créer mon compte gratuitement"}
+        <Button className="mt-7 px-6 sm:px-7" variant="sport" size="lg" onClick={() => navigate(signedIn ? "/map" : "/auth?mode=signup&returnTo=/subscription")}>
+          {signedIn ? "Explorer les sessions" : "Créer mon compte"}
         </Button>
       </div>
       <Crown aria-hidden className="pointer-events-none absolute -right-12 -bottom-16 h-64 w-64 rotate-[-20deg] text-promo/10 sm:h-80 sm:w-80" strokeWidth={1} />
