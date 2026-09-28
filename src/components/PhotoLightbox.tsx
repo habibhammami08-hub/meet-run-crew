@@ -38,7 +38,7 @@ const PhotoLightbox = ({ open, src, name, caption, onClose }: Props) => {
       aria-modal="true"
       aria-label={name ? `Photo de ${name}` : "Photo de profil"}
       onClick={onClose}
-      className="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-5 bg-[#0b0c0b] px-6 py-16 motion-safe:animate-fade-in"
+      className="fixed inset-0 z-[10000] flex flex-col items-center justify-center gap-5 bg-[#0b0c0b] px-6 py-16 motion-safe:animate-fade-in"
     >
       <button
         type="button"
