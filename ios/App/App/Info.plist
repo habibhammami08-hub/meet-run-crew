@@ -67,7 +67,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.sports</string>
+	<string>public.app-category.lifestyle</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>MeetRun affiche les sessions de course près de chez vous et prépare votre trajet. Votre position n'est utilisée que pendant que vous utilisez l'application.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
