@@ -15,7 +15,7 @@ export default function PromoOffer({ compact = false, signedIn = false }: PromoO
         </div>
         <div className="mt-5 flex items-center gap-2 text-promo"><Crown size={compact ? 22 : 30} /><span className="font-bold">MeetRun Unlimited</span></div>
         <h2 className={`${compact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-5xl"} mt-3 font-extrabold leading-tight`}>
-          Tout MeetRun est à vous. <span className="text-promo">Offert.</span>
+          Unlimited est à vous. <span className="text-promo">Offert.</span>
         </h2>
         <p className="mt-4 max-w-xl text-sm sm:text-base text-promo-foreground/80">
           {signedIn ? "Votre accès Unlimited est activé automatiquement depuis votre inscription." : "Inscrivez-vous et profitez automatiquement de MeetRun Unlimited, sans paiement ni abonnement à souscrire."} Jusqu’au 31 décembre 2026.
