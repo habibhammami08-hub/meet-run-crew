@@ -177,8 +177,8 @@ const buildPinSvg = (type: SessionRow["session_type"], selected: boolean) => {
     </radialGradient>
   </defs>
   <ellipse cx="17" cy="43.6" rx="8" ry="2.8" fill="url(#shadow)"/>
-  ${selected ? `<circle cx="17" cy="15" r="15.6" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.95"/>` : ""}
-  <path d="M17 ${PIN_TIP_Y}C17 ${PIN_TIP_Y}3.6 24.8 3.6 15.2a13.4 13.4 0 1 1 26.8 0c0 9.6-13.4 27.3-13.4 27.3Z" fill="url(#body)" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+  ${selected ? `<circle cx="17" cy="15.2" r="15.4" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.95"/>` : ""}
+  <path d="M17 ${PIN_TIP_Y}C11 33 3.6 24.6 3.6 15.2A13.4 13.4 0 1 1 30.4 15.2C30.4 24.6 23 33 17 ${PIN_TIP_Y}Z" fill="url(#body)" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
   <circle cx="11.8" cy="9.2" r="2.6" fill="#ffffff" opacity="0.25"/>
   ${glyph}
 </svg>`;
