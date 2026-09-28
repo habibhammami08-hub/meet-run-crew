@@ -42,6 +42,7 @@
     --deep: 170 67% 15.5%;
     --deep-foreground: 0 0% 100%;
     --deep-bright: 168 55% 42%;
+    --status-surface: 180 3% 7%;
 
     --radius: 0.75rem;
 
@@ -197,8 +198,28 @@
   }
 
   /* Layout */
+  /* iPhone notch / Dynamic Island: the site is loaded inside an iOS WebView. */
+  .app-shell > main {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-shell header.fixed.top-0,
+  .app-shell .sticky.top-0 {
+    top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px);
+    background: hsl(var(--status-surface));
+    z-index: 9;
+    pointer-events: none;
+  }
+
   .main-content {
-    padding-bottom: 85px;
+    padding-bottom: calc(85px + env(safe-area-inset-bottom, 0px));
   }
 
   .fixed-navigation {
@@ -211,6 +232,7 @@
     backdrop-filter: blur(10px);
     border-top: 1px solid hsl(var(--border));
     box-shadow: 0 -4px 20px -2px hsl(210 40% 8% / 0.15);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   /* Responsive */
@@ -220,7 +242,7 @@
     }
     
     .main-content {
-      padding-bottom: 90px;
+      padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     }
   }
 
