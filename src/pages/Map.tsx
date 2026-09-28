@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import markAsset from "@/assets/meetrun-mark.png.asset.json"; // Marque MeetRun (fond transparent)
+import markImage from "@/assets/meetrun-mark.png"; // Marque MeetRun (fond transparent)
 
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
@@ -596,7 +596,7 @@ function MapPageInner() {
               className="flex shrink-0 items-center"
             >
               <img
-                src={markAsset.url}
+                src={markImage}
                 alt="MeetRun"
                 className="h-9 w-auto sm:h-10"
               />
