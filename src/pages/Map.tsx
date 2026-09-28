@@ -167,10 +167,10 @@ function getTypeMeta(t: SessionRow["session_type"]): TypeMeta {
       renderIcon: (cls = "") => <span className={`mr-1 ${cls}`} aria-hidden>♂</span>,
     };
   }
-  // mixed par défaut
+  // mixed par défaut — même style que « Hommes / Femmes uniquement »
   return {
     label: "Mixte",
-    badgeVariant: "outline",
+    badgeVariant: "secondary",
     renderIcon: (cls = "") => <Users className={`w-3 h-3 mr-1 ${cls}`} />,
   };
 }
