@@ -7,6 +7,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import PhotoLightbox from "@/components/PhotoLightbox";
 import {
   ArrowLeft,
   MapPin,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Clock,
   ChevronRight,
+  Maximize2,
 } from "lucide-react";
 
 type PublicProfileData = {
@@ -73,6 +75,7 @@ const PublicProfile = () => {
   const [hostedSessions, setHostedSessions] = useState<HostedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -131,6 +134,14 @@ const PublicProfile = () => {
     ? new Date(profile.created_at).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
     : null;
   const km = Math.round(Number(profile.total_km ?? 0));
+  const fullName = profile.full_name?.trim() || firstName;
+  const photoCaption = [
+    profile.age ? `${profile.age} ans` : null,
+    genderLabel[(profile.gender ?? "").toLowerCase()],
+    profile.city,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const stats = [
     { icon: Sparkles, label: "Sessions organisées", value: profile.sessions_hosted ?? 0, accent: "text-amber-400" },
@@ -160,19 +171,31 @@ const PublicProfile = () => {
         {/* En-tête profil */}
         <div className="flex flex-col items-center pt-10 pb-8 text-center">
           <div className="relative">
-            <div className="p-1 rounded-full bg-gradient-to-tr from-emerald-400 via-sky-500 to-rose-500">
-              {profile.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt={firstName}
-                  className="w-28 h-28 rounded-full object-cover border-4 border-[#151515]"
-                />
-              ) : (
+            {profile.avatar_url ? (
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                aria-label={`Voir la photo de ${fullName} en grand`}
+                className="group relative block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+              >
+                <span className="block p-1 rounded-full bg-gradient-to-tr from-emerald-400 via-sky-500 to-rose-500 transition-transform duration-300 group-hover:scale-105 group-active:scale-95">
+                  <img
+                    src={profile.avatar_url}
+                    alt={firstName}
+                    className="w-28 h-28 rounded-full object-cover border-4 border-[#151515]"
+                  />
+                </span>
+                <span className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#151515] bg-white/20 text-white backdrop-blur-sm transition-transform group-hover:scale-110">
+                  <Maximize2 className="h-4 w-4" />
+                </span>
+              </button>
+            ) : (
+              <div className="p-1 rounded-full bg-gradient-to-tr from-emerald-400 via-sky-500 to-rose-500">
                 <div className="w-28 h-28 rounded-full border-4 border-[#151515] bg-gradient-to-br from-emerald-500 to-sky-600 flex items-center justify-center text-4xl font-bold">
                   {initial}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           <h1 className="mt-4 text-2xl font-extrabold tracking-tight">
@@ -279,6 +302,14 @@ const PublicProfile = () => {
           )}
         </section>
       </main>
+
+      <PhotoLightbox
+        open={photoOpen}
+        src={profile.avatar_url}
+        name={fullName}
+        caption={photoCaption}
+        onClose={() => setPhotoOpen(false)}
+      />
     </div>
   );
 };
