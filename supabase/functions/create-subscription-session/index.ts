@@ -39,7 +39,7 @@ serve(async (req) => {
     const defaultPriceId = Deno.env.get('STRIPE_PRICE_MONTHLY_EUR');
     const appBaseUrl = Deno.env.get('APP_BASE_URL') || 
                       req.headers.get('origin') || 
-                      'https://meetrun.app';
+                      'https://www.meetrun.fr';
 
     if (!stripeKey) {
       throw new AppError(
