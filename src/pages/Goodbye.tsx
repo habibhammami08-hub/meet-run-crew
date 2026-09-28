@@ -23,7 +23,7 @@ const Goodbye = () => {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <div className="max-w-md w-full text-center space-y-6">
         <div className="flex justify-center">
-          <CheckCircle className="w-16 h-16 text-green-500" />
+          <CheckCircle className="w-16 h-16 text-deep" />
         </div>
         
         <div className="space-y-2">
