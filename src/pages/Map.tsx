@@ -705,7 +705,7 @@ function MapPageInner() {
 </div>
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4" />
-                              {blur ? 'Zone approximative' : (session.location_hint || 'Lieu exact')}
+                              {blur ? (arrondissements[session.id] || 'Zone approximative') : (session.location_hint || 'Lieu exact')}
                             </div>
                             {session.distance_km && (
                               <div className="flex items-center gap-2">
@@ -790,7 +790,7 @@ function MapPageInner() {
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 <MapPin className="inline w-3 h-3 mr-1" />
-                                {blur ? "Zone approximative" : (s.location_hint || "Lieu exact")}
+                                {blur ? (arrondissements[s.id] || "Zone approximative") : (s.location_hint || "Lieu exact")}
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
@@ -967,7 +967,7 @@ function MapPageInner() {
                             <div className="flex items-center gap-1.5 text-xs text-gray-500">
                               <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                               <span className="truncate">
-                                {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || "Lieu exact")}
+                                {blur ? (arrondissements[session.id] || "Zone approximative") : (session.location_hint || "Lieu exact")}
                               </span>
                             </div>
                           </div>
