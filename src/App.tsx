@@ -33,6 +33,7 @@ const createRetryLazy = (importFn: () => Promise<any>, componentName: string) =>
 const Home = createRetryLazy(() => import("./pages/Home"), "Home");
 const Map = createRetryLazy(() => import("./pages/Map"), "Map");
 const SessionDetails = createRetryLazy(() => import("./pages/SessionDetails"), "SessionDetails");
+const PublicProfile = createRetryLazy(() => import("./pages/PublicProfile"), "PublicProfile");
 const CreateRun = createRetryLazy(() => import("./pages/CreateRun"), "CreateRun");
 const Profile = createRetryLazy(() => import("./pages/Profile"), "Profile");
 const Auth = createRetryLazy(() => import("./pages/Auth"), "Auth");
