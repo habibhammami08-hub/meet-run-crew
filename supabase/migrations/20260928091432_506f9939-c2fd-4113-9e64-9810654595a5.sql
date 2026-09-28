@@ -1,0 +1,2 @@
+REVOKE ALL ON public.public_profiles FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.recalc_participants_count(uuid), public.sync_participants_count(), public.enrollments_after_change_recount(), public.sessions_recount_on_host_change(), public.sessions_purge_new_host_enrollment(), public.enrollments_guard_status(), public.profiles_guard_billing() FROM public, anon, authenticated;
