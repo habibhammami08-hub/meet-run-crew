@@ -241,13 +241,19 @@ const SessionDetails = () => {
       setCenter(shown);
     }
 
-    const { data: participantsData } = await supabase
+    const { data: enrollmentRows } = await supabase
       .from("enrollments")
-      .select(`*, profiles:user_id (id, full_name, age, gender, avatar_url, city)`)
+      .select("*")
       .eq("session_id", id)
       .in("status", ["paid", "included_by_subscription", "confirmed"]);
 
-    if (participantsData) {
+    if (enrollmentRows) {
+      const ids = enrollmentRows.map((e: any) => e.user_id);
+      const { data: profs } = ids.length
+        ? await (supabase as any).from("public_profiles").select("id, full_name, age, gender, avatar_url, city").in("id", ids)
+        : { data: [] };
+      const byId = new Map((profs ?? []).map((p: any) => [p.id, p]));
+      const participantsData = enrollmentRows.map((e: any) => ({ ...e, profiles: byId.get(e.user_id) ?? null }));
       setParticipants(participantsData);
       if (user) setIsEnrolled(!!participantsData.find((p: any) => p.user_id === user.id));
     }
