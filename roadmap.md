@@ -4,5 +4,7 @@
 - [x] Deduplicate React modules and verify public pages through repeated navigation after reload; the reported crash did not recur in a fresh browser.
 - [x] Keep top headers visible below the iPhone status area and bottom navigation above the home indicator; verify public pages at iPhone width.
 - [x] iPhone app (Capacitor) confirmed working in the iOS simulator against https://www.meetrun.fr.
+- [x] App icon from the uploaded brand mark installed for iOS, Android, PWA and the browser tab.
+- [x] Animated launch screen (mark reveal + "MeetRun") on native launch and once per web session.
 - [ ] Android app: install Android Studio, then run on an emulator or phone — waiting on the user's machine setup.
 - [ ] Store publication (Apple App Store + Google Play) — blocked: developer accounts not yet created (Apple 99 $/an, Google Play 25 $ une fois).
