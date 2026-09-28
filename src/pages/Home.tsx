@@ -339,6 +339,17 @@ const Home = () => {
                   <p className="text-muted-foreground mb-6 leading-relaxed">
                     Découvre sur la carte interactive des sessions de running collectif ou simplement des balades en groupe.
                   </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigate("/map");
+                      setTimeout(() => window.scrollTo(0, 0), 100);
+                    }}
+                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
+                  >
+                    Voir la carte <ArrowRight size={16} className="ml-2" />
+                  </Button>
                   <div className="mt-4 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Users size={12} />
@@ -361,6 +372,14 @@ const Home = () => {
                   <p className="text-muted-foreground mb-6 leading-relaxed">
                     {isFreePromoActive() ? "Inscris-toi : l’accès illimité est offert automatiquement jusqu’au 31 décembre 2026, au lieu de 9,99 €/mois." : "Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement."}
                   </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate("/subscription")}
+                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
+                  >
+                    {isFreePromoActive() ? "Découvrir l’offre" : "S'abonner"} <Crown size={16} className="ml-2" />
+                  </Button>
                   <div className="mt-4 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Shield size={12} />
@@ -383,17 +402,6 @@ const Home = () => {
                   <p className="text-muted-foreground mb-6 leading-relaxed">
                     Rejoins ton groupe au point de rendez-vous, profite de l'énergie collective et fais des rencontres naturelles.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigate("/map");
-                      setTimeout(() => window.scrollTo(0, 0), 100);
-                    }}
-                    className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
-                  >
-                    Voir la carte <ArrowRight size={16} className="ml-2" />
-                  </Button>
                   <div className="mt-4 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Heart size={12} />
