@@ -30,7 +30,7 @@ const PhotoLightbox = ({ open, src, name, caption, onClose }: Props) => {
 
   if (!open || !src) return null;
 
-  const size = "min(82vw, 58dvh, 440px)";
+  const size = "min(88vw, 62dvh, 520px)";
 
   return (
     <div
