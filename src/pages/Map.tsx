@@ -18,7 +18,6 @@ import { isFreePromoActive } from "@/config/promo";
 
 
 // Auth route (adjust if your auth page differs)
-const AUTH_ROUTE = "/auth";
 
 // ————————————————————————————————————————————
 // Types
