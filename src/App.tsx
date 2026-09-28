@@ -85,6 +85,7 @@ const App = () => {
                       <Route path="/auth" element={<Auth />} />
                       <Route path="/map" element={<Map />} />
                       <Route path="/session/:id" element={<SessionDetails />} />
+                      <Route path="/runner/:id" element={<PublicProfile />} />
                       <Route path="/create" element={<CreateRun />} />
                       <Route path="/profile" element={<Profile />} />
                       <Route path="/subscription" element={<Subscription />} />
