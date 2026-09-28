@@ -899,7 +899,7 @@ function MapPageInner() {
                           <span
                             aria-hidden
                             className={cn(
-                              "absolute left-2 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b opacity-80 transition-all duration-200",
+                              "absolute left-3 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b opacity-80 transition-all duration-200",
                               "group-hover:w-1.5 group-hover:opacity-100",
                               accent.rail,
                               isSelected && "w-1.5 opacity-100"
