@@ -9,10 +9,10 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // ← RefreshCw retiré, User ajouté ; Crown retiré (badge Unlimited supprimé de l'en-tête)
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
 
@@ -107,7 +107,43 @@ const typeAccent = (type: SessionRow["session_type"]) => {
   return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
 };
 
+// ——— Fenêtre de filtres : pastilles segmentées (pas de listes déroulantes)
+type FilterOptionDef = { value: string; label: string; dot?: string };
+
+function FilterChip({ option, selected, onSelect }: { option: FilterOptionDef; selected: boolean; onSelect: (v: string) => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onSelect(option.value)}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-all duration-200 active:scale-[0.97]",
+        selected
+          ? "bg-foreground text-background shadow-[0_8px_20px_-10px_hsl(210_40%_8%/0.7)]"
+          : "bg-muted/70 text-muted-foreground ring-1 ring-inset ring-border hover:bg-muted hover:text-foreground"
+      )}
+    >
+      {option.dot && <span className={cn("h-2 w-2 shrink-0 rounded-full", option.dot)} />}
+      {option.label}
+    </button>
+  );
+}
+
+function FilterGroup({ title, options, value, onChange }: { title: string; options: FilterOptionDef[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <FilterChip key={o.value} option={o} selected={value === o.value} onSelect={onChange} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const polyCache = new Map<string, LatLng[]>();
+
 const pathFromPolyline = (p?: string | null): LatLng[] => {
   if (!p) return [];
   const cached = polyCache.get(p);
