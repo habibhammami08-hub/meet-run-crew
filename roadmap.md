@@ -1,4 +1,4 @@
 - [x] Update subscription-facing pages and labels to present automatic free Unlimited access through 31 December 2026; keep paid copy behind the existing campaign switch.
 - [x] Verify public desktop/mobile views, signup navigation, and current build diagnostics.
 - [ ] Verify Unlimited on a signed-in account and session enrollment — blocked: this project uses external, unmanaged authentication without a test session.
-- [ ] Resolve the intermittent blank screen from mixed React module versions and verify public pages after reload.
+- [x] Deduplicate React modules and verify public pages through repeated navigation after reload; the reported crash did not recur in a fresh browser.
