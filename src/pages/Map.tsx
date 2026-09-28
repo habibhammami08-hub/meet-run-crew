@@ -888,7 +888,7 @@ function MapPageInner() {
                             setCenter({ lat: session.start_lat, lng: session.start_lng });
                           }}
                           className={cn(
-                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-3.5 pl-5 pr-4 transition-all duration-200",
+                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-4 pl-6 pr-4 transition-all duration-200",
                             "shadow-[var(--shadow-card)] ring-1 ring-gray-900/5",
                             "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-primary/25",
                             "active:translate-y-0 active:scale-[0.99]",
@@ -899,10 +899,10 @@ function MapPageInner() {
                           <span
                             aria-hidden
                             className={cn(
-                              "absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b opacity-80 transition-all duration-200",
-                              "group-hover:w-2.5 group-hover:opacity-100",
+                              "absolute left-2 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b opacity-80 transition-all duration-200",
+                              "group-hover:w-1.5 group-hover:opacity-100",
                               accent.rail,
-                              isSelected && "w-2.5 opacity-100"
+                              isSelected && "w-1.5 opacity-100"
                             )}
                           />
 
