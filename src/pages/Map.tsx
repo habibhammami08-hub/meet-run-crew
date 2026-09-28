@@ -122,10 +122,13 @@ const pathFromPolyline = (p?: string | null): LatLng[] => {
 };
 
 // ————————————————————————————————————————————
-// Icônes uniformisées (petits points) : vert = départ, rouge = arrivée, bleu = position utilisateur
+// Icônes de carte
+// Départ : épingle moderne colorée selon le type de session
+// (vert = mixte, rouge = femmes uniquement, bleu = hommes uniquement)
+// Arrivée : petit point rouge — Position : petit point bleu
 // ————————————————————————————————————————————
 
-const DOT_SIZE = 12; // taille uniforme pour tous les points
+const DOT_SIZE = 12; // taille uniforme pour les petits points
 
 function createDotIcon(color: string, size = DOT_SIZE) {
   const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
@@ -138,9 +141,65 @@ function createDotIcon(color: string, size = DOT_SIZE) {
     : { url };
 }
 
-const START_DOT_COLOR = "#10b981";  // vert
 const END_DOT_COLOR   = "#ef4444";  // rouge
 const USER_DOT_COLOR  = "#3b82f6";  // bleu
+
+// ————————————————————————————————————————————
+// Épingles de départ (type de session)
+// ————————————————————————————————————————————
+
+const PIN_W = 34;
+const PIN_H = 46;
+const PIN_TIP_Y = 42.5;
+
+// Pictogrammes dessinés en blanc sur l'épingle
+const GLYPH_WOMEN = `<g fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round"><circle cx="17" cy="11.8" r="3.7"/><path d="M17 15.5v5.4M14.2 18.4h5.6"/></g>`;
+const GLYPH_MEN = `<g fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round"><circle cx="15.6" cy="13.6" r="3.7"/><path d="M18.4 10.8l4.6-4.6M23 6.2h-4.4M23 6.2v4.4"/></g>`;
+const GLYPH_MIXED = `<g fill="#ffffff"><circle cx="13.6" cy="11.2" r="2.6"/><circle cx="20.4" cy="11.2" r="2.6"/></g><g fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"><path d="M10.4 19.8c0-2.2 1.4-3.9 3.2-3.9s3.2 1.7 3.2 3.9"/><path d="M17.2 19.8c0-2.2 1.4-3.9 3.2-3.9s3.2 1.7 3.2 3.9"/></g>`;
+
+const pinTheme = (type: SessionRow["session_type"]) => {
+  if (type === "women_only") return { from: "#fb7185", to: "#dc2626", glyph: GLYPH_WOMEN };
+  if (type === "men_only") return { from: "#38bdf8", to: "#4f46e5", glyph: GLYPH_MEN };
+  return { from: "#34d399", to: "#059669", glyph: GLYPH_MIXED };
+};
+
+const buildPinSvg = (type: SessionRow["session_type"], selected: boolean) => {
+  const { from, to, glyph } = pinTheme(type);
+  return `<svg width="${PIN_W}" height="${PIN_H}" viewBox="0 0 ${PIN_W} ${PIN_H}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="body" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="${from}"/>
+      <stop offset="1" stop-color="${to}"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#0f172a" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#0f172a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="17" cy="43.6" rx="8" ry="2.8" fill="url(#shadow)"/>
+  ${selected ? `<circle cx="17" cy="15" r="15.6" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.95"/>` : ""}
+  <path d="M17 ${PIN_TIP_Y}C17 ${PIN_TIP_Y}3.6 24.8 3.6 15.2a13.4 13.4 0 1 1 26.8 0c0 9.6-13.4 27.3-13.4 27.3Z" fill="url(#body)" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+  <circle cx="11.8" cy="9.2" r="2.6" fill="#ffffff" opacity="0.25"/>
+  ${glyph}
+</svg>`;
+};
+
+const pinIconCache = new Map<string, any>();
+
+function createStartPinIcon(type: SessionRow["session_type"], selected = false) {
+  const key = `${type}|${selected ? 1 : 0}`;
+  const cached = pinIconCache.get(key);
+  if (cached) return cached;
+
+  const url = "data:image/svg+xml," + encodeURIComponent(buildPinSvg(type, selected));
+  const g = typeof window !== "undefined" ? (window as any).google : undefined;
+  const icon = g?.maps?.Size && g?.maps?.Point
+    ? { url, scaledSize: new g.maps.Size(PIN_W, PIN_H), anchor: new g.maps.Point(PIN_W / 2, PIN_TIP_Y) }
+    : { url };
+
+  pinIconCache.set(key, icon);
+  return icon;
+}
 
 // ————————————————————————————————————————————
 // Pictogrammes de type 
