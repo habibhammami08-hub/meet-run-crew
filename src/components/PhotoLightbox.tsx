@@ -76,8 +76,6 @@ const PhotoLightbox = ({ open, src, name, caption, onClose }: Props) => {
           </p>
         )}
       </div>
-
-      <p className="text-center text-xs text-white/35">Touchez ailleurs pour fermer</p>
     </div>
   );
 };
