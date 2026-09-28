@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.enrollments_check_gender() FROM PUBLIC, anon, authenticated;
