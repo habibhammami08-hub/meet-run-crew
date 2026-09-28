@@ -27,6 +27,7 @@ const SubscriptionSuccess = () => {
   // Quand le composant arrive ici après le checkout success,
   // on essaie de s'assurer que le webhook a bien mis à jour le profil.
   useEffect(() => {
+    if (isFreePromoActive()) return;
     let cancelled = false;
 
     const poll = async () => {
@@ -67,6 +68,7 @@ const SubscriptionSuccess = () => {
 
   // Si le hook remonte l'activation plus tard (avant la fin d'une itération)
   useEffect(() => {
+    if (isFreePromoActive()) return;
     if (hasActiveSubscription) {
       setPhase("active");
       if (timerRef.current) {

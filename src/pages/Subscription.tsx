@@ -23,6 +23,7 @@ const Subscription = () => {
 
   // ————— Gestion du retour Stripe : /subscription?checkout=success|cancel
   useEffect(() => {
+    if (isFreePromoActive()) return;
     const checkout = searchParams.get("checkout");
     if (!checkout) return;
 

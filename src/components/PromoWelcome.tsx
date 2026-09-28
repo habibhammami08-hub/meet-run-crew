@@ -20,10 +20,10 @@ const PromoWelcome = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-sm text-center animate-scale-in">
-        <div className="mx-auto mb-2 flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 animate-[pulse_2s_ease-in-out_infinite]">
-          <Crown className="h-10 w-10 text-primary animate-fade-in" />
+        <div className="mx-auto mb-2 flex h-20 w-20 items-center justify-center rounded-full bg-promo/15 motion-safe:animate-[pulse_2s_ease-in-out_infinite]">
+          <Crown className="h-10 w-10 text-promo motion-safe:animate-fade-in" />
         </div>
-        <DialogTitle className="text-2xl animate-fade-in">Bienvenue sur MeetRun 🎉</DialogTitle>
+        <DialogTitle className="text-2xl motion-safe:animate-fade-in">Bienvenue sur MeetRun 🎉</DialogTitle>
         <DialogDescription className="text-base animate-fade-in">
           Votre accès <strong>MeetRun Unlimited</strong> est offert automatiquement dès l’inscription jusqu’au 31 décembre 2026 (au lieu de 9,99 €/mois). Aucun paiement nécessaire.
         </DialogDescription>
