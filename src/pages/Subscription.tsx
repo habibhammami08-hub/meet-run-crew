@@ -1,6 +1,6 @@
 // src/pages/Subscription.tsx
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -136,7 +136,7 @@ const Subscription = () => {
       <div className="min-h-screen bg-background">
         <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
           <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <img src={logoImage} alt="MeetRun Logo" className="h-10 w-auto" />
+            <Link to="/"><img src={logoImage} alt="MeetRun Logo" className="h-10 w-auto cursor-pointer" /></Link>
             <Button variant="ghost" onClick={() => navigate(user ? "/profile" : "/auth?returnTo=/subscription")} className="text-white font-semibold hover:bg-white/10">
               {user ? "Profil" : "Se connecter"}
             </Button>
@@ -164,11 +164,13 @@ const Subscription = () => {
         {/* Header */}
         <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
           <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <img
-              src={logoImage}
-              alt="MeetRun Logo"
-              className="h-10 w-auto"
-            />
+            <Link to="/">
+              <img
+                src={logoImage}
+                alt="MeetRun Logo"
+                className="h-10 w-auto cursor-pointer"
+              />
+            </Link>
             <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/subscription")} className="text-white font-semibold hover:bg-white/10">
                 Se connecter
@@ -277,11 +279,13 @@ const Subscription = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <img
-            src={logoImage}
-            alt="MeetRun Logo"
-            className="h-10 w-auto"
-          />
+          <Link to="/">
+            <img
+              src={logoImage}
+              alt="MeetRun Logo"
+              className="h-10 w-auto cursor-pointer"
+            />
+          </Link>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
               <User size={16} />

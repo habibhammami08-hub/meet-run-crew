@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Shield, Calendar, Star, Trash2, Crown, User, CreditCard, Heart, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -242,11 +242,13 @@ const Home = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <img
-            src={logoImage}
-            alt="MeetRun Logo"
-            className="h-10 w-auto"
-          />
+          <Link to="/">
+            <img
+              src={logoImage}
+              alt="MeetRun Logo"
+              className="h-10 w-auto cursor-pointer"
+            />
+          </Link>
           <div className="flex items-center gap-2">
             {user ? (
               <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">

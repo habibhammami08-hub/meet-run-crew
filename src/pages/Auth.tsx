@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -294,11 +294,13 @@ const Auth = () => {
         {/* Hero Section */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4 mt-6">
-            <img 
-              src={logoImage} 
-              alt="MeetRun" 
-              className="h-16 w-auto mx-auto"
-            />
+            <Link to="/">
+              <img 
+                src={logoImage} 
+                alt="MeetRun" 
+                className="h-16 w-auto mx-auto cursor-pointer"
+              />
+            </Link>
           </div>
           
           <div className="space-y-2 mb-6">

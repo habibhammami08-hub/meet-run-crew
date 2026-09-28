@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown, User } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
 import { isFreePromoActive } from "@/config/promo";
 import {
@@ -494,11 +494,13 @@ export default function ProfilePage() {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <img
-            src={logoImage}
-            alt="MeetRun Logo"
-            className="h-10 w-auto"
-          />
+          <Link to="/">
+            <img
+              src={logoImage}
+              alt="MeetRun Logo"
+              className="h-10 w-auto cursor-pointer"
+            />
+          </Link>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate("/profile")} className="flex items-center gap-2 text-white hover:text-white hover:bg-white/10">
               <User size={16} />
