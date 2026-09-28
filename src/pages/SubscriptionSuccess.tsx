@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Crown, ArrowRight, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { isFreePromoActive } from "@/config/promo";
 
 type Phase = "checking" | "active" | "timeout";
 
@@ -94,6 +95,17 @@ const SubscriptionSuccess = () => {
     setPhase("checking");
     await refreshSubscription();
   };
+
+  if (isFreePromoActive()) return (
+    <main className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
+      <div className="max-w-lg space-y-5">
+        <Crown className="mx-auto h-12 w-12 text-promo" />
+        <h1 className="text-3xl font-bold">Votre accès Unlimited est offert</h1>
+        <p className="text-muted-foreground">Activé automatiquement dès l’inscription, gratuitement jusqu’au 31 décembre 2026 (au lieu de 9,99 €/mois).</p>
+        <Button variant="sport" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
+      </div>
+    </main>
+  );
 
   return (
     <div className="min-h-screen bg-background">

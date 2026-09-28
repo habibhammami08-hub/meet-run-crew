@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User } from "lucide-react"; // ← RefreshCw retiré, User ajouté
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
+import { isFreePromoActive } from "@/config/promo";
 
 
 // Auth route (adjust if your auth page differs)
