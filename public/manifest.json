@@ -4,7 +4,7 @@
   "description": "Rejoignez ou créez des sessions de running en groupe dans votre ville",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#054039",
   "theme_color": "#141515",
   "orientation": "portrait-primary",
   "icons": [
