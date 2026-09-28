@@ -362,7 +362,7 @@ const Home = () => {
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
                 <CardContent className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
-                    <CreditCard size={32} className="text-white" />
+                    {isFreePromoActive() ? <Crown size={32} className="text-white" /> : <CreditCard size={32} className="text-white" />}
                   </div>
                   <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
                     {isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonne-toi en toute liberté"}

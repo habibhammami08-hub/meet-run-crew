@@ -613,7 +613,7 @@ const SessionDetails = () => {
                             {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 décembre 2026 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
                           </p>
                           <div className="flex items-center justify-between mb-3">
-                            <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? "0 €" : "9,99€/mois"}</span>
+                            <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? <>0 € <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s></> : "9,99€/mois"}</span>
                             <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/12/2026" : "Économique"}</Badge>
                           </div>
                           <Button
@@ -885,7 +885,7 @@ const SessionDetails = () => {
                         {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 décembre 2026 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
                       </p>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? "0 €" : "9,99€/mois"}</span>
+                        <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? <>0 € <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s></> : "9,99€/mois"}</span>
                         <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/12/2026" : "Économique"}</Badge>
                       </div>
                       <Button
