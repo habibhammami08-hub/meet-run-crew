@@ -338,6 +338,29 @@ function MapPageInner() {
     }));
   }, [sessions, userLocation]);
 
+  // Arrondissement / quartier de départ (géocodage inversé, mis en cache par session)
+  const [arrondissements, setArrondissements] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const g = (window as any).google;
+    if (!g?.maps?.Geocoder) return;
+    const geocoder = new g.maps.Geocoder();
+    sessions.forEach((s) => {
+      if (arrondissements[s.id]) return;
+      geocoder.geocode({ location: { lat: s.start_lat, lng: s.start_lng } }, (results: any, status: string) => {
+        if (status !== "OK" || !results?.length) return;
+        const comps = results[0].address_components as any[];
+        const sub = comps.find((c) => c.types.includes("sublocality_level_1") || c.types.includes("sublocality"));
+        const locality = comps.find((c) => c.types.includes("locality"));
+        let label: string | null = null;
+        const num = sub?.long_name?.match(/(\d+)/)?.[1];
+        if (sub && num) label = `${locality?.long_name ?? "Paris"} ${num}e`;
+        else if (sub) label = sub.long_name;
+        else if (locality) label = locality.long_name;
+        if (label) setArrondissements((prev) => (prev[s.id] ? prev : { ...prev, [s.id]: label! }));
+      });
+    });
+  }, [sessions]);
+
   // IMPORTANT : défloute si l’utilisateur est inscrit à CETTE session
   const isEnrolledIn = useCallback((id: string) => mySessionIds.has(id), [mySessionIds]);
 
@@ -682,7 +705,7 @@ function MapPageInner() {
 </div>
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4" />
-                              {blur ? 'Zone approximative' : (session.location_hint || 'Lieu exact')}
+                              {blur ? (arrondissements[session.id] || 'Zone approximative') : (session.location_hint || 'Lieu exact')}
                             </div>
                             {session.distance_km && (
                               <div className="flex items-center gap-2">
@@ -767,7 +790,7 @@ function MapPageInner() {
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 <MapPin className="inline w-3 h-3 mr-1" />
-                                {blur ? "Zone approximative" : (s.location_hint || "Lieu exact")}
+                                {blur ? (arrondissements[s.id] || "Zone approximative") : (s.location_hint || "Lieu exact")}
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
@@ -944,7 +967,7 @@ function MapPageInner() {
                             <div className="flex items-center gap-1.5 text-xs text-gray-500">
                               <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                               <span className="truncate">
-                                {blur ? `Zone approximative (${session.blur_radius_m || 1000}m)` : (session.location_hint || "Lieu exact")}
+                                {blur ? (arrondissements[session.id] || "Zone approximative") : (session.location_hint || "Lieu exact")}
                               </span>
                             </div>
                           </div>
