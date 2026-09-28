@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import polyline from "@mapbox/polyline";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import markAsset from "@/assets/meetrun-mark.png.asset.json"; // Marque MeetRun (fond transparent)
 
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
@@ -589,17 +590,17 @@ function MapPageInner() {
       <div className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <MapPin className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Sessions disponibles</h1>
-                {currentUser && (
-                  <p className="text-sm text-gray-600">Connecté{hasSub && (isFreePromoActive() ? ' • Unlimited offert jusqu’au 31/12/2026' : ' • Abonnement actif')}</p>
-                )}
-              </div>
-            </div>
+            <Link
+              to="/"
+              aria-label="MeetRun — accueil"
+              className="flex shrink-0 items-center"
+            >
+              <img
+                src={markAsset.url}
+                alt="MeetRun"
+                className="h-9 w-auto sm:h-10"
+              />
+            </Link>
 
             <div className="flex items-center gap-3">
               {!userLocation && hasTriedGeolocation && (
