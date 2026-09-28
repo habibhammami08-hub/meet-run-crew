@@ -27,6 +27,7 @@ import {
 
 // ⭐ Imports pour l'écran plein écran (même pattern que Auth)
 import { CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import AvatarEditor from "@/components/AvatarEditor";
 
 type Profile = {
   id: string;
@@ -318,7 +319,7 @@ export default function ProfilePage() {
 
       if (avatarFile) {
         const ext = (avatarFile.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `avatars/${user.id}/avatar.${ext}`;
+        const path = `${user.id}/avatar.${ext}`;
         const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
         if (uploadError) {
           if (mountedRef.current) toast({ title: "Erreur", description: "Erreur upload image : " + uploadError.message, variant: "destructive" });
@@ -580,15 +581,6 @@ export default function ProfilePage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="avatar">Photo de profil</Label>
-                <Input
-                  id="avatar"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
-                />
-              </div>
 
               <div className="flex gap-2">
                 <Button onClick={handleSave} disabled={saving}>
@@ -608,13 +600,12 @@ export default function ProfilePage() {
           ) : (
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                {profile.avatar_url && (
-                  <img 
-                    src={profile.avatar_url} 
-                    alt="Avatar" 
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                )}
+                <AvatarEditor
+                  userId={user.id}
+                  avatarUrl={profile.avatar_url}
+                  name={profile.full_name}
+                  onChange={(url) => setProfile(prev => prev ? { ...prev, avatar_url: url } : prev)}
+                />
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl font-semibold">{profile.full_name}</h2>
