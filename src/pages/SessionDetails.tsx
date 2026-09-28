@@ -126,9 +126,28 @@ const SessionDetails = () => {
     window.location.href = `/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=${encodeURIComponent(currentPath)}`;
   };
 
+  const checkGenderAllowed = async (): Promise<boolean> => {
+    const type = (session as any)?.session_type;
+    if (!user || !type || type === "mixed" || (session as any)?.host_id === user.id) return true;
+    const { data } = await supabase.from("profiles").select("gender").eq("id", user.id).maybeSingle();
+    const g = (data as any)?.gender?.toLowerCase();
+    const ok = type === "men_only" ? g === "homme" : g === "femme";
+    if (!ok) {
+      toast({
+        title: "Inscription impossible",
+        description: g
+          ? `Cette session est réservée aux ${type === "men_only" ? "hommes" : "femmes"}.`
+          : "Cette session est réservée à un genre précis. Renseignez votre genre dans votre profil.",
+        variant: "destructive",
+      });
+    }
+    return ok;
+  };
+
   const startOneOffCheckout = async () => {
     if (!user) return redirectToAuth();
     if (!id) return;
+    if (!(await checkGenderAllowed())) return;
 
     setIsOneOffLoading(true);
     try {
@@ -275,6 +294,7 @@ const SessionDetails = () => {
       return;
     }
     if (!session) return;
+    if (!(await checkGenderAllowed())) return;
 
     if (hasActiveSubscription) {
       setIsLoading(true);
