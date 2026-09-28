@@ -9,7 +9,7 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User, ArrowRight, Route } from "lucide-react"; // ← RefreshCw retiré, User ajouté
+import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User, ArrowRight, Route, Plus } from "lucide-react"; // ← RefreshCw retiré, User ajouté
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
