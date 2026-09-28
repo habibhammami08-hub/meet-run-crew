@@ -10,6 +10,8 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone, Chrome, Users, MapPin, Heart, CheckCircle } from "lucide-react";
 import logoImage from "@/assets/meetrun-logo-auth.png";
+import { isFreePromoActive } from "@/config/promo";
+import { Crown } from "lucide-react";
 
 const supabase = getSupabase();
 
@@ -328,6 +330,12 @@ const Auth = () => {
           </div>
         </div>
 
+        {mode === 'signup' && isFreePromoActive() && (
+          <div className="mb-4 border border-promo/40 bg-promo-surface px-5 py-4 text-promo-foreground">
+            <div className="flex items-center gap-2 font-bold text-promo"><Crown size={20} /> MeetRun Unlimited offert</div>
+            <p className="mt-1 text-sm">Activé automatiquement dès l’inscription, jusqu’au 31 décembre 2026. 0 € au lieu de 9,99 €/mois, sans paiement.</p>
+          </div>
+        )}
         <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center pb-6">
             <CardTitle className="text-2xl font-bold text-foreground">
