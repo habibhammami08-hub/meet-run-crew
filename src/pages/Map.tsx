@@ -9,10 +9,10 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Filter, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // ← RefreshCw retiré, User ajouté ; Crown retiré (badge Unlimited supprimé de l'en-tête)
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
 
@@ -107,7 +107,43 @@ const typeAccent = (type: SessionRow["session_type"]) => {
   return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
 };
 
+// ——— Fenêtre de filtres : pastilles segmentées (pas de listes déroulantes)
+type FilterOptionDef = { value: string; label: string; dot?: string };
+
+function FilterChip({ option, selected, onSelect }: { option: FilterOptionDef; selected: boolean; onSelect: (v: string) => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onSelect(option.value)}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-all duration-200 active:scale-[0.97]",
+        selected
+          ? "bg-foreground text-background shadow-[0_8px_20px_-10px_hsl(210_40%_8%/0.7)]"
+          : "bg-muted/70 text-muted-foreground ring-1 ring-inset ring-border hover:bg-muted hover:text-foreground"
+      )}
+    >
+      {option.dot && <span className={cn("h-2 w-2 shrink-0 rounded-full", option.dot)} />}
+      {option.label}
+    </button>
+  );
+}
+
+function FilterGroup({ title, options, value, onChange }: { title: string; options: FilterOptionDef[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <FilterChip key={o.value} option={o} selected={value === o.value} onSelect={onChange} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const polyCache = new Map<string, LatLng[]>();
+
 const pathFromPolyline = (p?: string | null): LatLng[] => {
   if (!p) return [];
   const cached = polyCache.get(p);
@@ -900,19 +936,23 @@ function MapPageInner() {
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowFilters(true)}
-                  className="mt-0.5 inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
-                >
-                  <Filter className="h-3 w-3" />
-                  Filtre
-                  {activeFilterCount > 0 && (
-                    <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
+                {/* Accès filtres : le mot « Filtre » démarre sous « Sessions » (icône 32px + écart 10px) */}
+                <div className="mt-3 flex pl-[42px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(true)}
+                    className="-ml-2.5 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                  >
+                    <span>Filtre</span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-bold tabular-nums text-background">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -1047,69 +1087,95 @@ function MapPageInner() {
             </Card>
 
             <Dialog open={showFilters} onOpenChange={setShowFilters}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-lg">
-                    <Filter className="w-5 h-5 text-blue-600" />
-                    Filtres
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Rayon de recherche</label>
-                    <Select value={filterRadius} onValueChange={setFilterRadius}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Toutes les sessions</SelectItem>
-                        <SelectItem value="5">5 km</SelectItem>
-                        <SelectItem value="10">10 km</SelectItem>
-                        <SelectItem value="25">25 km</SelectItem>
-                        <SelectItem value="50">50 km</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Intensité</label>
-                    <Select value={filterIntensity} onValueChange={setFilterIntensity}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Toutes les intensités</SelectItem>
-                        <SelectItem value="marche">Marche</SelectItem>
-                        <SelectItem value="course modérée">Course modérée</SelectItem>
-                        <SelectItem value="course intensive">Course intensive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Type de session</label>
-                    <Select value={filterSessionType} onValueChange={setFilterSessionType}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tous types</SelectItem>
-                        <SelectItem value="mixed">Mixte</SelectItem>
-                        <SelectItem value="women_only">Femmes uniquement</SelectItem>
-                        <SelectItem value="men_only">Hommes uniquement</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <DialogContent
+                className={cn(
+                  // Feuille modale : posée en bas sur téléphone, carte centrée sur ordinateur
+                  "fixed inset-x-0 bottom-0 top-auto left-0 right-0 z-50 grid w-full max-w-none translate-x-0 translate-y-0 gap-0",
+                  "rounded-t-[28px] rounded-b-none border-0 bg-background p-0 shadow-[0_-24px_70px_-24px_hsl(210_40%_8%/0.45)]",
+                  "data-[state=open]:slide-in-from-left-0 data-[state=closed]:slide-out-to-left-0",
+                  "data-[state=open]:slide-in-from-top-0 data-[state=closed]:slide-out-to-top-0",
+                  "data-[state=open]:slide-in-from-bottom-[60%] data-[state=closed]:slide-out-to-bottom-[60%]",
+                  "sm:inset-auto sm:bottom-auto sm:left-[50%] sm:top-[50%] sm:w-auto sm:max-w-md sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[28px] sm:shadow-[0_30px_80px_-30px_hsl(210_40%_8%/0.45)]",
+                  "sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:slide-out-to-bottom-0",
+                  "sm:data-[state=open]:slide-in-from-top-[48%] sm:data-[state=closed]:slide-out-to-top-[48%]"
+                )}
+              >
+                <div className="flex items-start gap-3 border-b border-border/70 px-5 pb-4 pt-6 sm:pt-6">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-foreground/[0.05] ring-1 ring-inset ring-border">
+                    <SlidersHorizontal className="h-4 w-4 text-foreground" />
+                  </span>
+                  <DialogHeader className="min-w-0 text-left">
+                    <DialogTitle className="text-[15px] font-bold tracking-tight">Affiner la recherche</DialogTitle>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {activeFilterCount === 0
+                        ? "Aucun filtre actif"
+                        : `${activeFilterCount} filtre${activeFilterCount > 1 ? "s" : ""} actif${activeFilterCount > 1 ? "s" : ""}`}
+                    </p>
+                  </DialogHeader>
                 </div>
-                <DialogFooter className="gap-2">
+
+                <div className="thin-scroll max-h-[52vh] space-y-5 overflow-y-auto px-5 py-5 sm:max-h-[58vh]">
+                  <FilterGroup
+                    title="Rayon de recherche"
+                    value={filterRadius}
+                    onChange={setFilterRadius}
+                    options={[
+                      { value: "all", label: "Toutes distances" },
+                      { value: "5", label: "5 km" },
+                      { value: "10", label: "10 km" },
+                      { value: "25", label: "25 km" },
+                      { value: "50", label: "50 km" },
+                    ]}
+                  />
+                  <FilterGroup
+                    title="Intensité"
+                    value={filterIntensity}
+                    onChange={setFilterIntensity}
+                    options={[
+                      { value: "all", label: "Toutes" },
+                      { value: "marche", label: "Marche" },
+                      { value: "course modérée", label: "Modérée" },
+                      { value: "course intensive", label: "Intensive" },
+                    ]}
+                  />
+                  <FilterGroup
+                    title="Type de session"
+                    value={filterSessionType}
+                    onChange={setFilterSessionType}
+                    options={[
+                      { value: "all", label: "Tous types" },
+                      { value: "mixed", label: "Mixte", dot: typeAccent("mixed").dot },
+                      { value: "women_only", label: "Femmes uniquement", dot: typeAccent("women_only").dot },
+                      { value: "men_only", label: "Hommes uniquement", dot: typeAccent("men_only").dot },
+                    ]}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 border-t border-border/70 bg-muted/40 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:rounded-b-[28px]">
                   <Button
-                    variant="outline"
+                    variant="ghost"
+                    disabled={activeFilterCount === 0}
                     onClick={() => {
                       setFilterRadius("all");
                       setFilterIntensity("all");
                       setFilterSessionType("all");
                     }}
+                    className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-40"
                   >
                     Réinitialiser
                   </Button>
-                  <Button onClick={() => setShowFilters(false)}>Terminer</Button>
-                </DialogFooter>
+                  <Button
+                    onClick={() => setShowFilters(false)}
+                    className="h-11 flex-1 rounded-full bg-foreground px-5 text-sm font-bold text-background shadow-[0_12px_26px_-14px_hsl(210_40%_8%/0.9)] hover:bg-foreground/90 hover:text-background sm:flex-none"
+                  >
+                    {filteredNearestSessions.length > 0
+                      ? `Voir ${filteredNearestSessions.length} session${filteredNearestSessions.length > 1 ? "s" : ""}`
+                      : "Voir les sessions"}
+                  </Button>
+                </div>
               </DialogContent>
             </Dialog>
+
           </div>
         </div>
 
