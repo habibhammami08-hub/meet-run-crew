@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { MapPin, User, Plus, Home, Crown } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { isFreePromoActive } from "@/config/promo";
 
 const Navigation = () => {
   const location = useLocation();
@@ -53,7 +54,7 @@ const Navigation = () => {
             }`}
           >
             <Crown size={20} className={user && hasActiveSubscription ? 'text-blue-600' : ''} />
-            <span className="text-xs font-medium">Abonnement</span>
+            <span className="text-xs font-medium">{isFreePromoActive() ? "Unlimited" : "Abonnement"}</span>
             {user && hasActiveSubscription && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full shadow-sm"></div>
             )}

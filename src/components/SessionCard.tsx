@@ -7,6 +7,7 @@ import { MapPin, Clock, Users, Euro, Calendar } from 'lucide-react';
 import type { SessionWithDetails } from '@/types/database';
 import { useAuth } from '@/hooks/useAuth';
 import StripeBuyButton from './StripeBuyButton';
+import { isFreePromoActive } from '@/config/promo';
 
 interface SessionCardProps {
   session: SessionWithDetails;
@@ -149,9 +150,9 @@ export const SessionCard: React.FC<SessionCardProps> = ({
             <div className="font-medium">Tarif</div>
             <div>
               {hasActiveSubscription ? (
-                <>Inclus avec l'abonnement</>
+                <>{isFreePromoActive() ? "Inclus avec Unlimited · offert jusqu’au 31/12/2026" : "Inclus avec l'abonnement"}</>
               ) : (
-                <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+                <>4,50 € <span className="text-muted-foreground">{isFreePromoActive() ? "(offert dès l’inscription jusqu’au 31/12/2026)" : "(gratuit avec l'abonnement)"}</span></>
               )}
             </div>
           </div>
