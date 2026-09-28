@@ -936,19 +936,23 @@ function MapPageInner() {
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowFilters(true)}
-                  className="mt-0.5 inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
-                >
-                  <Filter className="h-3 w-3" />
-                  Filtre
-                  {activeFilterCount > 0 && (
-                    <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
+                {/* Accès filtres : le mot « Filtre » démarre sous « Sessions » (icône 32px + écart 10px) */}
+                <div className="mt-3 flex pl-[42px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(true)}
+                    className="-ml-2.5 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                  >
+                    <span>Filtre</span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-bold tabular-nums text-background">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
               </CardHeader>
               <CardContent>
                 {loading ? (
