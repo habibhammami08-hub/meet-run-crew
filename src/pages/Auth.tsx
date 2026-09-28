@@ -17,7 +17,6 @@ const supabase = getSupabase();
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -52,35 +51,6 @@ const Auth = () => {
     }
   }, [user, navigate, returnTo]);
 
-  const handleGoogleSignIn = async () => {
-    if (!supabase) {
-      toast({
-        title: "Configuration manquante",
-        description: "Impossible de se connecter - variables d'environnement manquantes",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsGoogleLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}${returnTo}`,
-        },
-      });
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast({
-        title: "Erreur de connexion Google",
-        description: error.message,
-        variant: "destructive",
-      });
-      setIsGoogleLoading(false);
-    }
-  };
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -151,6 +121,7 @@ const Auth = () => {
     const age = formData.get("age") as string;
     const gender = formData.get("gender") as string;
     const phone = formData.get("phone") as string;
+    const city = ((formData.get("city") as string) || "").trim();
 
     try {
       // URL de redirection après confirmation d'email - MODIFIÉ
@@ -175,6 +146,7 @@ const Auth = () => {
             age: parseInt(age),
             gender,
             phone,
+            city,
           }
         }
       });
@@ -346,34 +318,6 @@ const Auth = () => {
           </CardHeader>
           
           <CardContent className="space-y-6">
-            {/* Google Sign In Button */}
-            <Button
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading}
-              variant="outline"
-              size="lg"
-              className="w-full h-12 bg-white hover:bg-gray-50 border-2 border-gray-200 hover:border-primary/50 transition-all duration-200"
-            >
-              {isGoogleLoading ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <Chrome className="mr-3 h-5 w-5 text-[#4285F4]" />
-              )}
-              <span className="text-gray-700 font-medium">
-                {mode === 'signin' ? 'Continuer avec Google' : "S'inscrire avec Google"}
-              </span>
-            </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-muted" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-4 text-muted-foreground font-medium">
-                  ou continuez avec votre email
-                </span>
-              </div>
-            </div>
 
             <Tabs defaultValue={mode} className="w-full">
               <TabsList className="grid w-full grid-cols-2 bg-muted/50">
@@ -501,6 +445,23 @@ const Auth = () => {
                       />
                     </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="city" className="text-sm font-medium">Ville</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="city"
+                        name="city"
+                        type="text"
+                        placeholder="Paris"
+                        className="pl-10 h-12"
+                        autoComplete="address-level2"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
                   
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-medium">Email</Label>
