@@ -4,11 +4,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Check, X, ExternalLink, Users, User } from "lucide-react";
+import { Crown, Check, X, ExternalLink, Users, User, MapPin } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import logoImage from "@/assets/meetrun-logo-final.png";
+import PromoOffer from "@/components/PromoOffer";
+import { isFreePromoActive } from "@/config/promo";
 
 const Subscription = () => {
   const { user, hasActiveSubscription, subscriptionStatus, subscriptionEnd, refreshSubscription } = useAuth();
@@ -21,6 +23,7 @@ const Subscription = () => {
 
   // ————— Gestion du retour Stripe : /subscription?checkout=success|cancel
   useEffect(() => {
+    if (isFreePromoActive()) return;
     const checkout = searchParams.get("checkout");
     if (!checkout) return;
 
@@ -127,6 +130,32 @@ const Subscription = () => {
       month: "long",
       day: "numeric",
     });
+
+  if (isFreePromoActive()) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <img src={logoImage} alt="MeetRun Logo" className="h-10 w-auto" />
+            <Button variant="ghost" onClick={() => navigate(user ? "/profile" : "/auth?returnTo=/subscription")} className="text-white font-semibold hover:bg-white/10">
+              {user ? "Profil" : "Se connecter"}
+            </Button>
+          </div>
+        </header>
+        <main className="main-content pt-24 pb-24">
+          <PromoOffer signedIn={!!user} />
+          <div className="mx-auto max-w-5xl px-5 py-10 sm:py-14">
+            <h3 className="text-2xl font-bold text-foreground">Tout MeetRun, sans limite</h3>
+            <div className="mt-6 grid gap-6 sm:grid-cols-3">
+              <div className="border-t-2 border-promo pt-4"><MapPin size={24} className="text-promo" /><h4 className="mt-3 font-bold">Rendez-vous précis</h4><p className="mt-1 text-sm text-muted-foreground">Accédez aux lieux de départ exacts de toutes les sessions.</p></div>
+              <div className="border-t-2 border-primary pt-4"><Users size={24} className="text-primary" /><h4 className="mt-3 font-bold">Courez autant que vous voulez</h4><p className="mt-1 text-sm text-muted-foreground">Rejoignez les sessions sans payer à chaque sortie.</p></div>
+              <div className="border-t-2 border-promo pt-4"><Crown size={24} className="text-promo" /><h4 className="mt-3 font-bold">Activé dès l’inscription</h4><p className="mt-1 text-sm text-muted-foreground">Votre accès est offert automatiquement jusqu’au 31 décembre 2026.</p></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // ————— Vue publique si non connecté
   if (!user) {

@@ -4,6 +4,7 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Locate } from "lucide-react";
+import { isFreePromoActive } from "@/config/promo";
 
 
 type Pt = google.maps.LatLngLiteral;
@@ -240,7 +241,7 @@ export default function GoogleSessionsMap({
       {!hasActiveSubscription && (
         <div className="absolute bottom-4 left-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border">
           <p className="text-sm text-muted-foreground text-center">
-            🔒 Abonnez-vous pour voir les itinéraires précis et les points d'arrivée
+            {isFreePromoActive() ? "🔒 Créez un compte : les itinéraires précis sont offerts jusqu’au 31 décembre 2026" : "🔒 Abonnez-vous pour voir les itinéraires précis et les points d'arrivée"}
           </p>
         </div>
       )}

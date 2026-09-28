@@ -36,6 +36,9 @@
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 142 76% 36%;
+    --promo: 194 87% 55%;
+    --promo-surface: 180 6% 9%;
+    --promo-foreground: 0 0% 98%;
 
     --radius: 0.75rem;
 
@@ -90,6 +93,9 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 142 76% 45%;
+    --promo: 194 87% 60%;
+    --promo-surface: 180 6% 9%;
+    --promo-foreground: 0 0% 98%;
 
     --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(142 76% 55%));
     --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(142 76% 55%) 100%);

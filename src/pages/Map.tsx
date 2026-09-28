@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Filter, Navigation, Calendar, Zap, Crown, User } from "lucide-react"; // ← RefreshCw retiré, User ajouté
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
+import { isFreePromoActive } from "@/config/promo";
 
 
 // Auth route (adjust if your auth page differs)
@@ -449,7 +450,7 @@ function MapPageInner() {
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Sessions disponibles</h1>
                 {currentUser && (
-                  <p className="text-sm text-gray-600">Connecté{hasSub && ' • Abonnement actif'}</p>
+                  <p className="text-sm text-gray-600">Connecté{hasSub && (isFreePromoActive() ? ' • Unlimited offert jusqu’au 31/12/2026' : ' • Abonnement actif')}</p>
                 )}
               </div>
             </div>
@@ -502,8 +503,8 @@ function MapPageInner() {
                     onClick={() => navigate("/subscription")}
                     variant="secondary"
                     className="hidden md:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm"
-                    aria-label="Abonnement actif : gérer"
-                    title="Abonnement actif : MeetRun Unlimited"
+                    aria-label={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif : gérer"}
+                    title={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif : MeetRun Unlimited"}
                   >
                     <Crown className="w-4 h-4" />
                     Unlimited
@@ -513,8 +514,8 @@ function MapPageInner() {
                     size="icon"
                     onClick={() => navigate("/subscription")}
                     className="md:hidden bg-blue-600 hover:bg-blue-700 text-white rounded-full"
-                    aria-label="Abonnement actif"
-                    title="Abonnement actif"
+                    aria-label={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif"}
+                    title={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif"}
                   >
                     <Crown className="w-4 h-4" />
                   </Button>
@@ -525,7 +526,7 @@ function MapPageInner() {
                   onClick={() => navigate("/subscription")}
                   className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                 >
-                  S'abonner
+                  {isFreePromoActive() ? "Unlimited offert" : "S'abonner"}
                 </Button>
               )}
 

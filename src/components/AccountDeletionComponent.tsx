@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteMyAccount, canDeleteAccount } from "@/utils/deleteAccount";
 import { logger } from "@/utils/logger";
+import { isFreePromoActive } from "@/config/promo";
 
 interface DeletionEligibility {
   can_delete: boolean;
@@ -77,7 +78,7 @@ const AccountDeletionComponent: React.FC = () => {
       logger.info("Account deletion result:", result);
       
       if (result.success) {
-        const subscriptionMessage = result.subscription_info?.had_active_subscription 
+        const subscriptionMessage = !isFreePromoActive() && result.subscription_info?.had_active_subscription 
           ? ` Votre abonnement Premium a été programmé pour se terminer le ${new Date(result.subscription_info.expires_at!).toLocaleDateString('fr-FR')}.`
           : '';
           

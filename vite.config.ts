@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => ({
     mode === 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
@@ -29,6 +30,6 @@ export default defineConfig(({ mode }) => ({
     }
   },
   optimizeDeps: {
-    include: ['leaflet', 'leaflet.markercluster']
+    include: ['react', 'react-dom', 'react-dom/client', 'leaflet', 'leaflet.markercluster']
   }
 }));

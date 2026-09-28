@@ -10,6 +10,8 @@ import heroImage from "@/assets/hero-tropical-running.png";
 import logoImage from "@/assets/meetrun-logo-final.png";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
+import PromoOffer from "@/components/PromoOffer";
+import { isFreePromoActive } from "@/config/promo";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -360,13 +362,13 @@ const Home = () => {
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
                 <CardContent className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-300">
-                    <CreditCard size={32} className="text-white" />
+                    {isFreePromoActive() ? <Crown size={32} className="text-white" /> : <CreditCard size={32} className="text-white" />}
                   </div>
                   <h3 className="font-bold text-xl mb-4 group-hover:text-primary transition-colors">
-                    Abonne-toi en toute liberté
+                    {isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonne-toi en toute liberté"}
                   </h3>
                   <p className="text-muted-foreground mb-6 leading-relaxed">
-                    Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement.
+                    {isFreePromoActive() ? "Inscris-toi : l’accès illimité est offert automatiquement jusqu’au 31 décembre 2026, au lieu de 9,99 €/mois." : "Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement."}
                   </p>
                   <Button
                     variant="outline"
@@ -374,12 +376,12 @@ const Home = () => {
                     onClick={() => navigate("/subscription")}
                     className="group-hover:bg-primary group-hover:text-white transition-all duration-300"
                   >
-                    S'abonner <Crown size={16} className="ml-2" />
+                    {isFreePromoActive() ? "Découvrir l’offre" : "S'abonner"} <Crown size={16} className="ml-2" />
                   </Button>
                   <div className="mt-4 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Shield size={12} />
-                      Sans engagement
+                      {isFreePromoActive() ? "Sans paiement à l’inscription" : "Sans engagement"}
                     </span>
                   </div>
                 </CardContent>
@@ -440,7 +442,10 @@ const Home = () => {
         </div>
 
         {/* CTA Abonnement — ✅ GATED : s’affiche seulement quand Auth est prêt ET non-loading */}
-        {ready && !loading && !hasActiveSubscription && (
+        {ready && !loading && isFreePromoActive() && !user && (
+          <div className="px-6 pb-6"><PromoOffer compact /></div>
+        )}
+        {ready && !loading && !isFreePromoActive() && !hasActiveSubscription && (
           <div className="p-6">
             <Card className="shadow-card border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
               <CardContent className="p-6">

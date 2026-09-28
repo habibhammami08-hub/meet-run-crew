@@ -7,6 +7,8 @@ import { MapPin, Clock, Users, Euro, Calendar } from 'lucide-react';
 import type { SessionWithDetails } from '@/types/database';
 import { useAuth } from '@/hooks/useAuth';
 import StripeBuyButton from './StripeBuyButton';
+import { isFreePromoActive } from '@/config/promo';
+import { useNavigate } from 'react-router-dom';
 
 interface SessionCardProps {
   session: SessionWithDetails;
@@ -26,6 +28,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   currentUserId
 }) => {
   const { hasActiveSubscription } = useAuth();
+  const navigate = useNavigate();
   const spotsLeft = session.available_spots || 0;
   const isFull = spotsLeft <= 0;
   const isPast = new Date(session.scheduled_at) < new Date();
@@ -149,9 +152,9 @@ export const SessionCard: React.FC<SessionCardProps> = ({
             <div className="font-medium">Tarif</div>
             <div>
               {hasActiveSubscription ? (
-                <>Inclus avec l'abonnement</>
+                <>{isFreePromoActive() ? "Inclus avec Unlimited · offert jusqu’au 31/12/2026" : "Inclus avec l'abonnement"}</>
               ) : (
-                <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+                isFreePromoActive() ? <>Offert dès l’inscription <span className="text-muted-foreground">jusqu’au 31/12/2026</span></> : <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
               )}
             </div>
           </div>
@@ -190,6 +193,10 @@ export const SessionCard: React.FC<SessionCardProps> = ({
               className="flex-1"
             >
               {isEnrolling ? 'Inscription...' : 'Rejoindre'}
+            </Button>
+          ) : isFreePromoActive() ? (
+            <Button className="flex-1" onClick={() => navigate(`/auth?mode=signup&returnTo=${encodeURIComponent(`/session/${session.id}`)}`)}>
+              Créer mon compte gratuitement
             </Button>
           ) : (
             <div className="flex-1 space-y-2">
