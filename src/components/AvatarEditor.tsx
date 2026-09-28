@@ -1,12 +1,13 @@
 import { useCallback, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
-import { Camera, ImagePlus, Loader2, Trash2, User as UserIcon } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Maximize2, Trash2, User as UserIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import PhotoLightbox from "@/components/PhotoLightbox";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -46,6 +47,7 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
   const [zoom, setZoom] = useState(1);
   const [area, setArea] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const initials = (name || "").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
@@ -147,6 +149,27 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
         <span className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-lg transition-transform group-hover:scale-110">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
         </span>
+        {avatarUrl && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label="Voir la photo en grand"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                e.preventDefault();
+                setLightboxOpen(true);
+              }
+            }}
+            className="absolute bottom-1 left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-foreground/70 text-background shadow-lg transition-transform hover:scale-110"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </span>
+        )}
       </button>
 
       {/* Action sheet */}
@@ -203,6 +226,13 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
           </div>
         </DialogContent>
       </Dialog>
+
+      <PhotoLightbox
+        open={lightboxOpen}
+        src={avatarUrl ?? null}
+        name={name}
+        onClose={() => setLightboxOpen(false)}
+      />
     </>
   );
 }
