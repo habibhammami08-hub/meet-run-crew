@@ -621,7 +621,7 @@ const SessionDetails = () => {
                             disabled={isSubLoading}
                             className="w-full bg-blue-600 hover:bg-blue-700"
                           >
-                            {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte gratuitement" : "S'abonner"}</>)}
+                            {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte" : "S'abonner"}</>)}
                           </Button>
                         </div>
                       </div>
@@ -893,7 +893,7 @@ const SessionDetails = () => {
                         disabled={isSubLoading}
                         className="w-full bg-blue-600 hover:bg-blue-700"
                       >
-                        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte gratuitement" : "S'abonner"}</>)}
+                        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte" : "S'abonner"}</>)}
                       </Button>
                     </div>
                   </div>
