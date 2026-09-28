@@ -25,6 +25,10 @@ export default {
 				promo: 'hsl(var(--promo))',
 				'promo-surface': 'hsl(var(--promo-surface))',
 				'promo-foreground': 'hsl(var(--promo-foreground))',
+				deep: {
+					DEFAULT: 'hsl(var(--deep))',
+					foreground: 'hsl(var(--deep-foreground))'
+				},
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
@@ -70,6 +74,9 @@ export default {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
+			},
+			boxShadow: {
+				deep: 'var(--shadow-deep)'
 			},
 			keyframes: {
 				'accordion-down': {

@@ -635,7 +635,7 @@ function MapPageInner() {
               <Button
                 size="sm"
                 onClick={() => navigate("/create")}
-                className="rounded-full shadow-sm"
+                className="rounded-full shadow-sm bg-deep text-deep-foreground hover:bg-deep/90 hover:text-deep-foreground"
                 aria-label="Créer une session"
               >
                 <Plus className="w-4 h-4" />
