@@ -233,8 +233,8 @@ const SessionDetails = () => {
     let sessionData: any = rawSession;
     if (rawSession) {
       const { data: hostProfile } = await (supabase as any)
-        .from("public_profiles")
-        .select("id, full_name, age, gender, avatar_url, city")
+        .from("profiles_public_open")
+        .select("id, full_name, age, avatar_url")
         .eq("id", (rawSession as any).host_id)
         .maybeSingle();
       sessionData = { ...rawSession, profiles: hostProfile ?? null };
@@ -259,7 +259,7 @@ const SessionDetails = () => {
     if (enrollmentRows) {
       const ids = enrollmentRows.map((e: any) => e.user_id);
       const { data: profs } = ids.length
-        ? await (supabase as any).from("public_profiles").select("id, full_name, age, gender, avatar_url, city").in("id", ids)
+        ? await (supabase as any).from("profiles_public_open").select("id, full_name, age, avatar_url").in("id", ids)
         : { data: [] };
       const byId = new Map((profs ?? []).map((p: any) => [p.id, p]));
       const participantsData = enrollmentRows.map((e: any) => ({ ...e, profiles: byId.get(e.user_id) ?? null }));
