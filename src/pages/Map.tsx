@@ -875,10 +875,6 @@ function MapPageInner() {
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant="outline" className="text-xs py-0">
-                                  <Users className="w-2 h-2 mr-1" />
-                                  {(session.participants_count ?? 0) + 1} participant{((session.participants_count ?? 0) + 1) > 1 ? 's' : ''}
-                                </Badge>
                                 {session.intensity && (
                                   <Badge variant="outline" className="text-xs py-0">
                                     <Zap className="w-2 h-2 mr-1" />
