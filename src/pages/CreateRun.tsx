@@ -181,7 +181,7 @@ export default function CreateRun() {
 
   const resetRouteState = () => {
     setDirResult(null);
-    setDistanceKm(null as any);
+    setDistanceKm(null);
     setWaypoints([]);
   };
   const clearStart = () => { setStart(null); setIsSelectingLocation(null); resetRouteState(); };
