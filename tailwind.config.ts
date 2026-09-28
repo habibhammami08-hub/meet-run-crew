@@ -22,6 +22,9 @@ export default {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
+				promo: 'hsl(var(--promo))',
+				'promo-surface': 'hsl(var(--promo-surface))',
+				'promo-foreground': 'hsl(var(--promo-foreground))',
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {

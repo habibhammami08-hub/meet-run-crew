@@ -1,0 +1,2 @@
+- Keep the free Unlimited campaign presentation behind `isFreePromoActive()` and preserve the original Stripe subscription views as the fallback, so one flag or the end date restores paid messaging.
+- Use the shared `PromoOffer` for the main campaign panels, so the deadline, price, and signup message remain consistent across pages.

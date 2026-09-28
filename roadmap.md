@@ -1,0 +1,2 @@
+- [ ] Update all subscription-facing pages and labels to clearly present the automatic free Unlimited offer through 31 December 2026.
+- [ ] Verify desktop and mobile views, signup navigation, and current build diagnostics.
