@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'meet-run',
   webDir: 'dist',
   server: {
-    url: 'https://a2b2f38d-1060-4da2-b70b-5d0ae2308f6a.lovableproject.com?forceHideBadge=true',
+    url: 'https://www.meetrun.fr',
     cleartext: true
   },
   plugins: {
