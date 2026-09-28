@@ -2,3 +2,4 @@
 - [x] Verify public desktop/mobile views, signup navigation, and current build diagnostics.
 - [ ] Verify Unlimited on a signed-in account and session enrollment — blocked: this project uses external, unmanaged authentication without a test session.
 - [x] Deduplicate React modules and verify public pages through repeated navigation after reload; the reported crash did not recur in a fresh browser.
+- [x] Keep top headers visible below the iPhone status area and bottom navigation above the home indicator; verify public pages at iPhone width.
