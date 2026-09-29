@@ -554,10 +554,10 @@ const Home = () => {
                           <p className="text-sm text-muted-foreground">
                             <MapPin size={12} className="inline-block mr-1" />
                             {activity.location_hint || 'Localisation masquée'}
-                            {activity.activity_type === 'created' && activity.enrollments && (
+                            {activity.activity_type === 'created' && (
                               <span className="ml-2 inline-flex items-center gap-1">
                                 <Users size={12} />
-                                {activity.enrollments[0]?.count || 0}/{activity.max_participants}
+                                {(activity.participants_count ?? 0) + 1}/{activity.max_participants}
                               </span>
                             )}
                           </p>

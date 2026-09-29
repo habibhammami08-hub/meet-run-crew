@@ -292,7 +292,7 @@ const PublicProfile = () => {
                         {s.distance_km} km
                       </Badge>
                       <span className="ml-auto text-xs text-white/50 inline-flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5" /> {s.participants_count}/{s.max_participants}
+                        <Users className="w-3.5 h-3.5" /> {(s.participants_count ?? 0) + 1}/{s.max_participants}
                       </span>
                     </div>
                   </button>

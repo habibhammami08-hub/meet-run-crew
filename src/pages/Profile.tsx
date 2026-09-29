@@ -179,7 +179,7 @@ export default function ProfilePage() {
         status: s.status,
         host_id: s.host_id ?? null,
         participants_count: s.participants_count ?? null,
-        current_participants: (s.participants_count ?? 1),
+        current_participants: (s.participants_count ?? 0) + 1,
       }));
 
       // 5) Tri descendant (prochaines en haut si tu préfères, passe à ascending:true)
