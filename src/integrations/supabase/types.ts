@@ -346,6 +346,74 @@ export type Database = {
       }
     }
     Views: {
+      enrollments_public: {
+        Row: {
+          session_id: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          session_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          session_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_session_fk"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_session_fk"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions_with_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public_open"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles_public_open: {
         Row: {
           age: number | null
