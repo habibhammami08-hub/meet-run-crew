@@ -269,11 +269,12 @@ const SessionDetails = () => {
       setCenter(shown);
     }
 
-    const { data: enrollmentRows } = await supabase
-      .from("enrollments")
-      .select("*")
-      .eq("session_id", id)
-      .in("status", ["paid", "included_by_subscription", "confirmed"]);
+    // Vue publique : tout le monde (même non connecté) voit les participants confirmés,
+    // sans exposer les données de paiement de la table enrollments.
+    const { data: enrollmentRows } = await (supabase as any)
+      .from("enrollments_public")
+      .select("session_id, user_id, status")
+      .eq("session_id", id);
 
     if (enrollmentRows) {
       const ids = enrollmentRows.map((e: any) => e.user_id);
