@@ -70,7 +70,7 @@ export function DateTimePicker({ value, onChange, placeholder = "Choisir date et
         </span>
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="fixed inset-x-0 bottom-0 left-0 top-auto z-50 flex max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-lg border-x-0 border-b-0 p-0 pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[min(88vh,780px)] sm:w-[440px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border sm:pb-0 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-top-[48%]">
+        <DialogContent overlayClassName="z-[10000]" className="fixed inset-x-0 bottom-0 left-0 top-auto z-[10001] flex max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-lg border-x-0 border-b-0 p-0 pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[min(88vh,780px)] sm:w-[440px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:border sm:pb-0 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-top-[48%]">
           <DialogHeader className="shrink-0 border-b px-5 pb-3 pt-5 text-left">
             <DialogTitle className="flex items-center gap-2 text-lg"><CalendarIcon className="h-5 w-5" /> Date et heure</DialogTitle>
           </DialogHeader>
