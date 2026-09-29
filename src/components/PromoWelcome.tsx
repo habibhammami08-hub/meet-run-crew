@@ -25,7 +25,7 @@ const PromoWelcome = () => {
         </div>
         <DialogTitle className="text-2xl motion-safe:animate-fade-in">Bienvenue sur MeetRun 🎉</DialogTitle>
         <DialogDescription className="text-base motion-safe:animate-fade-in">
-          Votre accès <strong>MeetRun Unlimited</strong> est offert automatiquement dès l’inscription jusqu’au 31 décembre 2026 (au lieu de 9,99 €/mois). Aucun paiement nécessaire.
+          Votre accès <strong>MeetRun Unlimited</strong> est offert automatiquement dès l’inscription jusqu’au 31 mars 2027 (au lieu de 9,99 €/mois). Aucun paiement nécessaire.
         </DialogDescription>
         <Button className="mt-4 w-full" onClick={() => setOpen(false)}>C'est parti !</Button>
       </DialogContent>

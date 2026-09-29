@@ -370,7 +370,7 @@ const Home = () => {
                     {isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonne-toi en toute liberté"}
                   </h3>
                   <p className="text-muted-foreground mb-6 leading-relaxed">
-                    {isFreePromoActive() ? "Inscris-toi : l’accès illimité est offert automatiquement jusqu’au 31 décembre 2026, au lieu de 9,99 €/mois." : "Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement."}
+                    {isFreePromoActive() ? "Inscris-toi : l’accès illimité est offert automatiquement jusqu’au 31 mars 2027, au lieu de 9,99 €/mois." : "Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement."}
                   </p>
                   <Button
                     variant="outline"

@@ -103,7 +103,7 @@ const SubscriptionSuccess = () => {
       <div className="max-w-lg space-y-5">
         <Crown className="mx-auto h-12 w-12 text-promo" />
         <h1 className="text-3xl font-bold">Votre accès Unlimited est offert</h1>
-        <p className="text-muted-foreground">Activé automatiquement dès l’inscription, gratuitement jusqu’au 31 décembre 2026 (au lieu de 9,99 €/mois).</p>
+        <p className="text-muted-foreground">Activé automatiquement dès l’inscription, gratuitement jusqu’au 31 mars 2027 (au lieu de 9,99 €/mois).</p>
         <Button variant="sport" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
       </div>
     </main>

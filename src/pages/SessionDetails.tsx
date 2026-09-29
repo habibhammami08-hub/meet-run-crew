@@ -655,11 +655,11 @@ const SessionDetails = () => {
                           </div>
                           <h4 className="font-semibold mb-1">{isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
                           <p className="text-sm text-gray-600 mb-3">
-                            {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 décembre 2026 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
+                            {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 mars 2027 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
                           </p>
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? <>0 € <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s></> : "9,99€/mois"}</span>
-                            <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/12/2026" : "Économique"}</Badge>
+                            <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/03/2027" : "Économique"}</Badge>
                           </div>
                           <Button
                             onClick={isFreePromoActive() ? redirectToAuth : startSubscriptionCheckout}
@@ -761,7 +761,7 @@ const SessionDetails = () => {
                     <div className="leading-5">💡</div>
                     <div>
                       <div className="font-medium">
-                        {isFreePromoActive() ? "Créez un compte pour bénéficier automatiquement de MeetRun Unlimited offert jusqu’au 31 décembre 2026 et voir le lieu de départ exact" : "Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact"}
+                        {isFreePromoActive() ? "Créez un compte pour bénéficier automatiquement de MeetRun Unlimited offert jusqu’au 31 mars 2027 et voir le lieu de départ exact" : "Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact"}
                       </div>
                       <div>(une partie du parcours reste visible pour tous, mais son début est masqué)</div>
                     </div>
@@ -927,11 +927,11 @@ const SessionDetails = () => {
                       </div>
                       <h4 className="font-semibold mb-1">{isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
                       <p className="text-sm text-gray-600 mb-3">
-                        {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 décembre 2026 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
+                        {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 mars 2027 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
                       </p>
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? <>0 € <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s></> : "9,99€/mois"}</span>
-                        <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/12/2026" : "Économique"}</Badge>
+                        <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/03/2027" : "Économique"}</Badge>
                       </div>
                       <Button
                         onClick={isFreePromoActive() ? redirectToAuth : startSubscriptionCheckout}

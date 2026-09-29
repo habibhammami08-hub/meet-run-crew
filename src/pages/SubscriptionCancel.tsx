@@ -12,7 +12,7 @@ const SubscriptionCancel = () => {
     <main className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
       <div className="max-w-lg space-y-5">
         <h1 className="text-3xl font-bold">MeetRun Unlimited est offert</h1>
-        <p className="text-muted-foreground">Aucun paiement n’est nécessaire : votre accès est activé automatiquement à l’inscription, jusqu’au 31 décembre 2026 (au lieu de 9,99 €/mois).</p>
+        <p className="text-muted-foreground">Aucun paiement n’est nécessaire : votre accès est activé automatiquement à l’inscription, jusqu’au 31 mars 2027 (au lieu de 9,99 €/mois).</p>
         <Button variant="sport" onClick={() => navigate("/subscription")}>Découvrir mon accès</Button>
       </div>
     </main>

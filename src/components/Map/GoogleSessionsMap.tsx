@@ -241,7 +241,7 @@ export default function GoogleSessionsMap({
       {!hasActiveSubscription && (
         <div className="absolute bottom-4 left-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 border">
           <p className="text-sm text-muted-foreground text-center">
-            {isFreePromoActive() ? "🔒 Créez un compte : les itinéraires précis sont offerts jusqu’au 31 décembre 2026" : "🔒 Abonnez-vous pour voir les itinéraires précis et les points d'arrivée"}
+            {isFreePromoActive() ? "🔒 Créez un compte : les itinéraires précis sont offerts jusqu’au 31 mars 2027" : "🔒 Abonnez-vous pour voir les itinéraires précis et les points d'arrivée"}
           </p>
         </div>
       )}
