@@ -747,75 +747,92 @@ function MapPageInner() {
                     const { label: typeLabel, badgeVariant, badgeClass, renderIcon } = getTypeMeta(session.session_type);
                     const enrolled = isEnrolledIn(session.id);
                     const own = isOwnSession(session, currentUser?.id);
+                    const scheduled = new Date(session.scheduled_at);
 
                     return (
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900 mb-1">{session.title}</h3>
-                          {/* Description sous le titre */}
-                          {session.description && (
-                            <p className="text-sm text-gray-600 mb-3">
-                              {session.description}
-                            </p>
-                          )}
-
-                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
-                            <div className="flex items-center gap-2">
-  <Calendar className="w-4 h-4 text-blue-600" />
-  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-1 text-[13px] font-semibold">
-    {new Date(session.scheduled_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-  </span>
-</div>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4" />
-                              {blur ? (arrondissements[session.id] || 'Zone approximative') : (session.location_hint || 'Lieu exact')}
-                            </div>
-                            {session.distance_km && (
-                              <div className="flex items-center gap-2">
-                                <span>📏</span>
-                                {session.distance_km} km
-                              </div>
-                            )}
-                            {session.distanceFromUser !== null && (
-                              <div className="flex items-center gap-2">
-                                <Navigation className="w-4 h-4" />
-                                À {Number(session.distanceFromUser).toFixed(1)} km de vous
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Badges: Inscrit, Hôte, intensité, distance, type, capacité */}
-                          <div className="flex items-center gap-2 mb-4 flex-wrap">
-                            {enrolled && <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>}
-                            {own && <Badge variant="secondary">Hôte</Badge>}
-                            {session.intensity && (
-                              <Badge variant="secondary">
-                                <Zap className="w-3 h-3 mr-1" />
-                                {dbToUiIntensity(session.intensity)}
-                              </Badge>
-                            )}
-                            {session.distance_km && (
-                              <Badge variant="outline">
-                                <span className="mr-1">📏</span>
-                                {session.distance_km} km
-                              </Badge>
-                            )}
-                            {session.session_type && (
-                              <Badge variant={badgeVariant} className={badgeClass}>
-                                {renderIcon("text-[12px] leading-none")}
-                                {typeLabel}
-                              </Badge>
-                            )}
-                            {session.max_participants && (
-                              <Badge variant="outline">
-                                <Users className="w-3 h-3 mr-1" />
-                                {(session.participants_count ?? 0) + 1}/{session.max_participants}
-                              </Badge>
-                            )}
-                          </div>
+                      <div className="min-w-0 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="min-w-0 truncate text-lg font-bold tracking-tight text-gray-900">{session.title}</h3>
+                          <Button
+                            size="sm"
+                            onClick={() => navigate(`/session/${session.id}`)}
+                            className="h-8 shrink-0 gap-1 rounded-full px-3 text-xs font-bold"
+                          >
+                            <span className="hidden sm:inline">Voir détails</span>
+                            <span className="sm:hidden">Voir</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
 
-                        <Button onClick={() => navigate(`/session/${session.id}`)} className="ml-4">Voir détails</Button>
+                        {session.description && (
+                          <p className="line-clamp-2 text-sm text-gray-600">{session.description}</p>
+                        )}
+
+                        {/* Une information par ligne, sans retour à la ligne */}
+                        <div className="space-y-1.5 text-sm text-gray-600">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Calendar className="h-4 w-4 shrink-0 text-blue-600" />
+                            <span className="min-w-0 truncate whitespace-nowrap font-semibold text-blue-700">
+                              {scheduled.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                              {" · "}
+                              {scheduled.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Building2 className="h-4 w-4 shrink-0 text-gray-400" />
+                            <span className="min-w-0 truncate whitespace-nowrap">
+                              {arrondissements[session.id] || "Ville en cours de chargement"}
+                            </span>
+                          </div>
+                          {!blur && (
+                            <div className="flex min-w-0 items-center gap-2">
+                              <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
+                              <span className="min-w-0 truncate whitespace-nowrap">{session.location_hint || "Lieu exact"}</span>
+                            </div>
+                          )}
+                          {session.distanceFromUser !== null && (
+                            <div className="flex min-w-0 items-center gap-2">
+                              <Navigation className="h-4 w-4 shrink-0 text-gray-400" />
+                              <span className="min-w-0 truncate whitespace-nowrap">
+                                À {Number(session.distanceFromUser).toFixed(1)} km de vous
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Intensité, distance, type, participants : tous sur la même ligne */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {enrolled && (
+                            <Badge className="h-6 shrink-0 whitespace-nowrap bg-amber-100 px-2 text-[11px] text-amber-800">Inscrit</Badge>
+                          )}
+                          {own && (
+                            <Badge variant="secondary" className="h-6 shrink-0 whitespace-nowrap px-2 text-[11px]">Hôte</Badge>
+                          )}
+                          {session.intensity && (
+                            <Badge variant="outline" className="h-6 shrink-0 gap-1 whitespace-nowrap border-gray-200 px-2 text-[11px] font-medium">
+                              <Zap className="h-2.5 w-2.5 text-gray-400" />
+                              {dbToUiIntensity(session.intensity)}
+                            </Badge>
+                          )}
+                          {session.distance_km && (
+                            <span className="inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium text-gray-500">
+                              <Route className="h-3 w-3 text-gray-400" />
+                              <span className="tabular-nums">{session.distance_km} km</span>
+                            </span>
+                          )}
+                          {session.session_type && (
+                            <Badge variant={badgeVariant} className={cn("h-6 shrink-0 whitespace-nowrap px-2 text-[11px] font-medium", badgeClass)}>
+                              {renderIcon("text-[11px] leading-none")}
+                              {typeLabel}
+                            </Badge>
+                          )}
+                          {session.max_participants && (
+                            <span className="inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium text-gray-500">
+                              <Users className="h-3 w-3 text-gray-400" />
+                              <span className="tabular-nums">{(session.participants_count ?? 0) + 1}/{session.max_participants}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
