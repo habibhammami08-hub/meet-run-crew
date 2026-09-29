@@ -532,7 +532,7 @@ const SessionDetails = () => {
                     {session.max_participants && (
                       <Badge variant="outline" className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
-                        {participants.length}/{session.max_participants}
+                        {participants.length + 1}/{session.max_participants}
                       </Badge>
                     )}
                     {session.session_type && (
