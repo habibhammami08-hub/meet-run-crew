@@ -819,9 +819,9 @@ const SessionDetails = () => {
                     <div className="leading-5">💡</div>
                     <div>
                       <div className="font-medium">
-                        {isFreePromoActive() ? "Créez un compte pour bénéficier automatiquement de MeetRun Unlimited offert jusqu’au 31 mars 2027 et vous inscrire à cette session" : "Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact"}
+                        {isFreePromoActive() ? "Créez un compte pour bénéficier automatiquement de MeetRun Unlimited offert jusqu’au 31 mars 2027 et vous inscrire à cette session." : "Abonnez-vous ou effectuez le paiement unique lié à la session pour voir le lieu de départ exact."}
+                      {" "}<span className="font-normal">(une partie du parcours reste visible pour tous, mais son début est masqué)</span>
                       </div>
-                      <div>(une partie du parcours reste visible pour tous, mais son début est masqué)</div>
                     </div>
                   </div>
                 </div>
