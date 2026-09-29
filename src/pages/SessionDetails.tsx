@@ -532,7 +532,7 @@ const SessionDetails = () => {
                     {session.max_participants && (
                       <Badge variant="outline" className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
-                        {participants.length + 1}/{session.max_participants}
+                        {participants.length}/{session.max_participants}
                       </Badge>
                     )}
                     {session.session_type && (
@@ -584,7 +584,7 @@ const SessionDetails = () => {
             {/* Participants */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Participants ({participants.length + 1}/{session.max_participants})</h3>
+                <h3 className="font-semibold mb-4">Participants ({participants.length}/{session.max_participants})</h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {participants.map((participant, index) => (
                     <button
