@@ -462,14 +462,14 @@ const SessionDetails = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-deep/5">
-      {/* ⬅️ Retour : petite pastille flottante en haut à gauche */}
-      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md">
-        <div className="container mx-auto max-w-7xl px-4 py-2.5">
+      {/* ⬅️ Retour : pastille flottante en haut à gauche (opaque, sans bande) */}
+      <div className="sticky top-0 z-40 pointer-events-none">
+        <div className="container mx-auto max-w-7xl px-4 py-2.5 pointer-events-none">
           <button
             type="button"
             onClick={() => navigate("/map")}
             aria-label="Retour aux sessions"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white text-gray-700 shadow-sm transition hover:text-gray-900 active:scale-95"
+            className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:text-gray-900 active:scale-95"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
