@@ -602,11 +602,9 @@ const SessionDetails = () => {
                       )}
                       <div className="flex-1">
                         <p className="text-sm font-medium">
-                          {canSeeExactLocation || isHost
-                            ? participant.profiles?.full_name || `Participant ${index + 1}`
-                            : `Participant ${index + 1}`}
+                          {participant.profiles?.full_name || `Participant ${index + 1}`}
                         </p>
-                        {(canSeeExactLocation || isHost) && participant.profiles?.age && (
+                        {participant.profiles?.age && (
                           <p className="text-xs text-gray-500">{participant.profiles.age} ans</p>
                         )}
                       </div>
