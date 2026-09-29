@@ -596,7 +596,6 @@ function MapPageInner() {
     filteredSessions
       .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= 25)
       .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
-      .slice(0, 6)
   ), [filteredSessions]);
 
   // Mes sessions (inscrit OU hôte) à partir de TOUTES les sessions chargées (non filtrées), uniquement futures
