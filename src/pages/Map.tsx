@@ -9,7 +9,7 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
+import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2 } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import markImage from "@/assets/meetrun-mark.png"; // Marque MeetRun (fond transparent)
