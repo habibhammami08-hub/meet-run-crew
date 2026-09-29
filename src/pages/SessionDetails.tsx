@@ -18,7 +18,9 @@ import {
   CreditCard,
   CheckCircle,
   User,
-  ArrowLeft
+  ArrowLeft,
+  CheckCircle2
+
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -51,8 +53,18 @@ function SessionSignupPanel({
 
       {promo ? (
         <>
-          <p className="text-sm text-gray-600">Dès l’inscription, automatiquement et sans carte bancaire</p>
-          <p className="text-sm text-gray-600 mb-3">Lieux exacts et inscriptions aux sessions en illimité</p>
+          <p className="text-sm text-gray-600 mb-2">Dès l’inscription, automatiquement et sans carte bancaire</p>
+          <ul className="mb-3 space-y-1.5">
+            <li className="flex items-center gap-2 text-sm text-gray-700">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600" />
+              <span>Lieux exacts</span>
+            </li>
+            <li className="flex items-center gap-2 text-sm text-gray-700">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600" />
+              <span>Inscriptions aux sessions en illimité</span>
+            </li>
+          </ul>
+
           <div className="flex items-baseline gap-2 whitespace-nowrap">
             <span className="text-lg font-bold text-blue-600">0 €</span>
             <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s>
