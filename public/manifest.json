@@ -1,7 +1,7 @@
 {
   "name": "MeetRun - L'application de running collectif",
   "short_name": "MeetRun",
-  "description": "Rejoignez ou créez des sessions de running en groupe dans votre ville",
+  "description": "Marche, running ou simple balade : rejoignez ou organisez des sessions près de chez vous. Prenez l’air, bougez et faites de nouvelles rencontres avec MeetRun.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#054039",
