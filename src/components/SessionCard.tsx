@@ -152,9 +152,9 @@ export const SessionCard: React.FC<SessionCardProps> = ({
             <div className="font-medium">Tarif</div>
             <div>
               {hasActiveSubscription ? (
-                <>{isFreePromoActive() ? "Inclus avec Unlimited · offert jusqu’au 31/12/2026" : "Inclus avec l'abonnement"}</>
+                <>{isFreePromoActive() ? "Inclus avec Unlimited · offert jusqu’au 31/03/2027" : "Inclus avec l'abonnement"}</>
               ) : (
-                isFreePromoActive() ? <>Offert dès l’inscription <span className="text-muted-foreground">jusqu’au 31/12/2026</span></> : <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
+                isFreePromoActive() ? <>Offert dès l’inscription <span className="text-muted-foreground">jusqu’au 31/03/2027</span></> : <>4,50 € <span className="text-muted-foreground">(gratuit avec l'abonnement)</span></>
               )}
             </div>
           </div>

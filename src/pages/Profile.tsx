@@ -617,15 +617,15 @@ export default function ProfilePage() {
                         onClick={() => navigate("/subscription")}
                         variant="secondary"
                         className="ml-1 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm"
-                        aria-label={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif : gérer"}
-                        title={isFreePromoActive() ? "Unlimited offert jusqu’au 31 décembre 2026" : "Abonnement actif : MeetRun Unlimited"}
+                        aria-label={isFreePromoActive() ? "Unlimited offert jusqu’au 31 mars 2027" : "Abonnement actif : gérer"}
+                        title={isFreePromoActive() ? "Unlimited offert jusqu’au 31 mars 2027" : "Abonnement actif : MeetRun Unlimited"}
                       >
                         <Crown className="w-4 h-4" />
                         Unlimited
                       </Button>
                     )}
                   </div>
-                  {hasSub && isFreePromoActive() && <p className="text-sm font-medium text-primary">Offert automatiquement jusqu’au 31 décembre 2026 · 0 € au lieu de 9,99 €/mois</p>}
+                  {hasSub && isFreePromoActive() && <p className="text-sm font-medium text-primary">Offert automatiquement jusqu’au 31 mars 2027 · 0 € au lieu de 9,99 €/mois</p>}
                   {(profile.age || profile.gender) && (
                     <p className="text-muted-foreground">
                       {profile.age ? `${profile.age} ans` : null}
@@ -768,7 +768,7 @@ export default function ProfilePage() {
               <p className="text-sm text-red-700 leading-relaxed">
                 Cette action est <strong>définitive</strong>. Toutes vos données seront supprimées (profil, inscriptions,
                 sessions créées…). <br />
-                <strong>Attention :</strong> {isFreePromoActive() ? "vous perdrez immédiatement votre accès Unlimited offert jusqu’au 31 décembre 2026." : <>la suppression du compte entraînera la <u>résiliation immédiate de votre abonnement</u> s’il est en cours.</>}
+                <strong>Attention :</strong> {isFreePromoActive() ? "vous perdrez immédiatement votre accès Unlimited offert jusqu’au 31 mars 2027." : <>la suppression du compte entraînera la <u>résiliation immédiate de votre abonnement</u> s’il est en cours.</>}
               </p>
 
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
