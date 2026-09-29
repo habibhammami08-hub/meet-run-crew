@@ -1102,18 +1102,6 @@ function MapPageInner() {
                                 </span>
                               )}
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 shrink-0 gap-1 rounded-full bg-primary/10 px-3 text-xs font-bold text-primary ring-1 ring-primary/15 transition-colors hover:bg-primary hover:text-primary-foreground"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/session/${session.id}`);
-                              }}
-                            >
-                              Voir
-                              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-                            </Button>
                           </div>
                         </div>
                       );
