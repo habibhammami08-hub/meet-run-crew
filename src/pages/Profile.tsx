@@ -760,10 +760,6 @@ export default function ProfilePage() {
 
           <div className="rounded-2xl border border-red-200 bg-red-50/60 p-6">
             <div className="max-w-3xl mx-auto text-center space-y-4">
-              <div className="flex items-center justify-center gap-2 text-red-700">
-                <ShieldAlert className="w-5 h-5" />
-                <span className="font-semibold">Zone sensible</span>
-              </div>
               <h3 className="text-xl font-bold text-red-800">Supprimer mon compte</h3>
               <p className="text-sm text-red-700 leading-relaxed">
                 Cette action est <strong>définitive</strong>. Toutes vos données seront supprimées (profil, inscriptions,
