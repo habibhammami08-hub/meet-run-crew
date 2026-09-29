@@ -462,16 +462,30 @@ const SessionDetails = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-deep/5">
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
+      {/* ⬅️ Retour : pastille flottante en haut à gauche (opaque, sans bande) */}
+      <div className="sticky top-0 z-40 pointer-events-none">
+        <div className="container mx-auto max-w-7xl px-4 py-2.5 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => navigate("/map")}
+            aria-label="Retour aux sessions"
+            className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:text-gray-900 active:scale-95"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 pt-3 pb-6 max-w-7xl">
         {/* Header */}
-        <div className="mb-4 flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {session.title}
+        <div className="mb-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2 flex items-baseline gap-2">
+              <span className="truncate" title={session.title}>{session.title}</span>
               {isHost && (
                 <span
                   aria-label="Vous êtes l'hôte de cette session"
-                  className="ml-2 align-baseline text-sm md:text-base font-normal text-gray-500"
+                  className="shrink-0 text-xs md:text-sm font-normal text-gray-500"
                 >
                   (Vous êtes l’hôte)
                 </span>
@@ -492,14 +506,7 @@ const SessionDetails = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/map")}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour aux sessions
-            </Button>
-
-            {/* ⛔️ Boutons hôte/participant retirés du header : ils sont désormais sous les participants */}
-          </div>
+          {/** ⛔️ Boutons hôte/participant retirés du header : ils sont désormais sous les participants */}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
