@@ -506,7 +506,7 @@ const SessionDetails = () => {
             </div>
           </div>
 
-            {/* ⛔️ Boutons hôte/participant retirés du header : ils sont désormais sous les participants */}
+          {/** ⛔️ Boutons hôte/participant retirés du header : ils sont désormais sous les participants */}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
