@@ -1,4 +1,5 @@
 - Keep the free Unlimited campaign presentation behind `isFreePromoActive()` and preserve the original Stripe subscription views as the fallback, so one flag or the end date restores paid messaging.
+- Move the campaign cutoff in both `FREE_PROMO_END` (`src/config/promo.ts`) and the `timestamptz` in `enrollments_guard_status` (new migration): never advertise an offer the server rejects.
 - Use the shared `PromoOffer` for the main campaign panels, so the deadline, price, and signup message remain consistent across pages.
 - Deduplicate and prebundle React and React DOM together in Vite, so dependencies share one hook dispatcher instead of loading mismatched React module instances.
 - Keep uploaded brand images (logo marks, favicons) as regular files imported from `src/assets/` instead of `lovable-assets` pointers: the `/__l5e/assets-v1/...` CDN URLs are not served by the Vite dev preview (it answers with `index.html`), so pointer-backed images render broken in the editor preview.
