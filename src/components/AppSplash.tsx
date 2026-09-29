@@ -31,15 +31,6 @@ export default function AppSplash() {
     } catch {
       /* stockage indisponible : on joue l'animation quand même */
     }
-    // Petit son d'intro, synchronisé avec l'animation. Si le navigateur
-    // bloque la lecture automatique, on ignore silencieusement.
-    try {
-      const audio = new Audio(`${import.meta.env.BASE_URL}splash-intro.mp3`);
-      audio.volume = 0.6;
-      void audio.play().catch(() => {});
-    } catch {
-      /* audio indisponible : l'animation reste seule */
-    }
     const reduce =
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     const hold = reduce ? 700 : 2350;
