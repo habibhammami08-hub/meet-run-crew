@@ -148,7 +148,7 @@ const Subscription = () => {
             <h3 className="text-2xl font-bold text-foreground">Tout MeetRun, sans limite</h3>
             <div className="mt-6 grid gap-6 sm:grid-cols-3">
               <div className="border-t-2 border-promo pt-4"><MapPin size={24} className="text-promo" /><h4 className="mt-3 font-bold">Rendez-vous précis</h4><p className="mt-1 text-sm text-muted-foreground">Accédez aux lieux de départ exacts de toutes les sessions.</p></div>
-              <div className="border-t-2 border-primary pt-4"><Users size={24} className="text-primary" /><h4 className="mt-3 font-bold">Courez autant que vous voulez</h4><p className="mt-1 text-sm text-muted-foreground">Rejoignez les sessions sans payer à chaque sortie.</p></div>
+              <div className="border-t-2 border-primary pt-4"><Users size={24} className="text-primary" /><h4 className="mt-3 font-bold">MeetRunnez autant que vous voulez</h4><p className="mt-1 text-sm text-muted-foreground">Rejoignez les sessions sans payer à chaque sortie.</p></div>
               <div className="border-t-2 border-promo pt-4"><Crown size={24} className="text-promo" /><h4 className="mt-3 font-bold">Activé dès l’inscription</h4><p className="mt-1 text-sm text-muted-foreground">Votre accès est offert automatiquement jusqu’au 31 mars 2027.</p></div>
             </div>
           </div>
