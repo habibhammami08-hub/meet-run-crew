@@ -370,7 +370,7 @@ const Home = () => {
                     {isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonne-toi en toute liberté"}
                   </h3>
                   <p className="text-muted-foreground mb-6 leading-relaxed">
-                    {isFreePromoActive() ? "Inscris-toi : l’accès illimité est offert automatiquement jusqu’au 31 mars 2027, au lieu de 9,99 €/mois." : "Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement."}
+                    {isFreePromoActive() ? "Inscris-toi et profite de l’accès illimité aux sessions jusqu’au 31 mars 2027, sans frais, au lieu de 9,99 €/mois." : "Pour 9,99€/mois, participe en illimité à toutes les sessions. C'est pratique et sans engagement."}
                   </p>
                   <Button
                     variant="outline"
@@ -380,10 +380,10 @@ const Home = () => {
                   >
                     {isFreePromoActive() ? "Découvrir l’offre" : "S'abonner"} <Crown size={16} className="ml-2" />
                   </Button>
-                  <div className="mt-4 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Shield size={12} />
-                      {isFreePromoActive() ? "Sans paiement à l’inscription" : "Sans engagement"}
+                  <div className="mt-4 text-xs text-muted-foreground text-center leading-relaxed">
+                    <Shield size={12} className="inline-block align-[-2px] mr-1" />
+                    <span className="inline">
+                      {isFreePromoActive() ? "L’offre est appliquée automatiquement, sans carte bancaire à renseigner." : "Sans engagement"}
                     </span>
                   </div>
                 </CardContent>
