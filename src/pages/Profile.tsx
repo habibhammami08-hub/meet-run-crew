@@ -625,7 +625,7 @@ export default function ProfilePage() {
                       </Button>
                     )}
                   </div>
-                  {hasSub && isFreePromoActive() && <p className="text-sm font-medium text-primary">Offert jusqu’au 31 mars 2027 · 0 € au lieu de 9,99 €/mois</p>}
+                  {hasSub && isFreePromoActive() && <p className="text-sm font-medium text-primary">Offert jusqu’au 31 mars 2027</p>}
                   {(profile.age || profile.gender) && (
                     <p className="text-muted-foreground">
                       {profile.age ? `${profile.age} ans` : null}
