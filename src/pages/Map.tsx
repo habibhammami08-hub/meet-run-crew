@@ -146,6 +146,60 @@ function FilterGroup({ title, options, value, onChange }: { title: string; optio
   );
 }
 
+// ——— Filtre « Quand » : pastilles rapides + jour précis choisi dans le calendrier
+const DATE_PRESETS: FilterOptionDef[] = [
+  { value: "all", label: "Toutes dates" },
+  { value: "today", label: "Aujourd'hui" },
+  { value: "tomorrow", label: "Demain" },
+  { value: "week", label: "Cette semaine" },
+  { value: "weekend", label: "Ce week-end" },
+];
+
+const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const toDayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const fromDayKey = (key: string) => {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const currentWeekBounds = () => {
+  const monday = startOfWeek(startOfToday(), { weekStartsOn: 1 });
+  return { monday, sunday: addDays(monday, 6) };
+};
+
+const currentWeekendBounds = () => {
+  const { monday } = currentWeekBounds();
+  return { saturday: addDays(monday, 5), sunday: addDays(monday, 6) };
+};
+
+// Une session appartient-elle au jour demandé ? (journée locale, heure ignorée)
+function matchesDateFilter(scheduledAt: string, filter: string): boolean {
+  if (filter === "all") return true;
+  const day = new Date(scheduledAt);
+  day.setHours(0, 0, 0, 0);
+  if (filter === "today") return toDayKey(day) === toDayKey(startOfToday());
+  if (filter === "tomorrow") return toDayKey(day) === toDayKey(addDays(startOfToday(), 1));
+  if (filter === "week") {
+    const { monday, sunday } = currentWeekBounds();
+    return day >= monday && day <= sunday;
+  }
+  if (filter === "weekend") {
+    const { saturday, sunday } = currentWeekendBounds();
+    return day >= saturday && day <= sunday;
+  }
+  if (DAY_KEY_RE.test(filter)) return toDayKey(day) === filter;
+  return true;
+}
+
 const polyCache = new Map<string, LatLng[]>();
 
 const pathFromPolyline = (p?: string | null): LatLng[] => {
@@ -296,8 +350,26 @@ function MapPageInner() {
   const [filterRadius, setFilterRadius] = useState<string>("all");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<string>("all"); // "all" | preset | yyyy-MM-dd
+  const [showDayPicker, setShowDayPicker] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilterCount = [filterRadius, filterIntensity, filterSessionType].filter((v) => v !== "all").length;
+  const activeFilterCount = [filterRadius, filterIntensity, filterSessionType, filterDate].filter((v) => v !== "all").length;
+  const dateChips: FilterOptionDef[] = [
+    ...DATE_PRESETS,
+    {
+      value: "day",
+      label: DAY_KEY_RE.test(filterDate)
+        ? format(fromDayKey(filterDate), "EEE d MMM", { locale: fr })
+        : "Jour précis",
+    },
+  ];
+  const resetAllFilters = () => {
+    setFilterRadius("all");
+    setFilterIntensity("all");
+    setFilterSessionType("all");
+    setFilterDate("all");
+    setShowDayPicker(false);
+  };
   const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
 
   // Nouveaux états : sessions où l’utilisateur est INSCRIT
