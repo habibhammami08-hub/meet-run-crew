@@ -463,7 +463,7 @@ const SessionDetails = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-deep/5">
       {/* ⬅️ Retour : petite pastille flottante en haut à gauche */}
-      <div className="sticky top-0 z-40 bg-white/70 backdrop-blur-md">
+      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md">
         <div className="container mx-auto max-w-7xl px-4 py-2.5">
           <button
             type="button"
