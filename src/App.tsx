@@ -83,6 +83,7 @@ const App = () => {
               <Sonner />
               <BrowserRouter>
                 <LocationGate />
+                <ScrollToTop />
                 <AppLayout>
                   <PromoWelcome />
                   <Suspense fallback={<LoadingSpinner />}>
