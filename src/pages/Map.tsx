@@ -574,6 +574,8 @@ function MapPageInner() {
 
     if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
 
+    if (filterDate !== "all") filtered = filtered.filter(s => matchesDateFilter(s.scheduled_at, filterDate));
+
     // ▼▼▼ Mise à jour : règle d’affichage (31/15 min) selon nb d'inscrits HORS hôte
     // - Si participants_count === 0  -> retirer 31 minutes avant le début (hôte seul)
     // - Si participants_count >= 1   -> retirer 15 minutes avant le début
@@ -588,7 +590,7 @@ function MapPageInner() {
     // ▲▲▲
 
     return filtered;
-  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, __tick]);
+  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, filterDate, __tick]);
 
   const filteredNearestSessions = useMemo(() => (
     filteredSessions
@@ -1215,6 +1217,63 @@ function MapPageInner() {
                 </div>
 
                 <div className="thin-scroll max-h-[52vh] space-y-5 overflow-y-auto px-5 py-5 sm:max-h-[58vh]">
+                  <div>
+                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Quand</p>
+                    <div className="flex flex-wrap gap-2">
+                      {dateChips.map((o) => (
+                        <FilterChip
+                          key={o.value}
+                          option={o}
+                          selected={o.value === "day" ? DAY_KEY_RE.test(filterDate) : filterDate === o.value}
+                          onSelect={(v) => {
+                            if (v === "day") {
+                              setShowDayPicker((s) => !s);
+                              return;
+                            }
+                            setFilterDate(v);
+                            setShowDayPicker(false);
+                          }}
+                        />
+                      ))}
+                    </div>
+                    {showDayPicker && (
+                      <div className="mt-3 overflow-hidden rounded-3xl border border-border/70 bg-background">
+                        <CalendarDays
+                          mode="single"
+                          selected={DAY_KEY_RE.test(filterDate) ? fromDayKey(filterDate) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            setFilterDate(toDayKey(d));
+                            setShowDayPicker(false);
+                          }}
+                          disabled={{ before: startOfToday() }}
+                          fromMonth={startOfToday()}
+                          locale={fr}
+                          weekStartsOn={1}
+                          className="pointer-events-auto p-2"
+                        />
+                        <div className="flex items-center justify-between gap-2 border-t border-border/70 bg-muted/40 px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterDate("all");
+                              setShowDayPicker(false);
+                            }}
+                            className="text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            Toutes dates
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDayPicker(false)}
+                            className="text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            Fermer
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <FilterGroup
                     title="Rayon de recherche"
                     value={filterRadius}
@@ -1256,9 +1315,7 @@ function MapPageInner() {
                     variant="ghost"
                     disabled={activeFilterCount === 0}
                     onClick={() => {
-                      setFilterRadius("all");
-                      setFilterIntensity("all");
-                      setFilterSessionType("all");
+                      resetAllFilters();
                     }}
                     className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-40"
                   >
@@ -1304,14 +1361,12 @@ function MapPageInner() {
             <CardContent className="text-center py-12">
               <MapPin className="mx-auto h-16 w-16 mb-4 text-gray-300" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune session trouvée</h3>
-              <p className="text-gray-500 mb-6">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres de recherche" : "Il n'y a pas de sessions disponibles pour le moment"}</p>
+              <p className="text-gray-500 mb-6">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" || filterDate !== "all" ? "Essayez d'élargir vos filtres de recherche" : "Il n'y a pas de sessions disponibles pour le moment"}</p>
               <div className="flex justify-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setFilterRadius("all");
-                    setFilterIntensity("all");
-                    setFilterSessionType("all");
+                    resetAllFilters();
                   }}
                 >
                   Réinitialiser les filtres
