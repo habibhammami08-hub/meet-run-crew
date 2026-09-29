@@ -347,7 +347,7 @@ function MapPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [filterRadius, setFilterRadius] = useState<string>("all");
+  const [filterRadius, setFilterRadius] = useState<string>("25"); // Défaut : 25 km
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>("all"); // "all" | preset | yyyy-MM-dd
@@ -364,7 +364,7 @@ function MapPageInner() {
     },
   ];
   const resetAllFilters = () => {
-    setFilterRadius("all");
+    setFilterRadius("25");
     setFilterIntensity("all");
     setFilterSessionType("all");
     setFilterDate("all");
@@ -597,10 +597,10 @@ function MapPageInner() {
     return filtered;
   }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, filterDate, __tick, currentUser?.id, mySessionIds]);
 
+  // « Sessions près de vous » : le rayon sélectionné dans les filtres s'applique (25 km par défaut) ;
+  // « Toutes distances » affiche tout, sans limite système.
   const filteredNearestSessions = useMemo(() => (
-    filteredSessions
-      .filter(s => s.distanceFromUser !== null && (s.distanceFromUser as number) <= 25)
-      .sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
+    [...filteredSessions].sort((a, b) => (a.distanceFromUser || 0) - (b.distanceFromUser || 0))
   ), [filteredSessions]);
 
   // Mes sessions (inscrit OU hôte) à partir de TOUTES les sessions chargées (non filtrées), uniquement futures
