@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2 } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar as CalendarDays } from "@/components/ui/calendar";
+import { fr } from "date-fns/locale";
+import { addDays, startOfWeek, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import markImage from "@/assets/meetrun-mark.png"; // Marque MeetRun (fond transparent)
 
