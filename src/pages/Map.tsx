@@ -290,6 +290,11 @@ function MapPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  // TEMP-VERIFY: ouvre la fiche aperçue depuis ?sel=<id> pour contrôle visuel
+  useEffect(() => {
+    const sel = new URLSearchParams(window.location.search).get("sel");
+    if (sel) setSelectedSession(sel);
+  }, []);
   const [filterRadius, setFilterRadius] = useState<string>("all");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
