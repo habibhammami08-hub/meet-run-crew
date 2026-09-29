@@ -380,10 +380,10 @@ const Home = () => {
                   >
                     {isFreePromoActive() ? "Découvrir l’offre" : "S'abonner"} <Crown size={16} className="ml-2" />
                   </Button>
-                  <div className="mt-4 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Shield size={12} />
-                      {isFreePromoActive() ? "Sans paiement à l’inscription" : "Sans engagement"}
+                  <div className="mt-4 text-xs text-muted-foreground flex items-start justify-center gap-1.5 text-left">
+                    <Shield size={12} className="mt-0.5 shrink-0" />
+                    <span>
+                      {isFreePromoActive() ? "L’offre est appliquée automatiquement, sans carte bancaire à renseigner." : "Sans engagement"}
                     </span>
                   </div>
                 </CardContent>
