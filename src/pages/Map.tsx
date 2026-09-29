@@ -589,8 +589,13 @@ function MapPageInner() {
     });
     // ▲▲▲
 
+    // Exclure les sessions où l'utilisateur est organisateur ou inscrit (liste + épingles de la carte)
+    if (currentUser) {
+      filtered = filtered.filter(s => s.host_id !== currentUser.id && !mySessionIds.has(s.id));
+    }
+
     return filtered;
-  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, filterDate, __tick]);
+  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, filterDate, __tick, currentUser?.id, mySessionIds]);
 
   const filteredNearestSessions = useMemo(() => (
     filteredSessions
