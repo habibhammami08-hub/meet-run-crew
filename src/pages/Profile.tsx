@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, AlertTriangle, ShieldAlert, CheckCircle2, Crown, User } from "lucide-react";
+import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
 import { isFreePromoActive } from "@/config/promo";
