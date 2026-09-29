@@ -152,7 +152,7 @@ const PublicProfile = () => {
   return (
     <div className="min-h-screen bg-[#151515] text-white">
       {/* Barre supérieure */}
-      <header className="sticky top-0 z-20 bg-gradient-to-b from-[#101111] to-[#2c2d2c] border-b border-white/10">
+      <header className="sticky top-0 z-20 bg-deep border-b border-white/10">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 h-14">
           <button
             onClick={() => navigate(-1)}

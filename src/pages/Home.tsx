@@ -240,7 +240,7 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 bg-deep">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <Link to="/">
             <img
@@ -260,7 +260,7 @@ const Home = () => {
                 <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/")} className="text-white font-semibold hover:bg-white/10">
                   Se connecter
                 </Button>
-                <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/")}>
+                <Button variant="ghost" className="bg-white text-deep font-semibold hover:bg-white/90 hover:text-deep" onClick={() => navigate("/auth?mode=signup&returnTo=/")}>
                   S'inscrire
                 </Button>
               </div>
