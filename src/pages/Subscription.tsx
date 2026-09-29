@@ -134,7 +134,7 @@ const Subscription = () => {
   if (isFreePromoActive()) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 bg-deep">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <Link to="/"><img src={logoImage} alt="MeetRun Logo" className="h-10 w-auto cursor-pointer" /></Link>
             <Button variant="ghost" onClick={() => navigate(user ? "/profile" : "/auth?returnTo=/subscription")} className="text-white font-semibold hover:bg-white/10">
@@ -162,7 +162,7 @@ const Subscription = () => {
     return (
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+        <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 bg-deep">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <Link to="/">
               <img
@@ -175,7 +175,7 @@ const Subscription = () => {
               <Button variant="ghost" onClick={() => navigate("/auth?returnTo=/subscription")} className="text-white font-semibold hover:bg-white/10">
                 Se connecter
               </Button>
-              <Button variant="sport" onClick={() => navigate("/auth?mode=signup&returnTo=/subscription")}>
+              <Button variant="ghost" className="bg-white text-deep font-semibold hover:bg-white/90 hover:text-deep" onClick={() => navigate("/auth?mode=signup&returnTo=/subscription")}>
                 S'inscrire
               </Button>
             </div>
@@ -277,7 +277,7 @@ const Subscription = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3" style={{ background: 'linear-gradient(to right, #101111, #2c2d2c)' }}>
+      <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 bg-deep">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <Link to="/">
             <img
