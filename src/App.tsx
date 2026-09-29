@@ -12,6 +12,7 @@ import AppLayout from "./components/AppLayout";
 import PromoWelcome from "./components/PromoWelcome";
 import AppSplash from "./components/AppSplash";
 import LocationGate from "./components/LocationGate";
+import ScrollToTop from "./components/ScrollToTop";
 import GoogleMapProvider from "@/components/Map/GoogleMapProvider";
 
 // Lazy load pages with retry logic for better performance and reliability
