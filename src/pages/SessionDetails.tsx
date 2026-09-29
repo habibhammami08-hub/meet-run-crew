@@ -26,7 +26,62 @@ import { useToast } from "@/hooks/use-toast";
 import polyline from "@mapbox/polyline";
 import { isFreePromoActive } from "@/config/promo";
 
+// -------------------- Panneau d'inscription (invité / non abonné) --------------------
+// Une seule implémentation pour les deux emplacements de la fiche (mobile + desktop),
+// pour que le prix, la date limite et le message restent identiques partout.
+
+function SessionSignupPanel({
+  onSignup,
+  onSubscribe,
+  isSubLoading,
+}: {
+  onSignup: () => void;
+  onSubscribe: () => void;
+  isSubLoading: boolean;
+}) {
+  const promo = isFreePromoActive();
+
+  return (
+    <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+      <div className="flex items-center gap-2 mb-2">
+        <Crown className="w-5 h-5 text-blue-600" />
+        <span className="font-semibold text-blue-900">Recommandé</span>
+      </div>
+      <h4 className="font-semibold mb-1">{promo ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
+
+      {promo ? (
+        <>
+          <p className="text-sm text-gray-600">Dès l’inscription, automatiquement et sans carte bancaire</p>
+          <p className="text-sm text-gray-600 mb-3">Lieux exacts et inscriptions aux sessions en illimité</p>
+          <div className="flex items-baseline gap-2 whitespace-nowrap">
+            <span className="text-lg font-bold text-blue-600">0 €</span>
+            <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s>
+          </div>
+          <p className="text-sm font-semibold text-blue-700 whitespace-nowrap mb-3">Offert jusqu’au 31/03/2027</p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-gray-600 mb-3">Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session</p>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-lg font-bold text-blue-600 whitespace-nowrap">9,99 €/mois</span>
+            <Badge variant="secondary">Économique</Badge>
+          </div>
+        </>
+      )}
+
+      <Button
+        onClick={promo ? onSignup : onSubscribe}
+        disabled={isSubLoading}
+        className="w-full bg-blue-600 hover:bg-blue-700"
+      >
+        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{promo ? "Créer mon compte" : "S'abonner"}</>)}
+      </Button>
+    </div>
+  );
+}
+
 // -------------------- Utils --------------------
+
 
 type LatLng = { lat: number; lng: number };
 
@@ -654,27 +709,12 @@ const SessionDetails = () => {
                       </Button>
                     ) : (
                       <div className="space-y-4">
-                        <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Crown className="w-5 h-5 text-blue-600" />
-                            <span className="font-semibold text-blue-900">Recommandé</span>
-                          </div>
-                          <h4 className="font-semibold mb-1">{isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
-                          <p className="text-sm text-gray-600 mb-3">
-                            {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 mars 2027 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
-                          </p>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? <>0 € <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s></> : "9,99€/mois"}</span>
-                            <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/03/2027" : "Économique"}</Badge>
-                          </div>
-                          <Button
-                            onClick={isFreePromoActive() ? redirectToAuth : startSubscriptionCheckout}
-                            disabled={isSubLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-700"
-                          >
-                            {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte" : "S'abonner"}</>)}
-                          </Button>
-                        </div>
+                        <SessionSignupPanel
+                          onSignup={redirectToAuth}
+                          onSubscribe={startSubscriptionCheckout}
+                          isSubLoading={isSubLoading}
+                        />
+
                       </div>
                     )}
                   </>
@@ -926,27 +966,12 @@ const SessionDetails = () => {
                   </Button>
                 ) : (
                   <div className="space-y-4">
-                    <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Crown className="w-5 h-5 text-blue-600" />
-                        <span className="font-semibold text-blue-900">Recommandé</span>
-                      </div>
-                      <h4 className="font-semibold mb-1">{isFreePromoActive() ? "MeetRun Unlimited offert" : "Abonnement MeetRun"}</h4>
-                      <p className="text-sm text-gray-600 mb-3">
-                        {isFreePromoActive() ? "Dès l’inscription, gratuitement jusqu’au 31 mars 2027 • Lieux exacts • Sessions illimitées" : "Accès illimité à toutes les sessions • Lieux exacts • Sans frais par session"}
-                      </p>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg font-bold text-blue-600">{isFreePromoActive() ? <>0 € <s className="text-sm font-normal text-muted-foreground">9,99 €/mois</s></> : "9,99€/mois"}</span>
-                        <Badge variant="secondary">{isFreePromoActive() ? "Offert jusqu’au 31/03/2027" : "Économique"}</Badge>
-                      </div>
-                      <Button
-                        onClick={isFreePromoActive() ? redirectToAuth : startSubscriptionCheckout}
-                        disabled={isSubLoading}
-                        className="w-full bg-blue-600 hover:bg-blue-700"
-                      >
-                        {isSubLoading ? "Ouverture..." : (<><Crown className="w-4 h-4 mr-2" />{isFreePromoActive() ? "Créer mon compte" : "S'abonner"}</>)}
-                      </Button>
-                    </div>
+                    <SessionSignupPanel
+                      onSignup={redirectToAuth}
+                      onSubscribe={startSubscriptionCheckout}
+                      isSubLoading={isSubLoading}
+                    />
+
                   </div>
                 )}
               </>
