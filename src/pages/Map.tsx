@@ -809,7 +809,7 @@ function MapPageInner() {
                             {session.max_participants && (
                               <Badge variant="outline">
                                 <Users className="w-3 h-3 mr-1" />
-                                Max {session.max_participants}
+                                {session.participants_count ?? 0}/{session.max_participants}
                               </Badge>
                             )}
                           </div>
@@ -1063,6 +1063,12 @@ function MapPageInner() {
                                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
                                   <Route className="h-3 w-3 text-gray-400" />
                                   <span className="tabular-nums">{session.distance_km} km</span>
+                                </span>
+                              )}
+                              {session.max_participants && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                                  <Users className="h-3 w-3 text-gray-400" />
+                                  <span className="tabular-nums">{session.participants_count ?? 0}/{session.max_participants}</span>
                                 </span>
                               )}
                             </div>
