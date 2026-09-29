@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2 } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar as CalendarDays } from "@/components/ui/calendar";
+import { fr } from "date-fns/locale";
+import { addDays, startOfWeek, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import markImage from "@/assets/meetrun-mark.png"; // Marque MeetRun (fond transparent)
 
@@ -141,6 +144,60 @@ function FilterGroup({ title, options, value, onChange }: { title: string; optio
       </div>
     </div>
   );
+}
+
+// ——— Filtre « Quand » : pastilles rapides + jour précis choisi dans le calendrier
+const DATE_PRESETS: FilterOptionDef[] = [
+  { value: "all", label: "Toutes dates" },
+  { value: "today", label: "Aujourd'hui" },
+  { value: "tomorrow", label: "Demain" },
+  { value: "week", label: "Cette semaine" },
+  { value: "weekend", label: "Ce week-end" },
+];
+
+const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const toDayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const fromDayKey = (key: string) => {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const currentWeekBounds = () => {
+  const monday = startOfWeek(startOfToday(), { weekStartsOn: 1 });
+  return { monday, sunday: addDays(monday, 6) };
+};
+
+const currentWeekendBounds = () => {
+  const { monday } = currentWeekBounds();
+  return { saturday: addDays(monday, 5), sunday: addDays(monday, 6) };
+};
+
+// Une session appartient-elle au jour demandé ? (journée locale, heure ignorée)
+function matchesDateFilter(scheduledAt: string, filter: string): boolean {
+  if (filter === "all") return true;
+  const day = new Date(scheduledAt);
+  day.setHours(0, 0, 0, 0);
+  if (filter === "today") return toDayKey(day) === toDayKey(startOfToday());
+  if (filter === "tomorrow") return toDayKey(day) === toDayKey(addDays(startOfToday(), 1));
+  if (filter === "week") {
+    const { monday, sunday } = currentWeekBounds();
+    return day >= monday && day <= sunday;
+  }
+  if (filter === "weekend") {
+    const { saturday, sunday } = currentWeekendBounds();
+    return day >= saturday && day <= sunday;
+  }
+  if (DAY_KEY_RE.test(filter)) return toDayKey(day) === filter;
+  return true;
 }
 
 const polyCache = new Map<string, LatLng[]>();
@@ -293,8 +350,26 @@ function MapPageInner() {
   const [filterRadius, setFilterRadius] = useState<string>("all");
   const [filterIntensity, setFilterIntensity] = useState<string>("all");
   const [filterSessionType, setFilterSessionType] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<string>("all"); // "all" | preset | yyyy-MM-dd
+  const [showDayPicker, setShowDayPicker] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilterCount = [filterRadius, filterIntensity, filterSessionType].filter((v) => v !== "all").length;
+  const activeFilterCount = [filterRadius, filterIntensity, filterSessionType, filterDate].filter((v) => v !== "all").length;
+  const dateChips: FilterOptionDef[] = [
+    ...DATE_PRESETS,
+    {
+      value: "day",
+      label: DAY_KEY_RE.test(filterDate)
+        ? format(fromDayKey(filterDate), "EEE d MMM", { locale: fr })
+        : "Jour précis",
+    },
+  ];
+  const resetAllFilters = () => {
+    setFilterRadius("all");
+    setFilterIntensity("all");
+    setFilterSessionType("all");
+    setFilterDate("all");
+    setShowDayPicker(false);
+  };
   const [hasTriedGeolocation, setHasTriedGeolocation] = useState(false);
 
   // Nouveaux états : sessions où l’utilisateur est INSCRIT
@@ -499,6 +574,8 @@ function MapPageInner() {
 
     if (filterSessionType !== "all") filtered = filtered.filter(s => s.session_type === filterSessionType);
 
+    if (filterDate !== "all") filtered = filtered.filter(s => matchesDateFilter(s.scheduled_at, filterDate));
+
     // ▼▼▼ Mise à jour : règle d’affichage (31/15 min) selon nb d'inscrits HORS hôte
     // - Si participants_count === 0  -> retirer 31 minutes avant le début (hôte seul)
     // - Si participants_count >= 1   -> retirer 15 minutes avant le début
@@ -513,7 +590,7 @@ function MapPageInner() {
     // ▲▲▲
 
     return filtered;
-  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, __tick]);
+  }, [sessionsWithDistance, userLocation, filterRadius, filterIntensity, filterSessionType, filterDate, __tick]);
 
   const filteredNearestSessions = useMemo(() => (
     filteredSessions
@@ -1140,6 +1217,63 @@ function MapPageInner() {
                 </div>
 
                 <div className="thin-scroll max-h-[52vh] space-y-5 overflow-y-auto px-5 py-5 sm:max-h-[58vh]">
+                  <div>
+                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Quand</p>
+                    <div className="flex flex-wrap gap-2">
+                      {dateChips.map((o) => (
+                        <FilterChip
+                          key={o.value}
+                          option={o}
+                          selected={o.value === "day" ? DAY_KEY_RE.test(filterDate) : filterDate === o.value}
+                          onSelect={(v) => {
+                            if (v === "day") {
+                              setShowDayPicker((s) => !s);
+                              return;
+                            }
+                            setFilterDate(v);
+                            setShowDayPicker(false);
+                          }}
+                        />
+                      ))}
+                    </div>
+                    {showDayPicker && (
+                      <div className="mt-3 overflow-hidden rounded-3xl border border-border/70 bg-background">
+                        <CalendarDays
+                          mode="single"
+                          selected={DAY_KEY_RE.test(filterDate) ? fromDayKey(filterDate) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            setFilterDate(toDayKey(d));
+                            setShowDayPicker(false);
+                          }}
+                          disabled={{ before: startOfToday() }}
+                          fromMonth={startOfToday()}
+                          locale={fr}
+                          weekStartsOn={1}
+                          className="pointer-events-auto p-2"
+                        />
+                        <div className="flex items-center justify-between gap-2 border-t border-border/70 bg-muted/40 px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterDate("all");
+                              setShowDayPicker(false);
+                            }}
+                            className="text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            Toutes dates
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDayPicker(false)}
+                            className="text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            Fermer
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <FilterGroup
                     title="Rayon de recherche"
                     value={filterRadius}
@@ -1181,9 +1315,7 @@ function MapPageInner() {
                     variant="ghost"
                     disabled={activeFilterCount === 0}
                     onClick={() => {
-                      setFilterRadius("all");
-                      setFilterIntensity("all");
-                      setFilterSessionType("all");
+                      resetAllFilters();
                     }}
                     className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-40"
                   >
@@ -1229,14 +1361,12 @@ function MapPageInner() {
             <CardContent className="text-center py-12">
               <MapPin className="mx-auto h-16 w-16 mb-4 text-gray-300" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune session trouvée</h3>
-              <p className="text-gray-500 mb-6">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" ? "Essayez d'élargir vos filtres de recherche" : "Il n'y a pas de sessions disponibles pour le moment"}</p>
+              <p className="text-gray-500 mb-6">{filterRadius !== "all" || filterIntensity !== "all" || filterSessionType !== "all" || filterDate !== "all" ? "Essayez d'élargir vos filtres de recherche" : "Il n'y a pas de sessions disponibles pour le moment"}</p>
               <div className="flex justify-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setFilterRadius("all");
-                    setFilterIntensity("all");
-                    setFilterSessionType("all");
+                    resetAllFilters();
                   }}
                 >
                   Réinitialiser les filtres
