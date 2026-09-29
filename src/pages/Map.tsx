@@ -1075,7 +1075,7 @@ function MapPageInner() {
                             </div>
                           </div>
 
-                          <div className="mt-3 -ml-6 -mr-4 flex items-center justify-between gap-2 border-t border-gray-100 pl-6 pr-4 pt-3">
+                          <div className="mt-3 -ml-6 -mr-4 flex items-center gap-2 border-t border-gray-100 pl-6 pr-4 pt-3">
                             <div className="flex flex-wrap items-center gap-1.5">
                               {session.intensity && (
                                 <Badge variant="outline" className="h-6 gap-1 border-gray-200 text-[11px] font-medium">
