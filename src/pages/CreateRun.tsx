@@ -3,6 +3,7 @@ import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate, Link } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import { uiToDbIntensity } from "@/lib/sessions/intensity";
+import { isFreePromoActive } from "@/config/promo";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { LocationInput } from "@/components/ui/location-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,7 +119,7 @@ export default function CreateRun() {
       if (!supabase) { 
         if (!redirectedRef.current) {
           redirectedRef.current = true;
-          navigate(`/auth?returnTo=${encodeURIComponent('/create')}`, { replace: true });
+          navigate(`/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=${encodeURIComponent('/create')}`, { replace: true });
         }
         return;
       }
@@ -132,7 +133,7 @@ export default function CreateRun() {
           if (!redirectedRef.current) {
             redirectedRef.current = true;
             // Pas d'écran intermédiaire : on redirige directement vers l'auth
-            navigate(`/auth?returnTo=${encodeURIComponent('/create')}`, { replace: true });
+            navigate(`/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=${encodeURIComponent('/create')}`, { replace: true });
           }
           setUserReady("none");
         }
@@ -140,7 +141,7 @@ export default function CreateRun() {
         console.error("[CreateRun] Auth error:", error);
         if (!redirectedRef.current) {
           redirectedRef.current = true;
-          navigate(`/auth?returnTo=${encodeURIComponent('/create')}`, { replace: true });
+          navigate(`/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=${encodeURIComponent('/create')}`, { replace: true });
         }
         if (alive) setUserReady("none");
       }

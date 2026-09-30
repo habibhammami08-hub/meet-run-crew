@@ -91,7 +91,7 @@ export default function ProfilePage() {
   // Redirection : on la BLOQUE si deleteSuccess === true pour montrer l'écran
   useEffect(() => {
     if (user === null && !deleteSuccess) {
-      navigate('/auth?returnTo=/profile');
+      navigate(`/auth?${isFreePromoActive() ? "mode=signup&" : ""}returnTo=/profile`);
       return;
     }
     if (user === undefined) return;
