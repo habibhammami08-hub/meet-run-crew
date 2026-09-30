@@ -69,10 +69,19 @@ export default function CreateRun() {
   const [sessionTypeState, setSessionTypeState] = useState<"mixed"|"women"|"men">("mixed");
   const [maxParticipantsState, setMaxParticipantsState] = useState<number>(10);
   const [isSaving, setIsSaving] = useState(false);
-  const [created, setCreated] = useState<{ id: string; title: string } | null>(
+  const [created, setCreated] = useState<CreatedSession | null>(
     // DEMO-TEMP: rendu du modal de confirmation pour capture d'écran
     new URLSearchParams(window.location.search).has("demo-success")
-      ? { id: "demo", title: "Course du soir au bord de l'eau" }
+      ? {
+          id: "demo",
+          title: "Course du soir au bord de l'eau",
+          scheduled_at: new Date(Date.now() + 26 * 3600 * 1000).toISOString(),
+          intensity: "medium",
+          session_type: "mixed",
+          distance_km: 6.4,
+          location_hint: "Escalier du Muet",
+          max_participants: 10,
+        }
       : null
   );
   const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
