@@ -25,6 +25,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
 import { getPublicProfiles } from "@/lib/cache/publicProfiles";
+import { invalidateSessionsCache } from "@/lib/cache/sessionsCache";
 import { useToast } from "@/hooks/use-toast";
 import polyline from "@mapbox/polyline";
 import { isFreePromoActive } from "@/config/promo";
@@ -304,6 +305,9 @@ const SessionDetails = () => {
   }, [searchParams]); // eslint-disable-line
 
   // -----------------------------------------------------
+
+  // Une inscription/désinscription peut avoir lieu ici : la carte rechargera des données fraîches.
+  useEffect(() => () => invalidateSessionsCache(), []);
 
   const fetchSessionDetails = async () => {
     // Session et participants demandés en parallèle ; profils publics via cache mémoire.
