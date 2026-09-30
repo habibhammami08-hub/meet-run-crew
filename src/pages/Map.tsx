@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { getSessionsCache, setSessionsCache, SESSIONS_CACHE_TTL_MS } from "@/lib/cache/sessionsCache";
 import { GoogleMap, Polyline, MarkerF } from "@react-google-maps/api";
 import { Link, useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
@@ -355,8 +356,8 @@ function MapPageInner() {
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
-  const [sessions, setSessions] = useState<SessionRow[]>(() => (sessionsCache?.data as SessionRow[]) ?? []);
-  const [loading, setLoading] = useState(() => !sessionsCache);
+  const [sessions, setSessions] = useState<SessionRow[]>(() => (getSessionsCache()?.data as SessionRow[]) ?? []);
+  const [loading, setLoading] = useState(() => !getSessionsCache());
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [filterRadius, setFilterRadius] = useState<string>("25"); // Défaut : 25 km
@@ -453,7 +454,8 @@ function MapPageInner() {
     const cacheKey = userLocation && filterRadius !== "all"
       ? `${userLocation.lat.toFixed(2)}_${userLocation.lng.toFixed(2)}_${filterRadius}`
       : "all";
-    const cached = sessionsCache && sessionsCache.key === cacheKey ? sessionsCache : null;
+    const sc = getSessionsCache();
+    const cached = sc && sc.key === cacheKey ? sc : null;
     if (cached) {
       setSessions(cached.data as SessionRow[]);
       setLoading(false);
@@ -500,7 +502,7 @@ function MapPageInner() {
         location_lat: s.start_lat,
         location_lng: s.start_lng,
       })) as SessionRow[];
-      sessionsCache = { key: cacheKey, at: Date.now(), data: mapped };
+      setSessionsCache(cacheKey, mapped);
       setSessions(mapped);
     } catch (e: any) {
       if (e?.name !== "AbortError" && mountedRef.current) setError(`Une erreur est survenue: ${e.message}`);
