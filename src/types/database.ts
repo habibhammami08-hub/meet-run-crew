@@ -13,7 +13,7 @@ export type Database = {
           avatar_url: string | null;
           photo_url: string | null;
           age: number | null;
-          gender: 'homme' | 'femme' | 'autre' | null;
+          gender: 'homme' | 'femme' | null;
           role: 'participant' | 'host' | 'admin';
           stripe_customer_id: string | null;
           sub_status: 'inactive' | 'active' | 'trialing' | 'canceled' | 'past_due';
