@@ -571,6 +571,16 @@ function MapPageInner() {
   }, []);
   // ▲▲▲
 
+  // Fenêtre de confirmation de désinscription / suppression
+  const [leaveTarget, setLeaveTarget] = useState<LeaveSessionTarget | null>(null);
+  const runLeave = useCallback(async (target: LeaveSessionTarget) => {
+    if (!supabase) throw new Error("Session expirée, rechargez la page.");
+    const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: target.id });
+    if (error) throw error;
+    await Promise.all([fetchMyEnrollments(), fetchSessions()]);
+  }, [supabase, fetchMyEnrollments, fetchSessions]);
+
+
   const filteredSessions = useMemo(() => {
     let filtered = sessionsWithDistance;
 
