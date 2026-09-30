@@ -80,7 +80,7 @@ export function DateTimePicker({ value, onChange, placeholder = "Choisir date et
                 mode="single"
                 selected={selectedDay}
                 onSelect={selectDay}
-                disabled={(day) => day < startOfDay(now)}
+                disabled={(day) => day < startOfDay(now) || day > addDays(endOfDay(now), 7)}
                 locale={fr}
                 weekStartsOn={1}
                 initialFocus
