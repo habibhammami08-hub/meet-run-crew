@@ -19,6 +19,7 @@ import markImage from "@/assets/meetrun-mark.png"; // Marque MeetRun (fond trans
 
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
+import LeaveSessionDialog, { type LeaveSessionTarget } from "@/components/LeaveSessionDialog";
 
 
 // Auth route (adjust if your auth page differs)
