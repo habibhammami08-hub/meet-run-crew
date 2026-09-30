@@ -454,13 +454,29 @@ function MapPageInner() {
     try {
       const now = new Date();
       const cutoffDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      const { data, error } = await supabase
+      let query = supabase
         .from("sessions")
         .select("id,title,description,scheduled_at,start_lat,start_lng,end_lat,end_lng,distance_km,route_polyline,intensity,session_type,blur_radius_m,host_id,location_hint,max_participants,participants_count") // ← AJOUT participants_count
         .gte("scheduled_at", cutoffDate.toISOString())
         .eq("status", "published")
         .order("scheduled_at", { ascending: true })
         .limit(500);
+
+      // Chargement par zone : quand la position est connue et qu'un rayon est
+      // choisi, on ne demande au serveur que les sessions dans cette zone
+      // (avec une marge de 20 %), au lieu de charger toutes les sessions.
+      if (userLocation && filterRadius !== "all") {
+        const radiusKm = Math.max(parseInt(filterRadius) || 25, 25) * 1.2;
+        const latDelta = radiusKm / 111;
+        const lngDelta = radiusKm / (111 * Math.cos((userLocation.lat * Math.PI) / 180) || 1);
+        query = query
+          .gte("start_lat", userLocation.lat - latDelta)
+          .lte("start_lat", userLocation.lat + latDelta)
+          .gte("start_lng", userLocation.lng - lngDelta)
+          .lte("start_lng", userLocation.lng + lngDelta);
+      }
+
+      const { data, error } = await query;
 
       if (signal.aborted || !mountedRef.current) return;
       if (error) {
@@ -479,7 +495,7 @@ function MapPageInner() {
     } finally {
       if (!signal.aborted && mountedRef.current) setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, userLocation, filterRadius]);
 
   // Récupérer les sessions où l’utilisateur est inscrit (paid / included_by_subscription / confirmed)
   const fetchMyEnrollments = useCallback(async () => {
