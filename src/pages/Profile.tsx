@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User, ArrowRight, Route, Zap } from "lucide-react";
+import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User, ArrowRight, Route, Zap, UserMinus } from "lucide-react";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
+import LeaveSessionDialog, { type LeaveSessionTarget } from "@/components/LeaveSessionDialog";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
@@ -192,6 +193,16 @@ export default function ProfilePage() {
       if (mountedRef.current) console.error('[Profile] Error fetching sessions:', error);
     }
   }, [supabase]);
+
+  // Fenêtre de confirmation de désinscription / suppression
+  const [leaveTarget, setLeaveTarget] = useState<LeaveSessionTarget | null>(null);
+  const runLeave = useCallback(async (target: LeaveSessionTarget) => {
+    if (!supabase) throw new Error("Session expirée, rechargez la page.");
+    const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: target.id });
+    if (error) throw error;
+    if (user?.id) await fetchMySessions(user.id);
+  }, [supabase, user?.id, fetchMySessions]);
+
 
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
@@ -687,6 +698,10 @@ export default function ProfilePage() {
                 const scheduled = new Date(session.scheduled_at);
                 const isPastSession = scheduled.getTime() < Date.now();
                 const isHost = session.host_id === user?.id;
+                const minutesUntil = (scheduled.getTime() - Date.now()) / 60000;
+                const canUnenroll = !isPastSession && minutesUntil >= 30;
+                const showHint = !isPastSession && minutesUntil < 30;
+                const showTrash = isHost && (session.participants_count ?? 0) === 0;
                 return (
                   <div
                     key={session.id}
@@ -752,10 +767,35 @@ export default function ProfilePage() {
                       >
                         Voir
                         <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-                      </Button>
-                    </div>
-                  </div>
-                );
+                       </Button>
+                     </div>
+
+                     {/* Action secondaire : se désinscrire, sous le contenu et après « Voir » */}
+                     {canUnenroll && (
+                       <button
+                         type="button"
+                         onClick={() =>
+                           setLeaveTarget({
+                             id: session.id,
+                             title: session.title,
+                             scheduled_at: session.scheduled_at,
+                             place: session.start_place ?? null,
+                             mode: showTrash ? "delete" : "unenroll",
+                           })
+                         }
+                         className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 ring-1 ring-red-100 transition-all hover:bg-red-100 hover:text-red-700 active:scale-[0.98]"
+                       >
+                         <UserMinus className="h-3.5 w-3.5" />
+                         {showTrash ? "Supprimer la session" : "Se désinscrire"}
+                       </button>
+                     )}
+                     {showHint && (
+                       <p className="mt-3 text-[11px] text-muted-foreground">
+                         Désinscription possible jusqu’à 30 min avant le départ
+                       </p>
+                     )}
+                   </div>
+                 );
               })}
             </div>
           )}
@@ -827,6 +867,14 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <LeaveSessionDialog
+        target={leaveTarget}
+        onOpenChange={(open) => {
+          if (!open) setLeaveTarget(null);
+        }}
+        onConfirm={runLeave}
+      />
     </div>
     </div>
   );

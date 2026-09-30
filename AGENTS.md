@@ -1,9 +1,10 @@
-- Keep the free Unlimited campaign behind `isFreePromoActive()`, with the original Stripe subscription views as fallback, so one flag or the end date restores paid messaging.
+- Keep the free Unlimited campaign behind `isFreePromoActive()`, with the Stripe subscription views as fallback, so one flag or the end date restores paid messaging.
 - Move the campaign cutoff in both `FREE_PROMO_END` (`src/config/promo.ts`) and the `timestamptz` in `enrollments_guard_status` (new migration): never advertise an offer the server rejects.
 - Use the shared `PromoOffer` for the main campaign panels so deadline, price and signup message stay consistent across pages.
-- Deduplicate and prebundle React and React DOM together in Vite, so dependencies share one hook dispatcher instead of mismatched React module instances.
-- Keep uploaded brand images as regular files imported from `src/assets/`, not `lovable-assets` pointers: the `/__l5e/assets-v1/...` CDN URLs are not served by the Vite dev preview (it answers with `index.html`), so they render broken.
+- Deduplicate and prebundle React and React DOM together in Vite so dependencies share one hook dispatcher.
+- Keep uploaded brand images as regular files imported from `src/assets/`, not `lovable-assets` pointers: their `/__l5e/assets-v1/...` CDN URLs are not served by the Vite dev preview, so they render broken.
 - Native apps use Capacitor with committed `ios/` and `android/` projects; `server.url` loads `https://www.meetrun.fr` (the sandbox preview URL needs Lovable auth); appId `app.lovable.a2b2f38d10604da2b70b5d0ae2308f6a`, appName `meet-run`. After any native edit, tell the user to git pull then `npx cap sync`.
 - Keep iPhone safe-area spacing in the shared app shell and viewport metadata, not per page: the hosted site runs in a Capacitor WebView and fixed headers must clear the status bar everywhere.
-- Keep the launch screen in the web layer as one `AppSplash` component mounted in `App.tsx`, gated by `Capacitor.isNativePlatform()` (every native launch, once per web session), so iOS and Android share one intro; schedule fade and unmount from a mount-only effect so the overlay never lingers.
+- Keep the launch screen in the web layer as one `AppSplash` mounted in `App.tsx`, gated by `Capacitor.isNativePlatform()` (every native launch, once per web session), so iOS and Android share one intro; fade and unmount from a mount-only effect so the overlay never lingers.
 - `sessions.participants_count` holds participants only (host excluded; statuses paid/included_by_subscription/confirmed) and is maintained solely by `trg_enrollments_recount_aiud` calling `recalc_participants_count()`: never add a second incrementing trigger (`sync_participants_count` was dropped, it double-counted) and never recount in app code.
+- Unenroll/delete confirmations use the shared `LeaveSessionDialog` (Map + Profile); never `window.confirm()`.

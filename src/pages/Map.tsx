@@ -19,6 +19,7 @@ import markImage from "@/assets/meetrun-mark.png"; // Marque MeetRun (fond trans
 
 import { useGeolocationNotifications } from "@/hooks/useGeolocationNotifications";
 import { isFreePromoActive } from "@/config/promo";
+import LeaveSessionDialog, { type LeaveSessionTarget } from "@/components/LeaveSessionDialog";
 
 
 // Auth route (adjust if your auth page differs)
@@ -570,6 +571,16 @@ function MapPageInner() {
   }, []);
   // ▲▲▲
 
+  // Fenêtre de confirmation de désinscription / suppression
+  const [leaveTarget, setLeaveTarget] = useState<LeaveSessionTarget | null>(null);
+  const runLeave = useCallback(async (target: LeaveSessionTarget) => {
+    if (!supabase) throw new Error("Session expirée, rechargez la page.");
+    const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: target.id });
+    if (error) throw error;
+    await Promise.all([fetchMyEnrollments(), fetchSessions()]);
+  }, [supabase, fetchMyEnrollments, fetchSessions]);
+
+
   const filteredSessions = useMemo(() => {
     let filtered = sessionsWithDistance;
 
@@ -960,18 +971,14 @@ function MapPageInner() {
                       const canUnenroll = minutesUntil >= 30;
                       const showTrash = own && (s.participants_count ?? 0) === 0;
 
-                      const leave = async () => {
-                        const question = showTrash
-                          ? "Vous êtes l’hôte et le seul participant. Supprimer cette session ?"
-                          : "Voulez-vous vraiment vous désinscrire de cette session ?";
-                        if (!confirm(question)) return;
-                        try {
-                          const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: s.id });
-                          if (error) throw error;
-                          await Promise.all([fetchMyEnrollments(), fetchSessions()]);
-                        } catch (e: any) {
-                          alert("Erreur lors de l’action: " + e.message);
-                        }
+                      const askLeave = () => {
+                        setLeaveTarget({
+                          id: s.id,
+                          title: s.title,
+                          scheduled_at: s.scheduled_at,
+                          place: blur ? (arrondissements[s.id] || null) : (s.location_hint || null),
+                          mode: showTrash ? "delete" : "unenroll",
+                        });
                       };
 
                       return (
@@ -1075,9 +1082,9 @@ function MapPageInner() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  void leave();
+                                  askLeave();
                                 }}
-                                className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 ring-1 ring-red-100 transition-all hover:bg-red-100 hover:text-red-700 active:scale-[0.98]"
                               >
                                 <UserMinus className="h-3.5 w-3.5" />
                                 {showTrash ? "Supprimer la session" : "Se désinscrire"}
@@ -1459,6 +1466,14 @@ function MapPageInner() {
             </CardContent>
           </Card>
         )}
+
+        <LeaveSessionDialog
+          target={leaveTarget}
+          onOpenChange={(open) => {
+            if (!open) setLeaveTarget(null);
+          }}
+          onConfirm={runLeave}
+        />
       </div>
     </div>
   );
