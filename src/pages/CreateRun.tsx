@@ -38,7 +38,12 @@ export default function CreateRun() {
   const [sessionTypeState, setSessionTypeState] = useState<"mixed"|"women"|"men">("mixed");
   const [maxParticipantsState, setMaxParticipantsState] = useState<number>(10);
   const [isSaving, setIsSaving] = useState(false);
-  const [created, setCreated] = useState<{ id: string; title: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; title: string } | null>(
+    // DEMO-TEMP: rendu du modal de confirmation pour capture d'écran
+    new URLSearchParams(window.location.search).has("demo-success")
+      ? { id: "demo", title: "Course du soir au bord de l'eau" }
+      : null
+  );
   const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
 
   // Étape mobile (progressive): "start" | "end" | "done"
@@ -58,6 +63,7 @@ export default function CreateRun() {
   // Redirection vers la carte après la confirmation (fermeture auto du modal)
   useEffect(() => {
     if (!created) return;
+    if (new URLSearchParams(window.location.search).has("demo-success")) return; // DEMO-TEMP
     const t = setTimeout(() => {
       navigate("/map", {
         state: { newSessionId: created.id, shouldFocus: true },
