@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getSupabase } from "@/integrations/supabase/client";
+import { getPublicProfiles } from "@/lib/cache/publicProfiles";
 import { useToast } from "@/hooks/use-toast";
 import polyline from "@mapbox/polyline";
 import { isFreePromoActive } from "@/config/promo";
@@ -305,25 +306,24 @@ const SessionDetails = () => {
   // -----------------------------------------------------
 
   const fetchSessionDetails = async () => {
-    const { data: rawSession, error } = await supabase
-      .from("sessions")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    // Session et participants demandés en parallèle ; profils publics via cache mémoire.
+    const [{ data: rawSession, error }, { data: enrollmentRows }] = await Promise.all([
+      supabase.from("sessions").select("*").eq("id", id).maybeSingle(),
+      (supabase as any).from("enrollments_public").select("session_id, user_id, status").eq("session_id", id),
+    ]);
 
     if (error) {
       console.error("Error fetching session:", error);
       toast({ title: "Erreur", description: "Impossible de charger les détails de la session.", variant: "destructive" });
       return;
     }
+    const hostId = (rawSession as any)?.host_id as string | undefined;
+    const participantIds = (enrollmentRows ?? []).map((e: any) => e.user_id);
+    const byId = await getPublicProfiles(hostId ? [hostId, ...participantIds] : participantIds);
+
     let sessionData: any = rawSession;
     if (rawSession) {
-      const { data: hostProfile } = await (supabase as any)
-        .from("profiles_public_open")
-        .select("id, full_name, age, avatar_url")
-        .eq("id", (rawSession as any).host_id)
-        .maybeSingle();
-      sessionData = { ...rawSession, profiles: hostProfile ?? null };
+      sessionData = { ...rawSession, profiles: (hostId && byId.get(hostId)) ?? null };
     }
 
     if (sessionData) {
@@ -338,17 +338,7 @@ const SessionDetails = () => {
 
     // Vue publique : tout le monde (même non connecté) voit les participants confirmés,
     // sans exposer les données de paiement de la table enrollments.
-    const { data: enrollmentRows } = await (supabase as any)
-      .from("enrollments_public")
-      .select("session_id, user_id, status")
-      .eq("session_id", id);
-
     if (enrollmentRows) {
-      const ids = enrollmentRows.map((e: any) => e.user_id);
-      const { data: profs } = ids.length
-        ? await (supabase as any).from("profiles_public_open").select("id, full_name, age, avatar_url").in("id", ids)
-        : { data: [] };
-      const byId = new Map((profs ?? []).map((p: any) => [p.id, p]));
       const participantsData = enrollmentRows.map((e: any) => ({ ...e, profiles: byId.get(e.user_id) ?? null }));
       setParticipants(participantsData);
       if (user) setIsEnrolled(!!participantsData.find((p: any) => p.user_id === user.id));
