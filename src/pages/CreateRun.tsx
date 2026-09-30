@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate, Link } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
+import { invalidateSessionsCache } from "@/lib/cache/sessionsCache";
 import { uiToDbIntensity, dbToUiIntensity } from "@/lib/sessions/intensity";
 import { isFreePromoActive } from "@/config/promo";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -566,6 +567,7 @@ export default function CreateRun() {
       await handlePostCreation(data);
       
       resetForm();
+      invalidateSessionsCache();
       setCreated(data as CreatedSession);
       
     } catch (e: any) {

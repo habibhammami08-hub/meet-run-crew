@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { invalidatePublicProfile } from "@/lib/cache/publicProfiles";
 import Cropper, { type Area } from "react-easy-crop";
 import { Camera, ImagePlus, Loader2, Maximize2, Trash2, User as UserIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,6 +91,7 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
       if (upErr) throw upErr;
       const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
       const { error } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", userId);
+      invalidatePublicProfile(userId);
       if (error) throw error;
       onChange(url);
       closeCrop();
@@ -104,6 +106,7 @@ export default function AvatarEditor({ userId, avatarUrl, name, onChange, size =
   const remove = async () => {
     setBusy(true);
     const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", userId);
+    invalidatePublicProfile(userId);
     setBusy(false);
     if (error) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
