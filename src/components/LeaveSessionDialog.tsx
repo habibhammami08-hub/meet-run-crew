@@ -153,7 +153,7 @@ export default function LeaveSessionDialog({ target, onOpenChange, onConfirm }: 
                 "disabled:pointer-events-none disabled:opacity-60"
               )}
             >
-              {isDelete ? "Conserver la session" : "Rester inscrit·e"}
+              {isDelete ? "Conserver la session" : "Rester inscrit(e)"}
             </button>
           </div>
         </div>
