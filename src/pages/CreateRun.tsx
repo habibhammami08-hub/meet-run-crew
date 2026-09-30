@@ -1128,6 +1128,67 @@ export default function CreateRun() {
           </div>
         </div>
       </div>
+
+      {created && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 backdrop-blur-[2px] animate-in fade-in duration-200"
+          onClick={() => setCreated(null)}
+        >
+          <style>{`
+            @keyframes mr-check-draw { to { stroke-dashoffset: 0; } }
+            @keyframes mr-pop { 0% { transform: scale(.8); opacity: 0; } 60% { transform: scale(1.04); } 100% { transform: scale(1); opacity: 1; } }
+            @keyframes mr-ring { 0% { transform: scale(1); opacity: .35; } 100% { transform: scale(1.9); opacity: 0; } }
+            @keyframes mr-bar { from { width: 100%; } to { width: 0%; } }
+          `}</style>
+          <div
+            className="relative w-[320px] max-w-[calc(100vw-2rem)] rounded-3xl bg-background border border-border shadow-2xl p-7 text-center animate-in zoom-in-95 fade-in duration-200"
+            role="dialog"
+            aria-label="Session créée"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative mx-auto mb-5 h-16 w-16">
+              <span
+                className="absolute inset-0 rounded-full bg-deep"
+                style={{ animation: "mr-ring 1.4s ease-out infinite" }}
+              />
+              <span
+                className="relative flex h-16 w-16 items-center justify-center rounded-full bg-deep shadow-lg"
+                style={{ animation: "mr-pop .35s cubic-bezier(.2,.9,.3,1.4) both" }}
+              >
+                <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
+                  <path
+                    d="M5 12.5l4.5 4.5L19 7.5"
+                    stroke="white"
+                    strokeWidth="2.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ strokeDasharray: 22, strokeDashoffset: 22, animation: "mr-check-draw .45s ease-out .15s forwards" }}
+                  />
+                </svg>
+              </span>
+            </div>
+            <h2 className="text-lg font-bold text-foreground leading-tight">Session créée !</h2>
+            <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2 break-words">« {created.title} »</p>
+            <Button
+              className="mt-5 w-full bg-deep text-white hover:bg-deep/90 font-semibold"
+              onClick={() =>
+                navigate("/map", { state: { newSessionId: created.id, shouldFocus: true } })
+              }
+            >
+              Voir sur la carte
+            </Button>
+            <p className="mt-3 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
+              Redirection vers la carte…
+              <span className="relative block h-1 w-16 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-deep/60"
+                  style={{ animation: "mr-bar 2.6s linear forwards" }}
+                />
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
