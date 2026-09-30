@@ -319,7 +319,11 @@ const Auth = () => {
           
           <CardContent className="space-y-6">
 
-            <Tabs defaultValue={mode} className="w-full">
+            <Tabs
+              value={mode === 'signup' ? 'signup' : 'signin'}
+              onValueChange={(v) => navigate(`/auth?mode=${v}&returnTo=${encodeURIComponent(returnTo)}`, { replace: true })}
+              className="w-full"
+            >
               <TabsList className="grid w-full grid-cols-2 bg-muted/50">
                 <TabsTrigger value="signin" className="data-[state=active]:bg-white">
                   Connexion
