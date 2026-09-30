@@ -369,12 +369,16 @@ const SessionDetails = () => {
         fetchSessionDetails();
       } catch (err: any) {
         console.error("Error enrolling:", err);
-        const isLimit = typeof err?.message === "string" && err.message.includes("3 sessions");
+        const msg = typeof err?.message === "string" ? err.message : "";
+        const isLimit = msg.includes("3 sessions");
+        const isFull = msg.includes("complète");
         toast({
-          title: isLimit ? "Limite atteinte" : "Erreur",
-          description: isLimit
-            ? "Vous êtes déjà inscrit(e) à 3 sessions à venir. Dès qu'une session est passée, vous pourrez vous inscrire à une nouvelle."
-            : err.message,
+          title: isFull ? "Session complète" : isLimit ? "Limite atteinte" : "Erreur",
+          description: isFull
+            ? "Votre inscription n'a pas pu être faite : la session est complète. Elle réapparaîtra sur la carte si une place se libère."
+            : isLimit
+              ? "Vous êtes déjà inscrit(e) à 3 sessions à venir. Dès qu'une session est passée, vous pourrez vous inscrire à une nouvelle."
+              : err.message,
           variant: "destructive",
         });
       } finally {
