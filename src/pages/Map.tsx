@@ -1082,9 +1082,9 @@ function MapPageInner() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  void leave();
+                                  askLeave();
                                 }}
-                                className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 ring-1 ring-red-100 transition-all hover:bg-red-100 hover:text-red-700 active:scale-[0.98]"
                               >
                                 <UserMinus className="h-3.5 w-3.5" />
                                 {showTrash ? "Supprimer la session" : "Se désinscrire"}
