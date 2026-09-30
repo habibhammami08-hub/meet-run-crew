@@ -767,10 +767,35 @@ export default function ProfilePage() {
                       >
                         Voir
                         <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-                      </Button>
-                    </div>
-                  </div>
-                );
+                       </Button>
+                     </div>
+
+                     {/* Action secondaire : se désinscrire, sous le contenu et après « Voir » */}
+                     {canUnenroll && (
+                       <button
+                         type="button"
+                         onClick={() =>
+                           setLeaveTarget({
+                             id: session.id,
+                             title: session.title,
+                             scheduled_at: session.scheduled_at,
+                             place: session.start_place ?? null,
+                             mode: showTrash ? "delete" : "unenroll",
+                           })
+                         }
+                         className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 ring-1 ring-red-100 transition-all hover:bg-red-100 hover:text-red-700 active:scale-[0.98]"
+                       >
+                         <UserMinus className="h-3.5 w-3.5" />
+                         {showTrash ? "Supprimer la session" : "Se désinscrire"}
+                       </button>
+                     )}
+                     {showHint && (
+                       <p className="mt-3 text-[11px] text-muted-foreground">
+                         Désinscription possible jusqu’à 30 min avant le départ
+                       </p>
+                     )}
+                   </div>
+                 );
               })}
             </div>
           )}
