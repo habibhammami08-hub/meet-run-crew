@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User } from "lucide-react";
+import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User, ArrowRight, Route, Zap } from "lucide-react";
+import { dbToUiIntensity } from "@/lib/sessions/intensity";
+import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
 import { isFreePromoActive } from "@/config/promo";
@@ -680,68 +682,81 @@ export default function ProfilePage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {mySessions.map((session) => (
-                <div key={session.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg">{session.title}</h3>
-                        {/* Petit badge discret si je suis l'hôte */}
-                        {session.host_id === user?.id && (
-                          <Badge variant="outline" className="h-5 text-xs">Hôte</Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(session.scheduled_at).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+            <div className="space-y-3">
+              {mySessions.map((session) => {
+                const scheduled = new Date(session.scheduled_at);
+                const isPastSession = scheduled.getTime() < Date.now();
+                const isHost = session.host_id === user?.id;
+                return (
+                  <div
+                    key={session.id}
+                    className={cn(
+                      "group border rounded-xl p-4 transition-colors hover:bg-muted/50",
+                      isPastSession && "opacity-70"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-base truncate">{session.title}</h3>
+                          {isHost && (
+                            <Badge variant="secondary" className="h-5 shrink-0 text-[10px]">Hôte</Badge>
+                          )}
+                          {isPastSession && (
+                            <Badge variant="outline" className="h-5 shrink-0 text-[10px]">Terminée</Badge>
+                          )}
                         </div>
-                        {session.start_place && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            {session.start_place}
-                          </div>
-                        )}
-                        {session.distance_km ? (
-                          <span>{session.distance_km} km</span>
-                        ) : null}
-                        {session.intensity ? (
-                          <Badge variant="secondary">{session.intensity}</Badge>
-                        ) : null}
-                      </div>
 
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Users className="w-4 h-4" />
-                          {session.current_participants}/{session.max_participants} participants
+                        {/* Date · heure sur une seule ligne */}
+                        <div className="mt-2 space-y-2">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100">
+                            <Calendar className="h-3 w-3" />
+                            {scheduled.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                            {" · "}
+                            {scheduled.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          {session.start_place && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{session.start_place}</span>
+                            </div>
+                          )}
                         </div>
-                        <Badge variant={session.status === 'published' ? 'default' : 'secondary'}>
-                          {session.status === 'published' ? 'Publiée' : session.status}
-                        </Badge>
-                      </div>
-                    </div>
 
-                    {/* 👉 Simplification demandée : uniquement le bouton Voir */}
-                    <div className="flex gap-2">
+                        {/* Intensité · distance · participants sur la même ligne */}
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                          {session.intensity && (
+                            <Badge variant="outline" className="h-6 gap-1 text-[11px] font-medium">
+                              <Zap className="h-2.5 w-2.5 text-muted-foreground" />
+                              {dbToUiIntensity(session.intensity)}
+                            </Badge>
+                          )}
+                          {session.distance_km ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                              <Route className="h-3 w-3" />
+                              <span className="tabular-nums">{session.distance_km} km</span>
+                            </span>
+                          ) : null}
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                            <Users className="h-3 w-3" />
+                            <span className="tabular-nums">{session.current_participants}/{session.max_participants}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bouton « Voir » en haut à droite, vert profond */}
                       <Button
-                        variant="outline"
                         size="sm"
+                        className="h-7 shrink-0 gap-1 rounded-full px-3 text-xs font-bold"
                         onClick={() => navigate(`/session/${session.id}`)}
                       >
                         Voir
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
                       </Button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
