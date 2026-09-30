@@ -443,7 +443,7 @@ const Auth = () => {
                         id="phone"
                         name="phone"
                         type="tel"
-                        placeholder="+64 21 123 4567"
+                        placeholder="+33 6 12 34 56 78"
                         className="pl-10 h-12"
                         required
                       />
