@@ -55,6 +55,17 @@ export default function CreateRun() {
     infoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  // Redirection vers la carte après la confirmation (fermeture auto du modal)
+  useEffect(() => {
+    if (!created) return;
+    const t = setTimeout(() => {
+      navigate("/map", {
+        state: { newSessionId: created.id, shouldFocus: true },
+      });
+    }, 2600);
+    return () => clearTimeout(t);
+  }, [created, navigate]);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(p => {
@@ -521,19 +532,8 @@ export default function CreateRun() {
 
       await handlePostCreation(data);
       
-      alert(`🎉 Session créée avec succès !
-
-"${data.title}"
-ID: ${data.id}
-
-Vous allez être redirigé vers la carte pour voir votre session.`);
       resetForm();
-      
-      setTimeout(() => {
-        navigate("/map", { 
-          state: { newSessionId: data.id, shouldFocus: true } 
-        });
-      }, 1500);
+      setCreated({ id: data.id, title: data.title });
       
     } catch (e: any) {
       alert("Erreur lors de la création : " + (e.message || "Erreur inconnue"));
