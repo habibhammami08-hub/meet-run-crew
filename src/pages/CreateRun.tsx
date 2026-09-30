@@ -69,21 +69,7 @@ export default function CreateRun() {
   const [sessionTypeState, setSessionTypeState] = useState<"mixed"|"women"|"men">("mixed");
   const [maxParticipantsState, setMaxParticipantsState] = useState<number>(10);
   const [isSaving, setIsSaving] = useState(false);
-  const [created, setCreated] = useState<CreatedSession | null>(
-    // DEMO-TEMP: rendu du modal de confirmation pour capture d'écran
-    new URLSearchParams(window.location.search).has("demo-success")
-      ? {
-          id: "demo",
-          title: "Course du soir au bord de l'eau",
-          scheduled_at: new Date(Date.now() + 26 * 3600 * 1000).toISOString(),
-          intensity: "medium",
-          session_type: "mixed",
-          distance_km: 6.4,
-          location_hint: "Escalier du Muet",
-          max_participants: 10,
-        }
-      : null
-  );
+  const [created, setCreated] = useState<CreatedSession | null>(null);
   const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
 
   // Étape mobile (progressive): "start" | "end" | "done"
@@ -103,7 +89,6 @@ export default function CreateRun() {
   // Redirection vers la carte après la confirmation (fermeture auto du modal)
   useEffect(() => {
     if (!created) return;
-    if (new URLSearchParams(window.location.search).has("demo-success")) return; // DEMO-TEMP
     const t = setTimeout(() => {
       navigate("/map", {
         state: { newSessionId: created.id, shouldFocus: true },
@@ -1243,17 +1228,17 @@ export default function CreateRun() {
             >
               <p className="truncate text-sm font-semibold text-foreground">{created.title}</p>
               <div className="mt-2.5 space-y-1.5">
-                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <p className="flex items-center gap-2 text-xs text-foreground/70">
                   <Calendar className="h-3.5 w-3.5 shrink-0 text-deep" />
                   <span className="truncate">{formatCreatedWhen(created.scheduled_at)}</span>
                 </p>
                 {created.location_hint && (
-                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <p className="flex items-center gap-2 text-xs text-foreground/70">
                     <MapPin className="h-3.5 w-3.5 shrink-0 text-deep" />
                     <span className="truncate">{created.location_hint}</span>
                   </p>
                 )}
-                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-foreground/60">
                   <span className="font-medium text-foreground/80">
                     {capitalize(dbToUiIntensity(created.intensity))}
                   </span>
