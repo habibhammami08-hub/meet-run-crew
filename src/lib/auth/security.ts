@@ -9,7 +9,7 @@ export const SECURITY_RULES = {
   MAX_ENROLLMENTS_PER_USER_PER_DAY: 5,
   MIN_TIME_BETWEEN_SESSIONS: 2 * 60 * 60 * 1000, // 2 heures
   MAX_SESSION_DURATION: 4 * 60, // 4 heures en minutes
-  MAX_ADVANCE_BOOKING_DAYS: 90,
+  MAX_ADVANCE_BOOKING_DAYS: 7,
   
   // Validation stricte côté client
   validateSessionAccess: (session: Session | null, user: Profile | null): boolean => {

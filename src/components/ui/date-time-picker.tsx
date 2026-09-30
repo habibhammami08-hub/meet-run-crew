@@ -1,5 +1,5 @@
 import * as React from "react"
-import { format, startOfDay } from "date-fns"
+import { addDays, endOfDay, format, startOfDay } from "date-fns"
 import { fr } from "date-fns/locale"
 import { CalendarIcon, Clock3 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -80,7 +80,7 @@ export function DateTimePicker({ value, onChange, placeholder = "Choisir date et
                 mode="single"
                 selected={selectedDay}
                 onSelect={selectDay}
-                disabled={(day) => day < startOfDay(now)}
+                disabled={(day) => day < startOfDay(now) || day > addDays(endOfDay(now), 7)}
                 locale={fr}
                 weekStartsOn={1}
                 initialFocus
