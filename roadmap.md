@@ -1,6 +1,6 @@
 - [x] Update subscription-facing pages and labels to present automatic free Unlimited access through 31 March 2027; keep paid copy behind the existing campaign switch.
 - [x] Verify public desktop/mobile views, signup navigation, and current build diagnostics.
-- [ ] Verify Unlimited on a signed-in account and session enrollment — blocked: this project uses external, unmanaged authentication without a test session.
+- [ ] Verify Unlimited on a signed-in account and session enrollment — blocked: this project uses external, unmanaged authentication without a test session. Signed-in screens (incl. « Vos prochaines sessions ») were reviewed through a locally simulated session only; no real enrollment has been made against the server.
 - [x] Deduplicate React modules and verify public pages through repeated navigation after reload; the reported crash did not recur in a fresh browser.
 - [x] Keep top headers visible below the iPhone status area and bottom navigation above the home indicator; verify public pages at iPhone width.
 - [x] iPhone app (Capacitor) confirmed working in the iOS simulator against https://www.meetrun.fr.
