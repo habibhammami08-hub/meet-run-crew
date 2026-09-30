@@ -9,7 +9,7 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2 } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
+import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2, UserMinus, Clock } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar as CalendarDays } from "@/components/ui/calendar";
 import { fr } from "date-fns/locale";
@@ -109,6 +109,17 @@ const typeAccent = (type: SessionRow["session_type"]) => {
     return { rail: "from-sky-300 via-blue-500 to-indigo-600", dot: "bg-blue-500" };
   }
   return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
+};
+
+// ——— Compte à rebours lisible (« Dans 40 min », « Dans 3 h », « Dans 2 j »)
+const timeUntilLabel = (when: Date) => {
+  const mins = Math.round((when.getTime() - Date.now()) / 60000);
+  if (mins < 1) return "Maintenant";
+  if (mins < 60) return `Dans ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Dans ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `Dans ${days} j`;
 };
 
 // ——— Fenêtre de filtres : pastilles segmentées (pas de listes déroulantes)
@@ -923,96 +934,164 @@ function MapPageInner() {
 
             {/* —— VOS PROCHAINES SESSIONS (inscriptions) —— */}
             {currentUser && myEnrolledSessions.length > 0 && (
-              <Card className="mt-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <Card className="mt-6 border-0 bg-white/80 shadow-lg backdrop-blur-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Users className="w-5 h-5 text-amber-600" />
-                    Vos prochaines sessions
-                  </CardTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="flex items-center gap-2.5 text-lg">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/15">
+                        <Calendar className="h-4 w-4 text-amber-600" />
+                      </span>
+                      Vos prochaines sessions
+                    </CardTitle>
+                    <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold tabular-nums text-amber-700 ring-1 ring-amber-500/15">
+                      {myEnrolledSessions.length}
+                    </span>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid md:grid-cols-2 gap-3">
+                <CardContent>
+                  <div className="grid gap-3 md:grid-cols-2">
                     {myEnrolledSessions.map((s) => {
-                      const blur = shouldBlur(s); // devrait être false ici
-                      const when = new Date(s.scheduled_at);
+                      const blur = shouldBlur(s);
+                      const scheduled = new Date(s.scheduled_at);
                       const own = isOwnSession(s, currentUser?.id);
+                      const { label: tLabel, badgeVariant, badgeClass, renderIcon } = getTypeMeta(s.session_type);
+                      const accent = typeAccent(s.session_type);
+                      const minutesUntil = (scheduled.getTime() - Date.now()) / 60000;
+                      const canUnenroll = minutesUntil >= 30;
+                      const showTrash = own && (s.participants_count ?? 0) === 0;
+
+                      const leave = async () => {
+                        const question = showTrash
+                          ? "Vous êtes l’hôte et le seul participant. Supprimer cette session ?"
+                          : "Voulez-vous vraiment vous désinscrire de cette session ?";
+                        if (!confirm(question)) return;
+                        try {
+                          const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: s.id });
+                          if (error) throw error;
+                          await Promise.all([fetchMyEnrollments(), fetchSessions()]);
+                        } catch (e: any) {
+                          alert("Erreur lors de l’action: " + e.message);
+                        }
+                      };
+
                       return (
-                        <div key={s.id} className="p-4 rounded-lg border bg-white/70">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
+                        <div
+                          key={s.id}
+                          onClick={() => navigate(`/session/${s.id}`)}
+                          className={cn(
+                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-4 pl-6 pr-4 transition-all duration-200",
+                            "shadow-[var(--shadow-card)] ring-1 ring-gray-900/5",
+                            "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-primary/25",
+                            "active:translate-y-0 active:scale-[0.99]"
+                          )}
+                        >
+                          {/* Filet d'accent couleur type de session */}
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "absolute left-3 top-3 bottom-3 w-1 rounded-full bg-gradient-to-b opacity-80 transition-all duration-200",
+                              "group-hover:w-1.5 group-hover:opacity-100",
+                              accent.rail
+                            )}
+                          />
+
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-amber-500" />
-                                <h4 className="font-semibold text-sm text-gray-900">{s.title}</h4>
-                                <Badge className="bg-amber-100 text-amber-800">Inscrit</Badge>
-                                {own && <Badge variant="secondary">Hôte</Badge>}
+                                <span className={cn("h-2 w-2 shrink-0 rounded-full", accent.dot)} />
+                                <h3 className="truncate text-sm font-bold tracking-tight text-gray-900">{s.title}</h3>
                               </div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                {when.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · {when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                <Badge className="h-5 bg-amber-100 text-[10px] text-amber-800">Inscrit</Badge>
+                                {own && <Badge variant="secondary" className="h-5 text-[10px]">Hôte</Badge>}
                               </div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                <MapPin className="inline w-3 h-3 mr-1" />
+                            </div>
+                            {/* Action principale : « Voir » en haut à droite */}
+                            <Button
+                              size="sm"
+                              className="h-7 shrink-0 gap-1 rounded-full px-3 text-xs font-bold"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/session/${s.id}`);
+                              }}
+                            >
+                              Voir
+                              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                            </Button>
+                          </div>
+
+                          <div className="mt-3 space-y-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100">
+                                <Calendar className="h-3 w-3" />
+                                {scheduled.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                                {" · "}
+                                {scheduled.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-100">
+                                <Clock className="h-3 w-3" />
+                                {timeUntilLabel(scheduled)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                              <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                              <span className="truncate">
                                 {blur ? (arrondissements[s.id] || "Zone approximative") : (s.location_hint || "Lieu exact")}
-                              </div>
+                              </span>
                             </div>
-                            <div className="flex flex-col gap-2">
-                              {(() => {
-                                const now = Date.now();
-                                const sessionTime = new Date(s.scheduled_at).getTime();
-                                const minutesUntil = (sessionTime - now) / 60000;
-                                const canUnenroll = minutesUntil >= 30;
-                                const showTrash = own && (s.participants_count ?? 0) === 0; // ← corrigé
+                          </div>
 
-                                return canUnenroll ? (
-                                  <Button
-                                    size="sm"
-                                    variant={showTrash ? "destructive" : "destructive"}
-                                    onClick={async () => {
-                                      const question = showTrash
-                                        ? "Vous êtes l’hôte et le seul participant. Supprimer cette session ?"
-                                        : "Voulez-vous vraiment vous désinscrire de cette session ?";
-                                      if (!confirm(question)) return;
+                          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3">
+                            {s.intensity && (
+                              <Badge variant="outline" className="h-6 gap-1 border-gray-200 text-[11px] font-medium">
+                                <Zap className="h-2.5 w-2.5 text-gray-400" />
+                                {dbToUiIntensity(s.intensity)}
+                              </Badge>
+                            )}
+                            {s.session_type && (
+                              <Badge variant={badgeVariant} className={cn("h-6 text-[11px] font-medium", badgeClass)}>
+                                {renderIcon("text-[11px] leading-none")}
+                                {tLabel}
+                              </Badge>
+                            )}
+                            {s.distance_km && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                                <Route className="h-3 w-3 text-gray-400" />
+                                <span className="tabular-nums">{s.distance_km} km</span>
+                              </span>
+                            )}
+                            {s.max_participants && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                                <Users className="h-3 w-3 text-gray-400" />
+                                <span className="tabular-nums">{(s.participants_count ?? 0) + 1}/{s.max_participants}</span>
+                              </span>
+                            )}
+                          </div>
 
-                                      try {
-                                        const { data, error } = await supabase
-                                          .rpc('leave_or_delete_session', { p_session_id: s.id });
-
-                                        if (error) throw error;
-
-                                        // Rafraîchir les données locales
-                                        await Promise.all([fetchMyEnrollments(), fetchSessions()]);
-                                      } catch (e: any) {
-                                        alert("Erreur lors de l’action: " + e.message);
-                                      }
-                                    }}
-                                  >
-                                    {showTrash ? (
-                                      <>
-                                        🗑️ Supprimer
-                                      </>
-                                    ) : (
-                                      "Se désinscrire"
-                                    )}
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled
-                                    title="Désinscription impossible moins de 30 minutes avant le début"
-                                  >
-                                    {own && (s.participants_count ?? 0) === 0 ? "Supprimer" : "Se désinscrire"}
-                                  </Button>
-                                );
-                              })()}
-                              <Button size="sm" onClick={() => navigate(`/session/${s.id}`)}>Voir</Button>
-                            </div>
+                          {/* Action secondaire : se désinscrire, sous le contenu et après « Voir » */}
+                          <div className="mt-3">
+                            {canUnenroll ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void leave();
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                              >
+                                <UserMinus className="h-3.5 w-3.5" />
+                                {showTrash ? "Supprimer la session" : "Se désinscrire"}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-gray-400">
+                                Désinscription possible jusqu’à 30 min avant le départ
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-
-                  {/* (SUPPRIMÉ) Légende icônes obsolète */}
                 </CardContent>
               </Card>
             )}
