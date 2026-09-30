@@ -355,8 +355,8 @@ function MapPageInner() {
 
   const [center, setCenter] = useState<LatLng>({ lat: 48.8566, lng: 2.3522 });
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<SessionRow[]>(() => (sessionsCache?.data as SessionRow[]) ?? []);
+  const [loading, setLoading] = useState(() => !sessionsCache);
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [filterRadius, setFilterRadius] = useState<string>("25"); // Défaut : 25 km
@@ -442,14 +442,25 @@ function MapPageInner() {
     if (!hasTriedGeolocation) requestGeolocation();
   }, [requestGeolocation, hasTriedGeolocation]);
 
-  const fetchSessions = useCallback(async () => {
+  const fetchSessions = useCallback(async (force = false) => {
     if (!supabase || !mountedRef.current) return;
     if (abortControllerRef.current) abortControllerRef.current.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
     const { signal } = controller;
 
-    setLoading(true);
+    // Cache mémoire : affichage instantané au retour sur la carte, sans rond qui tourne.
+    const cacheKey = userLocation && filterRadius !== "all"
+      ? `${userLocation.lat.toFixed(2)}_${userLocation.lng.toFixed(2)}_${filterRadius}`
+      : "all";
+    const cached = sessionsCache && sessionsCache.key === cacheKey ? sessionsCache : null;
+    if (cached) {
+      setSessions(cached.data as SessionRow[]);
+      setLoading(false);
+      if (!force && Date.now() - cached.at < SESSIONS_CACHE_TTL_MS) return;
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const now = new Date();
@@ -489,6 +500,7 @@ function MapPageInner() {
         location_lat: s.start_lat,
         location_lng: s.start_lng,
       })) as SessionRow[];
+      sessionsCache = { key: cacheKey, at: Date.now(), data: mapped };
       setSessions(mapped);
     } catch (e: any) {
       if (e?.name !== "AbortError" && mountedRef.current) setError(`Une erreur est survenue: ${e.message}`);
@@ -526,9 +538,10 @@ function MapPageInner() {
   const debouncedRefresh = useCallback(() => {
     if (!mountedRef.current) return;
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    // Petit délai aléatoire : évite que tous les appareils rechargent à la même seconde.
     debounceTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current) fetchSessions();
-    }, 2000);
+      if (mountedRef.current) fetchSessions(true);
+    }, 2000 + Math.random() * 2000);
   }, [fetchSessions]);
 
   const sessionsWithDistance = useMemo(() => {
@@ -593,7 +606,7 @@ function MapPageInner() {
     if (!supabase) throw new Error("Session expirée, rechargez la page.");
     const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: target.id });
     if (error) throw error;
-    await Promise.all([fetchMyEnrollments(), fetchSessions()]);
+    await Promise.all([fetchMyEnrollments(), fetchSessions(true)]);
   }, [supabase, fetchMyEnrollments, fetchSessions]);
 
 
@@ -672,12 +685,6 @@ function MapPageInner() {
     };
   }, [fetchSessions, fetchMyEnrollments, supabase, currentUser]);
 
-  useEffect(() => {
-    if (!authLoading && currentUser && mountedRef.current) {
-      fetchSessions();
-      fetchMyEnrollments();
-    }
-  }, [authLoading, currentUser, fetchSessions, fetchMyEnrollments]);
 
   useEffect(() => {
     if (!supabase || !mountedRef.current) return;
