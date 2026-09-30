@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate, Link } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
-import { uiToDbIntensity } from "@/lib/sessions/intensity";
+import { uiToDbIntensity, dbToUiIntensity } from "@/lib/sessions/intensity";
 import { isFreePromoActive } from "@/config/promo";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { LocationInput } from "@/components/ui/location-input";
@@ -12,10 +12,41 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User, X, RotateCcw } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User, X, RotateCcw, ArrowRight } from "lucide-react";
 import logoImage from "@/assets/meetrun-logo-final.png";
 
 type Pt = google.maps.LatLngLiteral;
+
+type CreatedSession = {
+  id: string;
+  title: string;
+  scheduled_at: string;
+  intensity: string | null;
+  session_type: "mixed" | "women_only" | "men_only" | null;
+  distance_km: number | null;
+  location_hint: string | null;
+  max_participants: number | null;
+};
+
+const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+const sessionTypeLabel = (t: CreatedSession["session_type"]) =>
+  t === "women_only" ? "Femmes uniquement" : t === "men_only" ? "Hommes uniquement" : "Mixte";
+
+// Code couleur des types de session (vert mixte / rouge femmes / bleu hommes)
+const sessionTypeDot = (t: CreatedSession["session_type"]) =>
+  t === "women_only" ? "bg-rose-500" : t === "men_only" ? "bg-blue-500" : "bg-emerald-500";
+
+const formatCreatedWhen = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${day} · ${time}`;
+};
+
+const formatCreatedDistance = (km: number | null) =>
+  km == null || !Number.isFinite(km) ? "" : `${Number(km).toFixed(1).replace(".", ",")} km`;
 
 export default function CreateRun() {
   const navigate = useNavigate();
@@ -38,12 +69,7 @@ export default function CreateRun() {
   const [sessionTypeState, setSessionTypeState] = useState<"mixed"|"women"|"men">("mixed");
   const [maxParticipantsState, setMaxParticipantsState] = useState<number>(10);
   const [isSaving, setIsSaving] = useState(false);
-  const [created, setCreated] = useState<{ id: string; title: string } | null>(
-    // DEMO-TEMP: rendu du modal de confirmation pour capture d'écran
-    new URLSearchParams(window.location.search).has("demo-success")
-      ? { id: "demo", title: "Course du soir au bord de l'eau" }
-      : null
-  );
+  const [created, setCreated] = useState<CreatedSession | null>(null);
   const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
 
   // Étape mobile (progressive): "start" | "end" | "done"
@@ -63,12 +89,11 @@ export default function CreateRun() {
   // Redirection vers la carte après la confirmation (fermeture auto du modal)
   useEffect(() => {
     if (!created) return;
-    if (new URLSearchParams(window.location.search).has("demo-success")) return; // DEMO-TEMP
     const t = setTimeout(() => {
       navigate("/map", {
         state: { newSessionId: created.id, shouldFocus: true },
       });
-    }, 2600);
+    }, 3200);
     return () => clearTimeout(t);
   }, [created, navigate]);
 
@@ -528,7 +553,9 @@ export default function CreateRun() {
       const { data, error } = await supabase
         .from("sessions")
         .insert(payload)
-        .select("id,title,scheduled_at")
+        .select(
+          "id,title,scheduled_at,intensity,session_type,distance_km,location_hint,max_participants"
+        )
         .single();
       
       if (error) { 
@@ -539,7 +566,7 @@ export default function CreateRun() {
       await handlePostCreation(data);
       
       resetForm();
-      setCreated({ id: data.id, title: data.title });
+      setCreated(data as CreatedSession);
       
     } catch (e: any) {
       alert("Erreur lors de la création : " + (e.message || "Erreur inconnue"));
@@ -1137,61 +1164,121 @@ export default function CreateRun() {
 
       {created && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 backdrop-blur-[2px] animate-in fade-in duration-200"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/55 p-5 backdrop-blur-[3px] animate-in fade-in duration-200"
           onClick={() => setCreated(null)}
         >
           <style>{`
             @keyframes mr-check-draw { to { stroke-dashoffset: 0; } }
-            @keyframes mr-pop { 0% { transform: scale(.8); opacity: 0; } 60% { transform: scale(1.04); } 100% { transform: scale(1); opacity: 1; } }
-            @keyframes mr-ring { 0% { transform: scale(1); opacity: .35; } 100% { transform: scale(1.9); opacity: 0; } }
+            @keyframes mr-pop { 0% { transform: scale(.82); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+            @keyframes mr-halo { 0% { transform: scale(.95); opacity: .45; } 75% { transform: scale(1.45); opacity: 0; } 100% { transform: scale(1.45); opacity: 0; } }
+            @keyframes mr-rise { from { transform: translateY(14px) scale(.97); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+            @keyframes mr-row { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             @keyframes mr-bar { from { width: 100%; } to { width: 0%; } }
           `}</style>
           <div
-            className="relative w-[320px] max-w-[calc(100vw-2rem)] rounded-3xl bg-background border border-border shadow-2xl p-7 text-center animate-in zoom-in-95 fade-in duration-200"
+            className="relative w-full max-w-[380px] rounded-[32px] bg-background p-7 text-center ring-1 ring-foreground/5 shadow-[0_28px_80px_-20px_rgba(0,0,0,0.45)]"
+            style={{ animation: "mr-rise .32s cubic-bezier(.2,.9,.3,1.2) both" }}
             role="dialog"
-            aria-label="Session créée"
+            aria-modal="true"
+            aria-labelledby="mr-created-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative mx-auto mb-5 h-16 w-16">
+            {/* Pastille de confirmation */}
+            <div className="relative mx-auto h-[76px] w-[76px]">
               <span
-                className="absolute inset-0 rounded-full bg-deep"
-                style={{ animation: "mr-ring 1.4s ease-out infinite" }}
+                className="absolute -inset-1.5 rounded-full bg-deep/15"
+                style={{ animation: "mr-halo 1.6s ease-out .25s infinite" }}
               />
+              <span className="absolute -inset-1.5 rounded-full bg-deep/10" />
               <span
-                className="relative flex h-16 w-16 items-center justify-center rounded-full bg-deep shadow-lg"
-                style={{ animation: "mr-pop .35s cubic-bezier(.2,.9,.3,1.4) both" }}
+                className="relative flex h-full w-full items-center justify-center rounded-full bg-deep shadow-[0_12px_26px_-10px_rgba(13,66,57,0.85)]"
+                style={{ animation: "mr-pop .4s cubic-bezier(.2,.9,.3,1.4) both" }}
               >
-                <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
+                <svg viewBox="0 0 24 24" className="h-9 w-9" fill="none">
                   <path
                     d="M5 12.5l4.5 4.5L19 7.5"
                     stroke="white"
                     strokeWidth="2.6"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    style={{ strokeDasharray: 22, strokeDashoffset: 22, animation: "mr-check-draw .45s ease-out .15s forwards" }}
+                    style={{ strokeDasharray: 22, strokeDashoffset: 22, animation: "mr-check-draw .5s ease-out .2s forwards" }}
                   />
                 </svg>
               </span>
             </div>
-            <h2 className="text-lg font-bold text-foreground leading-tight">Session créée !</h2>
-            <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2 break-words">« {created.title} »</p>
+
+            <h2
+              id="mr-created-title"
+              className="mt-5 text-[22px] font-bold leading-tight tracking-tight text-foreground"
+              style={{ animation: "mr-row .3s ease-out .14s both" }}
+            >
+              Votre session est en ligne
+            </h2>
+            <p
+              className="mx-auto mt-1.5 max-w-[19rem] text-sm leading-relaxed text-muted-foreground"
+              style={{ animation: "mr-row .3s ease-out .22s both" }}
+            >
+              Les membres autour de vous peuvent la voir et s'y inscrire.
+            </p>
+
+            {/* Rappel de la session créée */}
+            <div
+              className="mt-5 rounded-2xl bg-muted/70 p-4 text-left ring-1 ring-foreground/5"
+              style={{ animation: "mr-row .3s ease-out .3s both" }}
+            >
+              <p className="truncate text-sm font-semibold text-foreground">{created.title}</p>
+              <div className="mt-2.5 space-y-1.5">
+                <p className="flex items-center gap-2 text-xs text-foreground/70">
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-deep" />
+                  <span className="truncate">{formatCreatedWhen(created.scheduled_at)}</span>
+                </p>
+                {created.location_hint && (
+                  <p className="flex items-center gap-2 text-xs text-foreground/70">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-deep" />
+                    <span className="truncate">{created.location_hint}</span>
+                  </p>
+                )}
+                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-foreground/60">
+                  <span className="font-medium text-foreground/80">
+                    {capitalize(dbToUiIntensity(created.intensity))}
+                  </span>
+                  {formatCreatedDistance(created.distance_km) && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>{formatCreatedDistance(created.distance_km)}</span>
+                    </>
+                  )}
+                  <span aria-hidden>·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${sessionTypeDot(created.session_type)}`} />
+                    {sessionTypeLabel(created.session_type)}
+                  </span>
+                </p>
+              </div>
+            </div>
+
             <Button
-              className="mt-5 w-full bg-deep text-white hover:bg-deep/90 font-semibold"
+              className="mt-5 h-12 w-full rounded-2xl bg-deep text-[15px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(13,66,57,0.9)] transition-transform hover:bg-deep/95 active:scale-[0.98]"
+              style={{ animation: "mr-row .3s ease-out .38s both" }}
               onClick={() =>
                 navigate("/map", { state: { newSessionId: created.id, shouldFocus: true } })
               }
             >
               Voir sur la carte
+              <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
-            <p className="mt-3 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
-              Redirection vers la carte…
-              <span className="relative block h-1 w-16 overflow-hidden rounded-full bg-muted">
-                <span
-                  className="absolute inset-y-0 left-0 rounded-full bg-deep/60"
-                  style={{ animation: "mr-bar 2.6s linear forwards" }}
+
+            <div className="mt-4" style={{ animation: "mr-row .3s ease-out .46s both" }}>
+              <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                Redirection vers la carte…
+              </p>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-deep/50"
+                  style={{ animation: "mr-bar 3.2s linear forwards" }}
                 />
-              </span>
-            </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
