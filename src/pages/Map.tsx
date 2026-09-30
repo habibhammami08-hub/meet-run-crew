@@ -9,7 +9,7 @@ import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2 } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
+import { MapPin, Users, ChevronDown, SlidersHorizontal, Navigation, Calendar, Zap, User, ArrowRight, Route, Plus, Building2, UserMinus, Clock } from "lucide-react"; // Filter remplacé par ChevronDown/SlidersHorizontal (nouvelle fenêtre de filtres)
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar as CalendarDays } from "@/components/ui/calendar";
 import { fr } from "date-fns/locale";
@@ -109,6 +109,17 @@ const typeAccent = (type: SessionRow["session_type"]) => {
     return { rail: "from-sky-300 via-blue-500 to-indigo-600", dot: "bg-blue-500" };
   }
   return { rail: "from-emerald-300 via-emerald-500 to-green-600", dot: "bg-emerald-500" };
+};
+
+// ——— Compte à rebours lisible (« Dans 40 min », « Dans 3 h », « Dans 2 j »)
+const timeUntilLabel = (when: Date) => {
+  const mins = Math.round((when.getTime() - Date.now()) / 60000);
+  if (mins < 1) return "Maintenant";
+  if (mins < 60) return `Dans ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Dans ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `Dans ${days} j`;
 };
 
 // ——— Fenêtre de filtres : pastilles segmentées (pas de listes déroulantes)
