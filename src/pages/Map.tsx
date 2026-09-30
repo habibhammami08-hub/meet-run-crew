@@ -986,9 +986,9 @@ function MapPageInner() {
                           key={s.id}
                           onClick={() => navigate(`/session/${s.id}`)}
                           className={cn(
-                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-3 pl-5 pr-3.5 transition-all duration-200",
-                            "shadow-[var(--shadow-card)] ring-1 ring-gray-900/5",
-                            "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-primary/25",
+                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-deep/[0.04] py-3 pl-5 pr-3.5 transition-all duration-200",
+                            "shadow-[var(--shadow-card)] ring-1 ring-deep/15",
+                            "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-deep/30",
                             "active:translate-y-0 active:scale-[0.99]"
                           )}
                         >
