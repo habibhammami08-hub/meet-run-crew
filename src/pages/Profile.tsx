@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User, ArrowRight, Route, Zap } from "lucide-react";
+import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User, ArrowRight, Route, Zap, UserMinus } from "lucide-react";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
+import LeaveSessionDialog, { type LeaveSessionTarget } from "@/components/LeaveSessionDialog";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
