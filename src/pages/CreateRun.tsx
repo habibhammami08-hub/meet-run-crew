@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, MarkerF, DirectionsRenderer } from "@react-google-maps/api";
 import { useNavigate, Link } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
-import { uiToDbIntensity } from "@/lib/sessions/intensity";
+import { uiToDbIntensity, dbToUiIntensity } from "@/lib/sessions/intensity";
 import { isFreePromoActive } from "@/config/promo";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { LocationInput } from "@/components/ui/location-input";
@@ -12,10 +12,41 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User, X, RotateCcw } from "lucide-react";
+import { MapPin, Users, Zap, Timer, Route, Calendar, ArrowDownCircle, User, X, RotateCcw, ArrowRight } from "lucide-react";
 import logoImage from "@/assets/meetrun-logo-final.png";
 
 type Pt = google.maps.LatLngLiteral;
+
+type CreatedSession = {
+  id: string;
+  title: string;
+  scheduled_at: string;
+  intensity: string | null;
+  session_type: "mixed" | "women_only" | "men_only" | null;
+  distance_km: number | null;
+  location_hint: string | null;
+  max_participants: number | null;
+};
+
+const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+const sessionTypeLabel = (t: CreatedSession["session_type"]) =>
+  t === "women_only" ? "Femmes uniquement" : t === "men_only" ? "Hommes uniquement" : "Mixte";
+
+// Code couleur des types de session (vert mixte / rouge femmes / bleu hommes)
+const sessionTypeDot = (t: CreatedSession["session_type"]) =>
+  t === "women_only" ? "bg-rose-500" : t === "men_only" ? "bg-blue-500" : "bg-emerald-500";
+
+const formatCreatedWhen = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${day} · ${time}`;
+};
+
+const formatCreatedDistance = (km: number | null) =>
+  km == null || !Number.isFinite(km) ? "" : `${Number(km).toFixed(1).replace(".", ",")} km`;
 
 export default function CreateRun() {
   const navigate = useNavigate();
@@ -68,7 +99,7 @@ export default function CreateRun() {
       navigate("/map", {
         state: { newSessionId: created.id, shouldFocus: true },
       });
-    }, 2600);
+    }, 3200);
     return () => clearTimeout(t);
   }, [created, navigate]);
 
@@ -528,7 +559,9 @@ export default function CreateRun() {
       const { data, error } = await supabase
         .from("sessions")
         .insert(payload)
-        .select("id,title,scheduled_at")
+        .select(
+          "id,title,scheduled_at,intensity,session_type,distance_km,location_hint,max_participants"
+        )
         .single();
       
       if (error) { 
@@ -539,7 +572,7 @@ export default function CreateRun() {
       await handlePostCreation(data);
       
       resetForm();
-      setCreated({ id: data.id, title: data.title });
+      setCreated(data as CreatedSession);
       
     } catch (e: any) {
       alert("Erreur lors de la création : " + (e.message || "Erreur inconnue"));
