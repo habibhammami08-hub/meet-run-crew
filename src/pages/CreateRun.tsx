@@ -38,6 +38,7 @@ export default function CreateRun() {
   const [sessionTypeState, setSessionTypeState] = useState<"mixed"|"women"|"men">("mixed");
   const [maxParticipantsState, setMaxParticipantsState] = useState<number>(10);
   const [isSaving, setIsSaving] = useState(false);
+  const [created, setCreated] = useState<{ id: string; title: string } | null>(null);
   const [isSelectingLocation, setIsSelectingLocation] = useState<"start" | "end" | null>(null);
 
   // Étape mobile (progressive): "start" | "end" | "done"
