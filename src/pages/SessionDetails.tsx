@@ -375,7 +375,14 @@ const SessionDetails = () => {
         fetchSessionDetails();
       } catch (err: any) {
         console.error("Error enrolling:", err);
-        toast({ title: "Erreur", description: err.message, variant: "destructive" });
+        const isLimit = typeof err?.message === "string" && err.message.includes("3 sessions");
+        toast({
+          title: isLimit ? "Limite atteinte" : "Erreur",
+          description: isLimit
+            ? "Vous êtes déjà inscrit(e) à 3 sessions à venir. Dès qu'une session est passée, vous pourrez vous inscrire à une nouvelle."
+            : err.message,
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
