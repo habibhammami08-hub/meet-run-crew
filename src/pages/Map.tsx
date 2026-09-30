@@ -767,7 +767,7 @@ function MapPageInner() {
       <div className="max-w-7xl mx-auto px-4 py-3.5">
         <div className="grid lg:grid-cols-3 gap-4">
           {/* Carte */}
-          <div className="lg:col-span-2 order-1 lg:order-2">
+          <div className="lg:col-span-2 order-1 lg:order-2 min-w-0">
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="h-[36vh] lg:h-[60vh] min-h-[260px] lg:min-h-[400px]">
@@ -1105,7 +1105,7 @@ function MapPageInner() {
           </div>
 
           {/* Colonne gauche */}
-          <div className="lg:col-span-1 order-2 lg:order-1 space-y-4">
+          <div className="lg:col-span-1 order-2 lg:order-1 min-w-0 space-y-4">
             <Card className="order-2 overflow-hidden border-0 bg-white/80 shadow-lg backdrop-blur-sm lg:order-1">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
