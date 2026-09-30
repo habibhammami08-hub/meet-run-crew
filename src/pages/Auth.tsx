@@ -430,7 +430,6 @@ const Auth = () => {
                         <option value="">Sélectionner</option>
                         <option value="homme">Homme</option>
                         <option value="femme">Femme</option>
-                        <option value="autre">Autre</option>
                       </select>
                     </div>
                   </div>

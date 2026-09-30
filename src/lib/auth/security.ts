@@ -160,7 +160,7 @@ export const SECURITY_RULES = {
     }
     
     if (profileData.gender !== undefined && profileData.gender && 
-        !['homme', 'femme', 'autre'].includes(profileData.gender)) {
+        !['homme', 'femme'].includes(profileData.gender)) {
       errors.push('Le genre spécifié n\'est pas valide');
     }
     
