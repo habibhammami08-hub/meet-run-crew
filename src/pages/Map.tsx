@@ -971,18 +971,14 @@ function MapPageInner() {
                       const canUnenroll = minutesUntil >= 30;
                       const showTrash = own && (s.participants_count ?? 0) === 0;
 
-                      const leave = async () => {
-                        const question = showTrash
-                          ? "Vous êtes l’hôte et le seul participant. Supprimer cette session ?"
-                          : "Voulez-vous vraiment vous désinscrire de cette session ?";
-                        if (!confirm(question)) return;
-                        try {
-                          const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: s.id });
-                          if (error) throw error;
-                          await Promise.all([fetchMyEnrollments(), fetchSessions()]);
-                        } catch (e: any) {
-                          alert("Erreur lors de l’action: " + e.message);
-                        }
+                      const askLeave = () => {
+                        setLeaveTarget({
+                          id: s.id,
+                          title: s.title,
+                          scheduled_at: s.scheduled_at,
+                          place: blur ? (arrondissements[s.id] || null) : (s.location_hint || s.start_place || null),
+                          mode: showTrash ? "delete" : "unenroll",
+                        });
                       };
 
                       return (
