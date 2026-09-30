@@ -78,7 +78,6 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <TooltipProvider>
-            <GoogleMapProvider>
               <Toaster />
               <Sonner />
               <BrowserRouter>
@@ -90,10 +89,10 @@ const App = () => {
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/auth" element={<Auth />} />
-                      <Route path="/map" element={<Map />} />
-                      <Route path="/session/:id" element={<SessionDetails />} />
+                      <Route path="/map" element={<GoogleMapProvider><Map /></GoogleMapProvider>} />
+                      <Route path="/session/:id" element={<GoogleMapProvider><SessionDetails /></GoogleMapProvider>} />
                       <Route path="/runner/:id" element={<PublicProfile />} />
-                      <Route path="/create" element={<CreateRun />} />
+                      <Route path="/create" element={<GoogleMapProvider><CreateRun /></GoogleMapProvider>} />
                       <Route path="/profile" element={<Profile />} />
                       <Route path="/subscription" element={<Subscription />} />
                       <Route path="/subscription/success" element={<SubscriptionSuccess />} />
@@ -106,7 +105,6 @@ const App = () => {
                   </Suspense>
                 </AppLayout>
               </BrowserRouter>
-            </GoogleMapProvider>
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>
