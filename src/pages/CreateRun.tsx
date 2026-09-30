@@ -1179,61 +1179,121 @@ export default function CreateRun() {
 
       {created && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 backdrop-blur-[2px] animate-in fade-in duration-200"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/55 p-5 backdrop-blur-[3px] animate-in fade-in duration-200"
           onClick={() => setCreated(null)}
         >
           <style>{`
             @keyframes mr-check-draw { to { stroke-dashoffset: 0; } }
-            @keyframes mr-pop { 0% { transform: scale(.8); opacity: 0; } 60% { transform: scale(1.04); } 100% { transform: scale(1); opacity: 1; } }
-            @keyframes mr-ring { 0% { transform: scale(1); opacity: .35; } 100% { transform: scale(1.9); opacity: 0; } }
+            @keyframes mr-pop { 0% { transform: scale(.82); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+            @keyframes mr-halo { 0% { transform: scale(.95); opacity: .45; } 75% { transform: scale(1.45); opacity: 0; } 100% { transform: scale(1.45); opacity: 0; } }
+            @keyframes mr-rise { from { transform: translateY(14px) scale(.97); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+            @keyframes mr-row { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             @keyframes mr-bar { from { width: 100%; } to { width: 0%; } }
           `}</style>
           <div
-            className="relative w-[320px] max-w-[calc(100vw-2rem)] rounded-3xl bg-background border border-border shadow-2xl p-7 text-center animate-in zoom-in-95 fade-in duration-200"
+            className="relative w-full max-w-[380px] rounded-[32px] bg-background p-7 text-center ring-1 ring-foreground/5 shadow-[0_28px_80px_-20px_rgba(0,0,0,0.45)]"
+            style={{ animation: "mr-rise .32s cubic-bezier(.2,.9,.3,1.2) both" }}
             role="dialog"
-            aria-label="Session créée"
+            aria-modal="true"
+            aria-labelledby="mr-created-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative mx-auto mb-5 h-16 w-16">
+            {/* Pastille de confirmation */}
+            <div className="relative mx-auto h-[76px] w-[76px]">
               <span
-                className="absolute inset-0 rounded-full bg-deep"
-                style={{ animation: "mr-ring 1.4s ease-out infinite" }}
+                className="absolute -inset-1.5 rounded-full bg-deep/15"
+                style={{ animation: "mr-halo 1.6s ease-out .25s infinite" }}
               />
+              <span className="absolute -inset-1.5 rounded-full bg-deep/10" />
               <span
-                className="relative flex h-16 w-16 items-center justify-center rounded-full bg-deep shadow-lg"
-                style={{ animation: "mr-pop .35s cubic-bezier(.2,.9,.3,1.4) both" }}
+                className="relative flex h-full w-full items-center justify-center rounded-full bg-deep shadow-[0_12px_26px_-10px_rgba(13,66,57,0.85)]"
+                style={{ animation: "mr-pop .4s cubic-bezier(.2,.9,.3,1.4) both" }}
               >
-                <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
+                <svg viewBox="0 0 24 24" className="h-9 w-9" fill="none">
                   <path
                     d="M5 12.5l4.5 4.5L19 7.5"
                     stroke="white"
                     strokeWidth="2.6"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    style={{ strokeDasharray: 22, strokeDashoffset: 22, animation: "mr-check-draw .45s ease-out .15s forwards" }}
+                    style={{ strokeDasharray: 22, strokeDashoffset: 22, animation: "mr-check-draw .5s ease-out .2s forwards" }}
                   />
                 </svg>
               </span>
             </div>
-            <h2 className="text-lg font-bold text-foreground leading-tight">Session créée !</h2>
-            <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2 break-words">« {created.title} »</p>
+
+            <h2
+              id="mr-created-title"
+              className="mt-5 text-[22px] font-bold leading-tight tracking-tight text-foreground"
+              style={{ animation: "mr-row .3s ease-out .14s both" }}
+            >
+              Votre session est en ligne
+            </h2>
+            <p
+              className="mx-auto mt-1.5 max-w-[19rem] text-sm leading-relaxed text-muted-foreground"
+              style={{ animation: "mr-row .3s ease-out .22s both" }}
+            >
+              Les membres autour de vous peuvent la voir et s'y inscrire.
+            </p>
+
+            {/* Rappel de la session créée */}
+            <div
+              className="mt-5 rounded-2xl bg-muted/70 p-4 text-left ring-1 ring-foreground/5"
+              style={{ animation: "mr-row .3s ease-out .3s both" }}
+            >
+              <p className="truncate text-sm font-semibold text-foreground">{created.title}</p>
+              <div className="mt-2.5 space-y-1.5">
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-deep" />
+                  <span className="truncate">{formatCreatedWhen(created.scheduled_at)}</span>
+                </p>
+                {created.location_hint && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-deep" />
+                    <span className="truncate">{created.location_hint}</span>
+                  </p>
+                )}
+                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/80">
+                    {capitalize(dbToUiIntensity(created.intensity))}
+                  </span>
+                  {formatCreatedDistance(created.distance_km) && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>{formatCreatedDistance(created.distance_km)}</span>
+                    </>
+                  )}
+                  <span aria-hidden>·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${sessionTypeDot(created.session_type)}`} />
+                    {sessionTypeLabel(created.session_type)}
+                  </span>
+                </p>
+              </div>
+            </div>
+
             <Button
-              className="mt-5 w-full bg-deep text-white hover:bg-deep/90 font-semibold"
+              className="mt-5 h-12 w-full rounded-2xl bg-deep text-[15px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(13,66,57,0.9)] transition-transform hover:bg-deep/95 active:scale-[0.98]"
+              style={{ animation: "mr-row .3s ease-out .38s both" }}
               onClick={() =>
                 navigate("/map", { state: { newSessionId: created.id, shouldFocus: true } })
               }
             >
               Voir sur la carte
+              <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
-            <p className="mt-3 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
-              Redirection vers la carte…
-              <span className="relative block h-1 w-16 overflow-hidden rounded-full bg-muted">
-                <span
-                  className="absolute inset-y-0 left-0 rounded-full bg-deep/60"
-                  style={{ animation: "mr-bar 2.6s linear forwards" }}
+
+            <div className="mt-4" style={{ animation: "mr-row .3s ease-out .46s both" }}>
+              <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                Redirection vers la carte…
+              </p>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-deep/50"
+                  style={{ animation: "mr-bar 3.2s linear forwards" }}
                 />
-              </span>
-            </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
