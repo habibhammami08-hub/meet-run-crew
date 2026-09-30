@@ -1466,6 +1466,14 @@ function MapPageInner() {
             </CardContent>
           </Card>
         )}
+
+        <LeaveSessionDialog
+          target={leaveTarget}
+          onOpenChange={(open) => {
+            if (!open) setLeaveTarget(null);
+          }}
+          onConfirm={runLeave}
+        />
       </div>
     </div>
   );
