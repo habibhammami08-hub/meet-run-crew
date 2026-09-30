@@ -976,7 +976,7 @@ function MapPageInner() {
                           id: s.id,
                           title: s.title,
                           scheduled_at: s.scheduled_at,
-                          place: blur ? (arrondissements[s.id] || null) : (s.location_hint || s.start_place || null),
+                          place: blur ? (arrondissements[s.id] || null) : (s.location_hint || null),
                           mode: showTrash ? "delete" : "unenroll",
                         });
                       };
