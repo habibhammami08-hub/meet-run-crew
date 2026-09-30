@@ -691,7 +691,7 @@ function MapPageInner() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-deep/5 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-4 py-2.5">
           <div className="flex items-center justify-between">
             <Link
               to="/"
@@ -701,7 +701,7 @@ function MapPageInner() {
               <img
                 src={markImage}
                 alt="MeetRun"
-                className="h-9 w-auto sm:h-10"
+                className="h-8 w-auto sm:h-10"
               />
             </Link>
 
@@ -764,13 +764,13 @@ function MapPageInner() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-3 gap-6">
+      <div className="max-w-7xl mx-auto px-4 py-3.5">
+        <div className="grid lg:grid-cols-3 gap-4">
           {/* Carte */}
           <div className="lg:col-span-2 order-1 lg:order-2">
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
-                <div className="h-[40vh] lg:h-[60vh] min-h-[300px] lg:min-h-[400px]">
+                <div className="h-[36vh] lg:h-[60vh] min-h-[260px] lg:min-h-[400px]">
                   <GoogleMap
                     mapContainerStyle={{ width: "100%", height: "100%" }}
                     center={center}
@@ -945,8 +945,8 @@ function MapPageInner() {
 
             {/* —— VOS PROCHAINES SESSIONS (inscriptions) —— */}
             {currentUser && myEnrolledSessions.length > 0 && (
-              <Card className="mt-6 border-0 bg-white/80 shadow-lg backdrop-blur-sm">
-                <CardHeader className="pb-3">
+              <Card className="mt-4 border-0 bg-white/80 shadow-lg backdrop-blur-sm">
+                <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2.5 text-lg">
                       <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/15">
@@ -986,7 +986,7 @@ function MapPageInner() {
                           key={s.id}
                           onClick={() => navigate(`/session/${s.id}`)}
                           className={cn(
-                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-4 pl-6 pr-4 transition-all duration-200",
+                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-3 pl-5 pr-3.5 transition-all duration-200",
                             "shadow-[var(--shadow-card)] ring-1 ring-gray-900/5",
                             "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-primary/25",
                             "active:translate-y-0 active:scale-[0.99]"
@@ -1027,7 +1027,7 @@ function MapPageInner() {
                             </Button>
                           </div>
 
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-2.5 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100">
                                 <Calendar className="h-3 w-3" />
@@ -1048,7 +1048,7 @@ function MapPageInner() {
                             </div>
                           </div>
 
-                          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3">
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-2.5">
                             {s.intensity && (
                               <Badge variant="outline" className="h-6 gap-1 border-gray-200 text-[11px] font-medium">
                                 <Zap className="h-2.5 w-2.5 text-gray-400" />
@@ -1076,7 +1076,7 @@ function MapPageInner() {
                           </div>
 
                           {/* Action secondaire : se désinscrire, sous le contenu et après « Voir » */}
-                          <div className="mt-3">
+                          <div className="mt-2.5">
                             {canUnenroll ? (
                               <button
                                 type="button"
@@ -1105,9 +1105,9 @@ function MapPageInner() {
           </div>
 
           {/* Colonne gauche */}
-          <div className="lg:col-span-1 order-2 lg:order-1 space-y-6">
+          <div className="lg:col-span-1 order-2 lg:order-1 space-y-4">
             <Card className="order-2 overflow-hidden border-0 bg-white/80 shadow-lg backdrop-blur-sm lg:order-1">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle className="flex items-center gap-2.5 text-lg">
                     <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
@@ -1122,7 +1122,7 @@ function MapPageInner() {
                   )}
                 </div>
                 {/* Accès filtres : le mot « Filtre » démarre sous « Sessions » (icône 32px + écart 10px) */}
-                <div className="mt-3 flex pl-[42px]">
+                <div className="mt-2 flex pl-[42px]">
                   <button
                     type="button"
                     onClick={() => setShowFilters(true)}
@@ -1179,7 +1179,7 @@ function MapPageInner() {
                             navigate(`/session/${session.id}`);
                           }}
                           className={cn(
-                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-4 pl-6 pr-4 transition-all duration-200",
+                            "group relative cursor-pointer overflow-hidden rounded-2xl bg-white py-3 pl-5 pr-3.5 transition-all duration-200",
                             "shadow-[var(--shadow-card)] ring-1 ring-gray-900/5",
                             "hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] hover:ring-primary/25",
                             "active:translate-y-0 active:scale-[0.99]",
@@ -1227,7 +1227,7 @@ function MapPageInner() {
                           </div>
 
 
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-2.5 space-y-1.5">
                             <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-100">
                               <Calendar className="h-3 w-3" />
                               {scheduled.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
@@ -1242,7 +1242,7 @@ function MapPageInner() {
                             </div>
                           </div>
 
-                          <div className="mt-3 -ml-6 -mr-4 flex items-center gap-2 border-t border-gray-100 pl-6 pr-4 pt-3">
+                          <div className="mt-2.5 -ml-5 -mr-3.5 flex items-center gap-2 border-t border-gray-100 pl-5 pr-3.5 pt-2.5">
                             <div className="flex flex-wrap items-center gap-1.5">
                               {session.intensity && (
                                 <Badge variant="outline" className="h-6 gap-1 border-gray-200 text-[11px] font-medium">
