@@ -867,6 +867,14 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <LeaveSessionDialog
+        target={leaveTarget}
+        onOpenChange={(open) => {
+          if (!open) setLeaveTarget(null);
+        }}
+        onConfirm={runLeave}
+      />
     </div>
     </div>
   );
