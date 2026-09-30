@@ -307,7 +307,7 @@ const Auth = () => {
         {mode === 'signup' && isFreePromoActive() && (
           <div className="mb-4 border border-promo/40 bg-promo-surface px-5 py-4 text-promo-foreground">
             <div className="flex items-center gap-2 font-bold text-promo"><Crown size={20} /> MeetRun Unlimited offert</div>
-            <p className="mt-1 text-sm">Activé automatiquement dès l’inscription, sans carte bancaire. 0 € au lieu de 9,99 €/mois, valable jusqu’au 31 mars 2027.</p>
+            <p className="mt-1 text-sm">Activé dès l’inscription, sans carte bancaire. 0 € au lieu de 9,99 €/mois, valable jusqu’au 31 mars 2027.</p>
           </div>
         )}
         <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
