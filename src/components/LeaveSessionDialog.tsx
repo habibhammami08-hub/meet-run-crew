@@ -48,7 +48,7 @@ export default function LeaveSessionDialog({ target, onOpenChange, onConfirm }: 
     setBusy(true);
     try {
       await onConfirm(data);
-      toast.success(isDelete ? "Session supprimée" : "Vous êtes désinscrit·e de cette session");
+      toast.success(isDelete ? "Session supprimée" : "Vous êtes désinscrit(e) de cette session");
       onOpenChange(false);
     } catch (e: any) {
       toast.error(e?.message || "Une erreur est survenue, réessayez.");
