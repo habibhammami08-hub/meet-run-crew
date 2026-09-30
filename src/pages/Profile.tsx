@@ -194,6 +194,16 @@ export default function ProfilePage() {
     }
   }, [supabase]);
 
+  // Fenêtre de confirmation de désinscription / suppression
+  const [leaveTarget, setLeaveTarget] = useState<LeaveSessionTarget | null>(null);
+  const runLeave = useCallback(async (target: LeaveSessionTarget) => {
+    if (!supabase) throw new Error("Session expirée, rechargez la page.");
+    const { error } = await supabase.rpc("leave_or_delete_session", { p_session_id: target.id });
+    if (error) throw error;
+    if (user?.id) await fetchMySessions(user.id);
+  }, [supabase, user?.id, fetchMySessions]);
+
+
   const updateProfileStats = useCallback(async (userId: string) => {
     if (!supabase || !userId || !mountedRef.current) return;
     try {
