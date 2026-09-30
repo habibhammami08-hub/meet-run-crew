@@ -642,6 +642,10 @@ function MapPageInner() {
     });
     // ▲▲▲
 
+    // Sessions complètes masquées ; elles réapparaissent dès qu'une place se libère
+    // (le compteur est mis à jour en base et la carte se rafraîchit en direct).
+    filtered = filtered.filter(s => !s.max_participants || (s.participants_count ?? 0) < s.max_participants);
+
     // Exclure les sessions où l'utilisateur est organisateur ou inscrit (liste + épingles de la carte)
     if (currentUser) {
       filtered = filtered.filter(s => s.host_id !== currentUser.id && !mySessionIds.has(s.id));
