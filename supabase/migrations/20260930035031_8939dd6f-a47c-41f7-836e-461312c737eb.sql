@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.sessions_guard_schedule_window() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.enrollments_guard_max_upcoming() FROM public, anon, authenticated;
