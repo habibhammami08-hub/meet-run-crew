@@ -8,3 +8,4 @@
 - [x] Animated launch screen (mark reveal + "MeetRun") on native launch and once per web session.
 - [ ] Android app: install Android Studio, then run on an emulator or phone — waiting on the user's machine setup.
 - [ ] Store publication (Apple App Store + Google Play) — blocked: developer accounts not yet created (Apple 99 $/an, Google Play 25 $ une fois).
+- [x] Make « Se désinscrire » always red, confirm it through the shared `LeaveSessionDialog` bottom sheet, and add the same action to « Mes sessions » in the profile; verified on /map and /profile with a simulated session (RPC `leave_or_delete_session` fires with the right session id).
