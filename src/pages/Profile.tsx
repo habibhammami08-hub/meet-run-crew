@@ -698,6 +698,10 @@ export default function ProfilePage() {
                 const scheduled = new Date(session.scheduled_at);
                 const isPastSession = scheduled.getTime() < Date.now();
                 const isHost = session.host_id === user?.id;
+                const minutesUntil = (scheduled.getTime() - Date.now()) / 60000;
+                const canUnenroll = !isPastSession && minutesUntil >= 30;
+                const showHint = !isPastSession && minutesUntil < 30;
+                const showTrash = isHost && (session.participants_count ?? 0) === 0;
                 return (
                   <div
                     key={session.id}
