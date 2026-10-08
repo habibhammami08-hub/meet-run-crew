@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Users, AlertTriangle, CheckCircle2, Crown, User, ArrowRight, Route, Zap, UserMinus } from "lucide-react";
 import { dbToUiIntensity } from "@/lib/sessions/intensity";
 import LeaveSessionDialog, { type LeaveSessionTarget } from "@/components/LeaveSessionDialog";
+import LegalFooter from "@/components/LegalFooter";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import logoImage from "@/assets/meetrun-logo-final.png";
@@ -867,6 +868,8 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <LegalFooter />
 
       <LeaveSessionDialog
         target={leaveTarget}

@@ -8,6 +8,7 @@ import { getSupabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import heroImage from "@/assets/hero-tropical-running.png";
 import logoImage from "@/assets/meetrun-logo-final.png";
+import LegalFooter from "@/components/LegalFooter";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import PromoOffer from "@/components/PromoOffer";
@@ -584,6 +585,7 @@ const Home = () => {
           </div>
         )}
       </div>
+      <LegalFooter />
     </div>
   );
 };

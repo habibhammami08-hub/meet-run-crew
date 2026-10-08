@@ -46,6 +46,7 @@ const SubscriptionCancel = createRetryLazy(() => import("./pages/SubscriptionCan
 const Goodbye = createRetryLazy(() => import("./pages/Goodbye"), "Goodbye");
 const AccountDeleted = createRetryLazy(() => import("./pages/AccountDeleted"), "AccountDeleted");
 const NotFound = createRetryLazy(() => import("./pages/NotFound"), "NotFound");
+const LegalNotice = createRetryLazy(() => import("./pages/LegalNotice"), "LegalNotice");
 
 // Loading component
 const LoadingSpinner = () => (
@@ -100,6 +101,8 @@ const App = () => {
                       <Route path="/goodbye" element={<Goodbye />} />
                       <Route path="/account-deleted" element={<AccountDeleted />} />
                       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="/legal" element={<LegalNotice />} />
+                      <Route path="/mentions-legales" element={<LegalNotice />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>
