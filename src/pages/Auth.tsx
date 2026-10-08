@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Phone, Chrome, Users, MapPin, Heart, CheckCircle } from "lucide-react";
 import logoImage from "@/assets/meetrun-logo-auth.png";
 import { isFreePromoActive } from "@/config/promo";
+import LegalFooter from "@/components/LegalFooter";
 import { Crown } from "lucide-react";
 
 const supabase = getSupabase();
@@ -527,7 +528,10 @@ const Auth = () => {
         {/* Bottom CTA */}
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground mb-2">
-            En vous connectant, vous acceptez nos conditions d'utilisation
+            En vous connectant, vous acceptez nos{" "}
+            <Link to="/legal" className="underline underline-offset-2 hover:text-foreground">
+              mentions légales et conditions d'utilisation
+            </Link>
           </p>
           <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
             <span>🏃‍♂️ +1000 runners actifs</span>
@@ -537,6 +541,8 @@ const Auth = () => {
             <span>⭐ 4.9/5 étoiles</span>
           </div>
         </div>
+
+        <LegalFooter />
       </div>
     </div>
   );
