@@ -137,8 +137,8 @@ const LegalNotice = () => {
             <p>
               Les coordonnées complètes de l'hébergeur sont communiquées sur simple demande à
               {" "}
-              <a href="mailto:contact@b-forbiz.com" className="text-deep underline underline-offset-4">
-                contact@b-forbiz.com
+              <a href="mailto:contact@meetrun.fr" className="text-deep underline underline-offset-4">
+                contact@meetrun.fr
               </a>
               .
             </p>
