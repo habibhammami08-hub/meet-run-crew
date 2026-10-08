@@ -541,6 +541,8 @@ const Auth = () => {
             <span>⭐ 4.9/5 étoiles</span>
           </div>
         </div>
+
+        <LegalFooter />
       </div>
     </div>
   );
