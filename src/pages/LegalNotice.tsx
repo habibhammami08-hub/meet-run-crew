@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import logoImage from "@/assets/meetrun-logo-final.png";
+import markImage from "@/assets/meetrun-mark.png";
 
 /** Ligne « intitulé : valeur » des blocs d'identification. */
 const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
@@ -60,7 +60,8 @@ const LegalNotice = () => {
           >
             <ArrowLeft size={15} />
           </Link>
-          <img src={logoImage} alt="MeetRun" className="h-6 w-auto" />
+          <img src={markImage} alt="" aria-hidden="true" className="h-6 w-auto shrink-0" />
+          <span className="text-sm font-bold tracking-tight text-deep">MeetRun</span>
           <span className="ml-auto text-xs font-medium text-muted-foreground">Mentions légales</span>
         </div>
       </div>
@@ -200,7 +201,10 @@ const LegalNotice = () => {
         </div>
 
         <footer className="mt-8 flex flex-col items-center gap-1 text-center">
-          <img src={logoImage} alt="MeetRun" className="h-5 w-auto opacity-70" />
+          <span className="inline-flex items-center gap-1.5">
+            <img src={markImage} alt="" aria-hidden="true" className="h-5 w-auto opacity-80" />
+            <span className="text-xs font-bold tracking-tight text-deep">MeetRun</span>
+          </span>
           <p className="text-xs text-muted-foreground">
             MeetRun — une marque de 2H consulting SAS
           </p>
